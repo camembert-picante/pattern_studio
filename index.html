@@ -20,7 +20,7 @@
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{height:100dvh;background:var(--bg);color:var(--ink);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--ink);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden;-webkit-tap-highlight-color:transparent}
 svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
 /* ---------- header ---------- */
@@ -363,6 +363,14 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
     <div class="line"><label><input type="checkbox" id="txtOutline" checked> Convert to outlines</label></div>
     <p class="hint">Outlines work everywhere: DXF, STL, STEP, morphing, and as a letterform boundary under Surface. Untick to keep live text (SVG and images only).</p>
     <div class="btns"><span style="flex:1"></span><button id="txtCancel">Cancel</button><button id="txtOk" class="primary">Add shape</button></div>
+  </div>
+</div>
+
+<div class="modal" id="newModal">
+  <div class="card" style="max-width:380px">
+    <h3>Start a new pattern?</h3>
+    <p class="hint">Your current pattern is cleared. You can still bring it back with Undo.</p>
+    <div class="btns"><span style="flex:1"></span><button id="newCancel">Cancel</button><button id="newOk" class="primary">Start new</button></div>
   </div>
 </div>
 
@@ -2403,8 +2411,17 @@ function clusterSpan(geo) {
 }
 
 /* ================= Export ================= */
-function download(name, data, type) {
-  const blob = data instanceof Blob ? data : new Blob([data], { type: type });
+// Inside a claude.ai page, files go through the viewer's save prompt; elsewhere a normal browser download.
+let hostSaver = null;
+function hostDownloads() { return hostSaver || (hostSaver = window.claude && window.claude.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null)); }
+async function download(name, data, type) {
+  let blob = data instanceof Blob ? data : new Blob([data], { type: type });
+  const dl = await hostDownloads();
+  if (dl) {
+    if (!/\.(png|jpe?g|webp|svg|json|zip|txt)$/i.test(name)) { blob = makeZip([{ name: name, data: new Uint8Array(await blob.arrayBuffer()) }]); name += '.zip'; } // CAD formats travel zipped
+    try { await dl.save({ filename: name, data: blob }); } catch (e) { if (e && e.code !== 'declined') toast('Could not save ' + name + (e && e.message ? ': ' + e.message : ''), 4000); }
+    return;
+  }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
@@ -2993,7 +3010,9 @@ $('#fileIn').onchange = ev => { [...ev.target.files].forEach(importFile); ev.tar
 $('#bOpen').onclick = () => $('#projIn').click();
 $('#projIn').onchange = async ev => { const f = ev.target.files[0]; ev.target.value = ''; if (!f) return; try { loadProject(JSON.parse(await readFile(f))); toast('Project opened'); } catch (e) { toast(e.message, 4000); } };
 $('#bSave').onclick = () => download('pattern-project.json', projectJSON(), 'application/json');
-$('#bNew').onclick = () => { if (!confirm('Start a new pattern? Unsaved changes stay in Undo.')) return; const keep = S.exp; S = defaultState(); S.exp = keep; rebuildAll(); fit(); pushHistory(true); };
+$('#bNew').onclick = () => $('#newModal').classList.add('open');
+$('#newCancel').onclick = () => $('#newModal').classList.remove('open');
+$('#newOk').onclick = () => { $('#newModal').classList.remove('open'); const keep = S.exp; S = defaultState(); S.exp = keep; rebuildAll(); fit(); pushHistory(true); };
 ['#bDraw', '#sDraw'].forEach(id => $(id).onclick = openDraw);
 ['#bText', '#sText'].forEach(id => $(id).onclick = openText);
 $('#sBake').onclick = bakeCell;
