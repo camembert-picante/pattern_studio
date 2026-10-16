@@ -25,8 +25,9 @@ Your work autosaves in the browser. Use **Save project** to keep a `.json` file 
   - **Reset motif** puts the motif back to a tidy size and spot in its cell.
   - **Shuffle** tries a random symmetry group and motif placement. Undo brings the last one back.
   - **Fit** shows the whole surface, and **View** turns guides on or off: rulers, cell, motif box, gradient handles, symmetry marks, seamless tile and heat map.
+- **Shape tools** run down the left edge of the canvas, like Illustrator's toolbar. Each button is a family (Organic, Geometric, Blocks, Lines, Your shapes) and shows the shape in use; click it to open the family and pick a shape. **Your shapes** holds imported, drawn and text shapes, with Import, Draw and Text buttons.
 - **Rulers** along the top and left of the canvas are in millimetres, with 0 at the surface's top-left corner.
-- **Settings panel**, with one tab per job: **Layout** (layers and how copies are arranged), **Shape** (shapes, motif), **Gradients**, **Style** (colour, surface), **Presets** and **Export**. The app opens on Layout with a plain pattern and no gradients; presets are optional and sit in their own tab.
+- **Settings panel**, with one tab per job: **Layout** (layers and how copies are arranged), **Motif** (size, turn, position, bake), **Gradients**, **Style** (colour, surface), **Presets** and **Export**. The app opens on Layout with a plain pattern and no gradients; presets are optional and sit in their own tab.
 
 ### Moving around and moving things
 
@@ -52,10 +53,8 @@ Every layout uses the same boundary, shapes and gradients, so switching between 
 
 | Layout | Notes |
 |---|---|
-| Wallpaper group (17) | p1 … p6m symmetry groups |
-| Grid | Rows and columns with a row offset (brick, staggered, hex) |
+| Wallpaper group (17) | p1 … p6m symmetry groups. Plain, brick and hex grids are p1 with the right side lengths and angle. |
 | Random scatter | Poisson-disc spacing, so pieces are random but evenly spaced. Gradients can make it denser or sparser. |
-| Along a path | Pieces follow a Curve or Line gradient, in one or more rows |
 | Spiral | Archimedean spiral; arms and turn gap are adjustable |
 | Concentric | Rings around a centre, or rings that follow the surface outline |
 | Fibonacci | Sunflower packing using the golden angle |
@@ -71,7 +70,7 @@ These apply to all layers.
 |---|---|
 | Point | Radial attractor with a set reach |
 | Line | Attractor along a segment |
-| Curve | Attractor along an editable spline; it can also be the path for "Along a path" |
+| Curve | Attractor along an editable spline |
 | Linear ramp | A gradient from 0 to 1 between two handles |
 | Image map | Halftone: an image's brightness drives the pattern, and dark areas give bigger pieces |
 | Noise | Organic variation |
@@ -99,7 +98,7 @@ These settings are per layer:
 
 ## Shapes
 
-- 22 built-in shapes, including a wave scale and an insole outline.
+- 22 built-in shapes in four families on the left tool rail, including a wave scale and an insole outline.
 - **Import:** SVG, PNG, JPG, GIF, WebP, BMP, AVIF and DXF. You can also paste SVG code or a path `d` string.
 - **Draw** your own shape.
 - **Text:** converted to outlines by default.
@@ -108,7 +107,7 @@ These settings are per layer:
 
 ## Presets
 
-There are 16 presets: Speaker grille, Laptop vent, Halftone dots, Sunflower, Voronoi stone, Flow waves, Moiré hatch, Shoe tread (pgg), Spiral seeds, Concentric diffuser, Path scatter, Seigaiha waves, Ridgeline waves, Midsole lattice, Letterform and Shape morph. Every value in a preset stays editable.
+There are 15 presets: Speaker grille, Laptop vent, Halftone dots, Sunflower, Voronoi stone, Flow waves, Moiré hatch, Shoe tread (pgg), Spiral seeds, Concentric diffuser, Seigaiha waves, Ridgeline waves, Midsole lattice, Letterform and Shape morph. Every value in a preset stays editable.
 
 ## Exports
 
@@ -128,7 +127,7 @@ If a STEP file won't open, switch the CAD import mode between Solid and Surface.
 
 ## Limits
 
-- A seamless tile exists only for lattice layouts (wallpaper or grid) at rotation 0° or 90°, with no active gradients and no feather.
+- A seamless tile exists only for wallpaper layouts at rotation 0° or 90°, with no active gradients and no feather.
 - The perforated plate needs pieces that don't overlap each other.
 - Morphing uses each shape's outer outline, so holes inside a shape are not morphed.
 - Very dense patterns stop at about 60,000 pieces. Increase the spacing, or split the surface into parts.

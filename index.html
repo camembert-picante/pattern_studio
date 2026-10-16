@@ -77,6 +77,21 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 372px;min-height:0}
 .toolbar{display:flex;gap:6px;padding:8px 10px;align-items:center;border-bottom:1px solid var(--line);background:var(--panel)}
 .stageWrap{--rul:20px;display:grid;grid-template-columns:var(--rul) minmax(0,1fr);grid-template-rows:var(--rul) minmax(0,1fr);min-height:0}
 .canvasWrap.noRulers .stageWrap{--rul:0px}
+.work{display:grid;grid-template-columns:auto minmax(0,1fr);min-height:0;position:relative}
+/* shape tools on the left, Illustrator style: each button is a family; click to open its flyout */
+.rail{display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;scrollbar-width:none}
+.rail::-webkit-scrollbar{display:none}
+.railBtn{position:relative;width:42px;height:42px;min-height:0;padding:7px;border-radius:9px;background:transparent;border-color:transparent;color:var(--ink)}
+.railBtn svg{width:100%;height:100%;display:block}
+.railBtn::after{content:'';position:absolute;right:4px;bottom:4px;border:solid transparent;border-width:0 0 5px 5px;border-bottom-color:var(--muted)}
+.railBtn.on{background:var(--sel);border-color:var(--accent)}
+.railBtn.open{background:var(--chip-hover);border-color:var(--line-strong)}
+.railSep{height:1px;background:var(--line);margin:2px 4px}
+.flyout{position:absolute;left:58px;top:6px;z-index:12;width:252px;max-width:calc(100% - 66px);max-height:calc(100% - 12px);overflow:auto;background:var(--raise);border:1px solid var(--line-strong);border-radius:12px;padding:10px;box-shadow:0 14px 40px rgba(0,0,0,.45)}
+.flyout[hidden]{display:none}
+.flyHead{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px;font-weight:650}
+.flyHead button{min-height:28px;width:28px}
+.flyout .shapes{grid-template-columns:repeat(4,minmax(0,1fr))}
 .rCorner{background:var(--panel);border-right:1px solid var(--line);border-bottom:1px solid var(--line);font-size:9px;color:var(--muted);display:grid;place-items:center;overflow:hidden}
 #rulerX{grid-column:2;grid-row:1}#rulerY{grid-column:1;grid-row:2}
 #rulerX,#rulerY{display:block;width:100%;height:100%;min-width:0;min-height:0}
@@ -170,6 +185,9 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
   .toolbar::-webkit-scrollbar{display:none}
   .toolbar>*{flex:none}
   .stageWrap{--rul:16px}
+  .rail{padding:4px;gap:3px}
+  .railBtn{width:38px;height:38px;padding:6px}
+  .flyout{left:50px;max-width:calc(100% - 56px)}
   .status{padding:5px 10px;font-size:11.5px}
   aside.panel{border-left:0;border-top:1px solid var(--line-strong);grid-template-rows:auto minmax(0,1fr) auto;border-radius:16px 16px 0 0;position:relative;z-index:3;box-shadow:0 -10px 30px rgba(0,0,0,.35)}
   .sheetGrip{display:flex;width:100%;min-height:26px;background:transparent;border:0;border-radius:16px 16px 0 0;padding:0;align-items:center;justify-content:center}
@@ -180,7 +198,6 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
   .pane{padding:4px 10px 18px}
   body.sheetMin .panes{display:none}
   .row{grid-template-columns:92px minmax(0,1fr) 64px}
-  .shapes{grid-template-columns:repeat(6,minmax(0,1fr))}
   #toast{bottom:calc(84px + env(safe-area-inset-bottom))}
 }
 @media (max-width:520px){
@@ -241,6 +258,9 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
         </div>
       </details>
     </div>
+    <div class="work">
+    <nav class="rail" id="shapeRail" aria-label="Shapes"></nav>
+    <div class="flyout" id="shapeFly" hidden></div>
     <div class="stageWrap">
       <div class="rCorner">mm</div><canvas id="rulerX"></canvas><canvas id="rulerY"></canvas>
       <svg id="stage" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -253,6 +273,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
         </g>
       </svg>
     </div>
+    </div>
     <div class="status" id="status"></div>
   </section>
 
@@ -260,7 +281,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
     <button class="sheetGrip" id="sheetGrip" aria-label="Show or hide settings"></button>
     <nav class="tabs" role="tablist" aria-label="Settings">
       <button data-tab="layout" class="on" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="12" cy="12" r="2"/></svg>Layout</button>
-      <button data-tab="shape" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3c4 4 7 6.5 7 10.5A7 7 0 0 1 5 13.5C5 9.5 8 7 12 3z"/></svg>Shape</button>
+      <button data-tab="shape" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3c4 4 7 6.5 7 10.5A7 7 0 0 1 5 13.5C5 9.5 8 7 12 3z"/></svg>Motif</button>
       <button data-tab="grad" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="6" stroke-dasharray="2 2.4"/><circle cx="12" cy="12" r="9.5" stroke-dasharray="1.5 3"/></svg>Gradients</button>
       <button data-tab="style" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.4-1.3-1.6-1.3-3 0-1 .8-1.6 1.8-1.6H17a4 4 0 0 0 4-4C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg>Style</button>
       <button data-tab="presets" role="tab"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Presets</button>
@@ -295,21 +316,10 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
       </div>
 
       <div class="pane" data-pane="shape">
-        <details open>
-          <summary>Shapes</summary>
-          <div class="sec">
-            <div class="shapes" id="shapeGrid"></div>
-            <div class="btns">
-              <button id="sImport" class="mini">Import…</button>
-              <button id="sDraw" class="mini">Draw</button>
-              <button id="sText" class="mini">Text</button>
-              <button id="sBake" class="mini" title="Turn this layer's copies around one point into a new shape, so you can feed it into another group">Bake cell → shape</button>
-            </div>
-            <div id="traceBox"></div>
-            <p class="hint hideNarrow">Drop or paste files anywhere: SVG, PNG, JPG, GIF, WebP, BMP, AVIF, DXF, SVG code or a path <code>d</code> string.</p>
-          </div>
+        <div id="traceBox"></div>
+        <details open id="detMotif"><summary>Motif</summary><div class="sec" id="secMotif"></div>
+          <div class="sec"><div class="btns"><button id="sBake" class="mini" title="Turn this layer's copies around one point into a new shape, so you can feed it into another group">Bake cell → new shape</button></div></div>
         </details>
-        <details open id="detMotif"><summary>Motif</summary><div class="sec" id="secMotif"></div></details>
       </div>
 
       <div class="pane" data-pane="grad">
@@ -1259,6 +1269,9 @@ function newLayer(over) {
   L.lay = Object.assign(LAY0(), over.lay || {});
   const m0 = MOD0(), mo = over.mod || {};
   L.mod = {}; Object.keys(m0).forEach(k => { L.mod[k] = Object.assign(m0[k], mo[k] || {}); });
+  // Grid and Along-a-path layouts were retired. A grid is exactly a p1 wallpaper whose second side is (row offset × width, row height).
+  if (L.layout === 'grid') { const ro = (L.lay.rowOff || 0) * L.cellW; L.layout = 'wallpaper'; L.group = 'p1'; L.bLen = +Math.hypot(ro, L.cellH).toFixed(3); L.angle = +(Math.atan2(L.cellH, ro) / D2R).toFixed(3); }
+  if (L.layout === 'path') L.layout = 'scatter';
   return L;
 }
 function defaultState() {
@@ -1470,7 +1483,7 @@ function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
 }
 
 /* ================= Layouts ================= */
-const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['grid', 'Grid'], ['scatter', 'Random scatter'], ['path', 'Along a path'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Cross-hatch lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
+const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Cross-hatch lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
 const LAYOUT_DESC = {
   wallpaper: 'Copies follow one of the 17 symmetry groups.', grid: 'Rows and columns. Row offset 0.5 gives a brick / staggered grid.',
   scatter: 'Even random spacing (Poisson disc). Gradients can make it denser or sparser.', path: 'Copies along a Curve or Line gradient (or a default curve), in one or more rows.',
@@ -2084,7 +2097,7 @@ function buildLayerControls() {
     if (L.link && idx > 0) sp.append(E('p', { class: 'hint' }, 'Spacing follows Layer 1. Untick to set it here.'));
     else {
       const mm = 'mm';
-      if (fam === 0) sp.append(numRow('Side a', P('cellW'), Q('cellW'), 2, 150, 0.1, mm), numRow('Side b', P('bLen'), Q('bLen'), 2, 150, 0.1, mm), numRow('Angle', P('angle'), Q('angle'), 30, 150, 0.5, '°'));
+      if (fam === 0) sp.append(numRow('Side a', P('cellW'), Q('cellW'), 2, 150, 0.1, mm), numRow('Side b', P('bLen'), Q('bLen'), 2, 150, 0.1, mm), numRow('Angle', P('angle'), Q('angle'), 10, 170, 0.5, '°'));
       else if (fam === 1 || fam === 2) {
         sp.append(numRow(lay === 'grid' ? 'Column gap' : 'Width', P('cellW'), Q('cellW'), 1, 150, 0.1, mm, fam === 2 ? 'Width of the centered rectangle' : ''), numRow(lay === 'grid' ? 'Row gap' : 'Height', P('cellH'), Q('cellH'), 1, 150, 0.1, mm));
         sp.append(line(E('button', { class: 'mini', onclick: () => { L.cellH = L.cellW; buildLayerControls(); changed(); commit(); } }, 'Make square'), fam === 2 || lay === 'grid' ? E('button', { class: 'mini', title: 'Rows of a triangular / hex packing', onclick: () => { L.cellH = +(L.cellW * (lay === 'grid' ? H3 : Math.sqrt(3))).toFixed(3); if (lay === 'grid') L.lay.rowOff = 0.5; buildLayerControls(); changed(); commit(); } }, lay === 'grid' ? 'Hex packing' : 'Height = √3 × width') : ''));
@@ -2259,7 +2272,7 @@ function buildExport() {
     ex.append(E('p', { class: 'hint' }, 'Uses closed outlines. Each piece is a watertight shell; your slicer or a Blender boolean union merges overlaps.'));
   }
   if (f.startsWith('dxf')) ex.append(E('p', { class: 'hint' }, 'Closed paths in real millimetres, one DXF layer per pattern layer. Line shapes export as centre lines. Images and text are skipped.'));
-  if (f.endsWith('tile')) { const t = commonTile(); ex.append(E('p', { class: t ? 'hint' : 'warn' }, t ? 'Tile: ' + fmt(t.w) + ' × ' + fmt(t.h) + ' mm. Edges match when tiled side by side.' : 'No seamless tile: needs lattice layouts (wallpaper / grid), rotation 0/90°, and no gradients or feather.')); }
+  if (f.endsWith('tile')) { const t = commonTile(); ex.append(E('p', { class: t ? 'hint' : 'warn' }, t ? 'Tile: ' + fmt(t.w) + ' × ' + fmt(t.h) + ' mm. Edges match when tiled side by side.' : 'No seamless tile: needs wallpaper layouts, rotation 0/90°, and no gradients or feather.')); }
   ex.append(E('div', { class: 'btns' }, E('button', { class: 'primary', onclick: doExport }, 'Export'), E('button', { onclick: copySVG }, 'Copy SVG code')));
 }
 function renderLayers() {
@@ -2304,7 +2317,6 @@ const PRESETS = [
     [{ layout: 'spiral', shape: 'leaf', lay: { spacing: 5.2, pitch: 6.5, arms: 1, cx: 50, cy: 50, align: true }, size: 4.6, fill: '#3d8b6e', mod: { size: { on: true, min: 1, max: 0.35 } } }])],
   ['Concentric diffuser', () => presetBase({ W: 180, H: 180, shape: 'rounded', radius: 40, edge: 'inside', featherOn: true, featherW: 14, featherMode: 'size', bg: '#e6e2da' }, [{ type: 'point', x: 90, y: 90, radius: 95 }],
     [{ layout: 'concentric', shape: 'dot', lay: { spacing: 6, ringMode: 'boundary' }, size: 3.6, fill: '#1f2a44', mod: { size: { on: true, min: 1, max: 0.4 } } }])],
-  ['Path scatter', () => { presetBase({ W: 220, H: 120, edge: 'clip', bg: '#f7f3ea' }, [{ type: 'curve', radius: 30 }], [{ layout: 'path', shape: 'leaf', lay: { spacing: 6, rows: 4, rowGap: 7, align: true, jitter: 12 }, size: 6, mrot: 90, fill: '#3d8b6e', mod: { size: { on: true, min: 0.5, max: 1 }, color: { on: true, c2: '#e8b04a' } } }]); S.layers[0].lay.pathId = S.ctrls[0].id; }],
   ['Seigaiha waves', () => presetBase({ W: 200, H: 150, edge: 'clip', bg: '#f3efe6' }, [], [{ layout: 'grid', shape: 'seigaiha', cellW: 20, cellH: 5, lay: { rowOff: 0.5, stack: 'down' }, mx: 0, my: 0, sx: 0, sy: 0, size: 20, fill: '#f3efe6', strokeOn: true, stroke: '#1f3f6e', sw: 0.9 }])],
   ['Ridgeline waves', () => presetBase({ W: 200, H: 200, edge: 'clip', bg: '#111214' }, [{ type: 'noise', radius: 28, seed: 5 }, { type: 'point', x: 100, y: 100, radius: 95, weight: 0.8 }],
     [{ layout: 'flow', lay: { spacing: 4.5, width: 0.7, angle: 0, bend: 55, bendCentre: true, wave: 0, waveLen: 50 }, fill: '#ece8df', mod: { size: { on: true, min: 0.6, max: 1.4 } } }])],
@@ -2324,15 +2336,54 @@ function buildPresets() {
   PRESETS.forEach(p => box.append(E('button', { class: 'mini', onclick: async () => { try { await p[1](); } catch (e) { toast(e.message || String(e), 4000); return; } rebuildAll(); fit(); pushHistory(true); toast('Preset: ' + p[0] + '. Every value stays editable.'); } }, p[0])));
 }
 function shapeThumb(s) { const sw = 0.07 / (s.k || 1); return '<svg viewBox="-0.56 -0.56 1.12 1.12"><use href="#sh_' + s.id + '_' + (s.kind === 'raster' ? 'o' : 'm') + '" fill="currentColor" color="currentColor" stroke="none" stroke-width="' + fmt(sw) + '"/></svg>'; }
+const SHAPE_GROUPS = [
+  ['organic', 'Organic', ['comma', 'leaf', 'crescent', 'drop', 'seigaiha', 'insole']],
+  ['geo', 'Geometric', ['dot', 'ring', 'square', 'tri', 'hex', 'star', 'kite', 'wedge']],
+  ['blocks', 'Blocks', ['bar', 'plus', 'ell', 'flag']],
+  ['lines', 'Lines', ['line', 'wave', 'arc', 'hook']],
+  ['yours', 'Your shapes', null]
+];
+let flyGroup = null;
+const groupShapes = gr => gr[2] ? gr[2].filter(id => SHAPES[id]) : Object.values(SHAPES).filter(sh => !sh.builtin || !SHAPE_GROUPS.some(q => q[2] && q[2].includes(sh.id))).map(sh => sh.id);
+function pickShape(id) { cur().shape = id; flyGroup = null; renderShapes(); buildLayerControls(); renderLayers(); requestRender(); pushHistory(); }
 function renderShapes() {
-  const g = $('#shapeGrid'); g.innerHTML = '';
-  Object.values(SHAPES).forEach(s => {
-    const b = E('div', { class: 'shape' + (cur().shape === s.id ? ' sel' : ''), title: s.name + (s.kind !== 'vector' ? ' (' + s.kind + ')' : ''), onclick: () => { cur().shape = s.id; renderShapes(); buildLayerControls(); renderLayers(); requestRender(); pushHistory(); } });
-    b.innerHTML = shapeThumb(s);
-    if (!s.builtin) b.append(E('span', { class: 'x', title: 'Delete shape', onclick: (ev) => { ev.stopPropagation(); delete SHAPES[s.id]; S.layers.forEach(L => { if (L.shape === s.id) L.shape = 'comma'; }); shapesDirty = true; rebuildAll(); pushHistory(); } }, '✕'));
-    g.append(b);
+  const rail = $('#shapeRail'), cs = cur().shape; rail.innerHTML = '';
+  SHAPE_GROUPS.forEach((gr, gi) => {
+    const ids = groupShapes(gr), has = ids.includes(cs), show = has ? cs : ids[0];
+    if (gr[0] === 'yours') rail.append(E('div', { class: 'railSep' }));
+    const b = E('button', { class: 'railBtn' + (has ? ' on' : '') + (flyGroup === gr[0] ? ' open' : ''), 'data-g': gr[0], title: gr[1] + (has ? ': ' + SHAPES[cs].name : ''), 'aria-label': gr[1], onclick: ev => { ev.stopPropagation(); flyGroup = flyGroup === gr[0] ? null : gr[0]; renderShapes(); } });
+    b.innerHTML = show ? shapeThumb(SHAPES[show]) : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>';
+    rail.append(b);
   });
+  renderFly();
 }
+function renderFly() {
+  const fly = $('#shapeFly'), gr = SHAPE_GROUPS.find(q => q[0] === flyGroup);
+  if (!gr) { fly.hidden = true; return; }
+  const ids = groupShapes(gr); fly.hidden = false; fly.innerHTML = '';
+  fly.append(E('div', { class: 'flyHead' }, E('span', {}, gr[1]), E('button', { class: 'icon ghost', 'aria-label': 'Close', onclick: () => { flyGroup = null; renderShapes(); } }, '✕')));
+  if (ids.length) {
+    const grid = E('div', { class: 'shapes' });
+    ids.forEach(id => {
+      const sh = SHAPES[id], it = E('div', { class: 'shape' + (cur().shape === id ? ' sel' : ''), title: sh.name + (sh.kind !== 'vector' ? ' (' + sh.kind + ')' : ''), onclick: () => pickShape(id) });
+      it.innerHTML = shapeThumb(sh);
+      if (!sh.builtin) it.append(E('span', { class: 'x', title: 'Delete shape', onclick: ev => { ev.stopPropagation(); delete SHAPES[id]; S.layers.forEach(L => { if (L.shape === id) L.shape = 'comma'; }); shapesDirty = true; rebuildAll(); pushHistory(); } }, '✕'));
+      grid.append(it);
+    });
+    fly.append(grid);
+  }
+  if (gr[0] === 'yours') {
+    if (!ids.length) fly.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Nothing here yet. Bring in your own shape:'));
+    fly.append(E('div', { class: 'btns' },
+      E('button', { class: 'mini', onclick: () => { flyGroup = null; renderShapes(); $('#fileIn').click(); } }, 'Import…'),
+      E('button', { class: 'mini', onclick: () => { flyGroup = null; renderShapes(); openDraw(); } }, 'Draw'),
+      E('button', { class: 'mini', onclick: () => { flyGroup = null; renderShapes(); openText(); } }, 'Text')));
+    fly.append(E('p', { class: 'hint' }, 'SVG, PNG, JPG, GIF, WebP, BMP, AVIF or DXF. You can also drop or paste files, SVG code or a path d string anywhere.'));
+  }
+  const btn = $('#shapeRail [data-g="' + gr[0] + '"]'), room = fly.parentElement.clientHeight;
+  fly.style.top = Math.max(6, Math.min(btn ? btn.offsetTop : 6, room - fly.offsetHeight - 6)) + 'px';
+}
+document.addEventListener('click', ev => { if (flyGroup && !ev.target.closest('#shapeFly') && !ev.target.closest('#shapeRail')) { flyGroup = null; renderShapes(); } });
 function buildTraceBox() {
   const box = $('#traceBox'); box.innerHTML = '';
   const s = SHAPES[cur().shape];
@@ -2377,7 +2428,7 @@ function importText(t) {
   return false;
 }
 function bakeCell() {
-  if (cur().layout && cur().layout !== 'wallpaper' && cur().layout !== 'grid') { toast('Bake works on wallpaper and grid layers.'); return; }
+  if (cur().layout && cur().layout !== 'wallpaper' && cur().layout !== 'grid') { toast('Bake works on wallpaper layers.'); return; }
   const L = cur(), geo = geom(L), sh = geo.sh;
   // copies of one cell, each moved by a lattice step so they cluster around the layer origin
   const Wi = Af.inv(geo.G), parts = [];
@@ -3133,7 +3184,7 @@ $('#lDup').onclick = () => { const L = JSON.parse(JSON.stringify(cur())); L.id =
 $('#lDel').onclick = () => { if (S.layers.length < 2) { toast('Keep at least one layer'); return; } S.layers.splice(S.sel, 1); S.sel = Math.max(0, S.sel - 1); if (S.layers[0]) S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#lUp').onclick = () => { const i = S.sel; if (i >= S.layers.length - 1) return; [S.layers[i], S.layers[i + 1]] = [S.layers[i + 1], S.layers[i]]; S.sel = i + 1; S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#lDown').onclick = () => { const i = S.sel; if (i <= 0) return; [S.layers[i], S.layers[i - 1]] = [S.layers[i - 1], S.layers[i]]; S.sel = i - 1; S.layers[0].link = false; rebuildAll(); pushHistory(); };
-['#bImport', '#sImport'].forEach(id => $(id).onclick = () => $('#fileIn').click());
+$('#bImport').onclick = () => $('#fileIn').click();
 $('#fileIn').onchange = ev => { [...ev.target.files].forEach(importFile); ev.target.value = ''; };
 $('#bOpen').onclick = () => $('#projIn').click();
 $('#projIn').onchange = async ev => { const f = ev.target.files[0]; ev.target.value = ''; if (!f) return; try { loadProject(JSON.parse(await readFile(f))); toast('Project opened'); } catch (e) { toast(e.message, 4000); } };
@@ -3141,15 +3192,15 @@ $('#bSave').onclick = () => download('pattern-project.json', projectJSON(), 'app
 $('#bNew').onclick = () => $('#newModal').classList.add('open');
 $('#newCancel').onclick = () => $('#newModal').classList.remove('open');
 $('#newOk').onclick = () => { $('#newModal').classList.remove('open'); const keep = S.exp; S = defaultState(); S.exp = keep; rebuildAll(); fit(); pushHistory(true); };
-['#bDraw', '#sDraw'].forEach(id => $(id).onclick = openDraw);
-['#bText', '#sText'].forEach(id => $(id).onclick = openText);
+$('#bDraw').onclick = openDraw;
+$('#bText').onclick = openText;
 $('#sBake').onclick = bakeCell;
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 document.addEventListener('keydown', ev => {
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.type !== 'range' && document.activeElement.type !== 'checkbox';
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'z' && !typing) { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'y' && !typing) { ev.preventDefault(); redo(); return; }
-  if (ev.key === 'Escape') { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); if (cropMode) setCrop(false); }
+  if (ev.key === 'Escape') { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); if (cropMode) setCrop(false); if (flyGroup) { flyGroup = null; renderShapes(); } }
   if (typing || document.querySelector('.modal.open')) return;
   if (ev.key === ' ') { ev.preventDefault(); if (!spaceDown) { spaceDown = true; if (!drag) stage.style.cursor = 'grab'; } return; }
   if (ev.key === 'Enter' && cropMode) { setCrop(false); return; }
