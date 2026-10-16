@@ -30,7 +30,7 @@ function parseArgs(argv) {
     else if (!o.input) o.input = a;
     else throw new Error('Unexpected argument: ' + a);
   }
-  if (!o.input) throw new Error('Give a pattern: a .json file, a share link, or - for stdin. --help for usage.');
+  if (!o.input) throw new Error('Give a pattern: a .json file, a share link, or a dash (-) for stdin. --help for usage.');
   return o;
 }
 

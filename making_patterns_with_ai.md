@@ -6,20 +6,22 @@ Pattern Studio can be driven by an AI assistant (Claude or any other) in three w
 |---|---|---|
 | **1. A share link** | Any chat with any AI, no tools needed | A link that opens the pattern in the browser, ready to edit or export |
 | **2. The render script** | Claude Code or any agent that can run commands | Finished files (SVG, PNG, DXF, STEP, STL…) written straight to disk |
-| **3. The in-page API** | Agents that control a browser | `window.PatternStudio` for loading, inspecting and exporting |
+| **3. The in page API** | Agents that control a browser | `window.PatternStudio` for loading, inspecting and exporting |
 
 All three use the same **pattern description**: a small JSON object, documented below. Every field is optional except `layers`, and anything left out takes its default.
 
 The public site is **https://camembert-picante.github.io/pattern_studio/**.
 
----
+**For an AI agent working in this repository:** the whole app is `index.html` (HTML, CSS and JS in one file, no build step). To make a pattern for someone, write the pattern description, run `node tools/render.mjs pattern.json --format png` and look at the result, adjust, then render the formats they asked for and give them the files together with the `--link`, so they can keep editing in the browser.
+
+***
 
 ## 1. Share links
 
-Put the pattern JSON after `#pattern=`, URL-encoded:
+Put the pattern JSON after `#pattern=`, URL encoded:
 
 ```
-https://camembert-picante.github.io/pattern_studio/#pattern=<URL-encoded JSON>
+https://camembert-picante.github.io/pattern_studio/#pattern=<URL encoded JSON>
 ```
 
 Opening the link loads the pattern, replacing what was on screen. Undo brings back the previous one. Example: a hexagonal star pattern.
@@ -30,10 +32,10 @@ https://camembert-picante.github.io/pattern_studio/#pattern=%7B%22layers%22%3A%5
 
 which is `{"layers":[{"shape":"star","group":"p6m","cellW":14}]}`.
 
-- **File → Copy share link** in the app makes a shorter, compressed link (`#p=…`) for any pattern, including your own shapes.
-- Links work on the public site and on any copy of `index.html` served over http(s). They do not work on a claude.ai artifact page, because claude.ai drops this part of the address, and the app's own links always point at the public site.
+* **File → Copy share link** in the app makes a shorter, compressed link (`#p=…`) for any pattern, including your own shapes.
+* Links work on the public site and on any copy of `index.html` served over http(s). They do not work on a claude.ai artifact page, because claude.ai drops this part of the address, and the app's own links always point at the public site.
 
-**For an AI writing a link:** build the JSON, keep it compact (no spaces), URL-encode it, and append it to the address above. Keep to built-in shape ids or define shapes with `svgShapes` (below).
+**For an AI writing a link:** build the JSON, keep it compact (no spaces), URL encode it, and append it to the address above. Keep to built in shape ids or define shapes with `svgShapes` (below).
 
 ## 2. The render script (Claude Code and other agents)
 
@@ -52,7 +54,7 @@ echo '{"layers":[{"shape":"dot","group":"p6","cellW":6}]}' | node tools/render.m
 | `--dpi n` | Resolution for png / jpg / webp / displacement maps |
 | `--relief mm`, `--base mm` | Relief height and base plate thickness for STL and STEP |
 | `--solid relief\|perforated` | STEP: raised pieces on a plate, or a plate with every piece cut through |
-| `--split 1-4` | STEP: split into n × n blocks (zipped) for heavy patterns |
+| `--split n` (1 to 4) | STEP: split into n × n blocks (zipped) for heavy patterns |
 | `--no-expand` | SVG: keep copies as `<use>` references |
 | `--link` | Also print a share link for the pattern |
 
@@ -60,7 +62,7 @@ It prints a JSON summary: piece count, open area (%), surface size, seamless til
 
 **Workflow for an agent:** write the pattern JSON → render a PNG → look at it → adjust → render the final formats → give the user the files and the share link so they can keep editing.
 
-## 3. The in-page API
+## 3. The in page API
 
 On the site (or any copy of `index.html`), `window.PatternStudio` offers:
 
@@ -70,18 +72,18 @@ On the site (or any copy of `index.html`), `window.PatternStudio` offers:
 | `get()` | The current pattern as a full project object |
 | `summary()` | Layers, pieces, open area, surface, seamless tile, gradient count |
 | `reset('clear' \| 'example')` | One empty layer, or the starter pattern |
-| `presets()` / `preset(name)` | List or load the built-in presets |
+| `presets()` / `preset(name)` | List or load the built in presets |
 | `shapes()`, `groups()`, `layouts()`, `formats()` | What can be used |
 | `addShape(svgText, name)` | Add a shape from SVG; returns its id |
 | `await export(format, options)` | `[{ filename, mime, base64 }]`, with no download dialog |
 | `await link()` | A share link for the current pattern |
 | `await fromLink(url)` | The pattern inside a share link |
 
----
+***
 
 ## The pattern description
 
-All sizes are in **millimetres**; angles are in degrees. Coordinates are measured from the surface's top-left corner, x to the right, y down.
+All sizes are in **millimetres**; angles are in degrees. Coordinates are measured from the surface's top left corner, x to the right, y down.
 
 ```json
 {
@@ -89,9 +91,9 @@ All sizes are in **millimetres**; angles are in degrees. Coordinates are measure
   "ctrls": [ { "type": "point", "x": 100, "y": 75, "radius": 80 } ],
   "layers": [ {
     "layout": "wallpaper", "group": "p4", "shape": "comma",
-    "cellW": 20, "size": 8, "fill": "#1f2a44",
-    "mod": { "size": { "on": true, "min": 0.4, "max": 1 } }
-  } ]
+    "cellW": 20, "size": 8, "fill": "#1f2a44"
+  } ],
+  "fx": [ { "kind": "size", "p": { "min": 0.4, "max": 1 } } ]
 }
 ```
 
@@ -109,7 +111,7 @@ All sizes are in **millimetres**; angles are in degrees. Coordinates are measure
 | `boundary` | Draw the outline in exports | `false` |
 | `featherOn`, `featherW` | Soften the pattern towards the edge over this width | `false`, 10 |
 | `featherMode` | `size` shrink · `fade` · `sizefade` · `dither` thin out | `size` |
-| `featherMin`, `featherCurve` | Size at the very edge (0–1); `linear smooth in out step` | 0, `smooth` |
+| `featherMin`, `featherCurve` | Size at the very edge (0 to 1); `linear smooth in out step` | 0, `smooth` |
 
 ### Layers: `layers[]`
 
@@ -126,7 +128,7 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `fibonacci` | Sunflower packing | `spacing`, `cx`, `cy`, `align` (point copies outward), `jitter` |
 | `hatch` | Continuous lines; their width follows gradients | `spacing`, `width`, `angle`, `cross` (second direction), `crossAngle` |
 | `flow` | Lines that bend with gradients and can wave | `spacing`, `width`, `angle`, `bend`, `bendCentre`, `wave`, `waveLen`, `waveSkew` |
-| `voronoi` | Stones separated by cracks | `spacing` (stone size), `gap` (crack width), `round` (0–4), `seed` |
+| `voronoi` | Stones separated by cracks | `spacing` (stone size), `gap` (crack width), `round` (0 to 4), `seed` |
 
 `hatch`, `flow` and `voronoi` draw their own geometry and ignore `shape`.
 
@@ -140,11 +142,11 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `p4`, `p4m`, `p4g` | square | `cellW` |
 | `p3`, `p3m1`, `p31m`, `p6`, `p6m` | hexagonal | `cellW` (distance between rotation centres) |
 
-- `p1` copies only slide, so every copy faces the same way. That makes `p1` the plain grid: a square grid is `"angle": 90, "bLen"` equal to `cellW`, and a hex or staggered grid is `"angle": 60`.
-- The other groups add half-turns (`p2`), mirrors (`m`), glides (`g`), quarter-turns (`p4…`) or third- and sixth-turns (`p3…`, `p6…`).
-- `rot` rotates the whole pattern.
-- `sx`, `sy` place the lattice origin, a symmetry point. Set them to W/2, H/2 to centre the pattern.
-- `link: true` on layers 2+ reuses Layer 1's cell so stacked layers stay aligned.
+* `p1` copies only slide, so every copy faces the same way. That makes `p1` the plain grid: a square grid is `"angle": 90, "bLen"` equal to `cellW`, and a hex or staggered grid is `"angle": 60`.
+* The other groups add half turns (`p2`), mirrors (`m`), glides (`g`), quarter turns (`p4…`) or third- and sixth turns (`p3…`, `p6…`).
+* `rot` rotates the whole pattern.
+* `sx`, `sy` place the lattice origin, a symmetry point. Set them to W/2, H/2 to centre the pattern.
+* `link: true` on layers 2+ reuses Layer 1's cell so stacked layers stay aligned.
 
 **Motif** (any layout except hatch / flow / voronoi)
 
@@ -163,27 +165,48 @@ If a layer gives none of `size`, `mx` and `my`, the motif is placed automaticall
 |---|---|---|
 | `fill` | Colour | `#1f2a44` |
 | `strokeOn`, `stroke`, `sw` | Outline on/off, colour, width (mm; for line shapes this is the line width) | `false`, `#000000`, 0.6 |
-| `opacity`, `blend` | 0–1; `normal multiply screen overlay darken lighten difference exclusion` | 1, `normal` |
+| `opacity`, `blend` | 0 to 1; `normal multiply screen overlay darken lighten difference exclusion` | 1, `normal` |
 | `colorMode`, `palette`, `paletteN` | `single`, or colour copies by `copy` (orientation), `flip`, `rows`, `cols`, `checker`, `random` using the first `paletteN` colours of `palette` | `single` |
 | `visible` | Show the layer | `true` |
 
-**Gradient response: `mod`** (what this layer does with the gradients)
+### Effects: `fx[]`
 
-| Key | Fields | Effect |
+Effects decide what the gradients do, like layer effects in Photoshop. Each effect is one response, driven by some or all gradients and applied to some or all layers. Several effects can stack, including several of the same kind, and they apply in list order.
+
+```json
+"fx": [
+  { "kind": "size",  "p": { "min": 0.3, "max": 1 } },
+  { "kind": "color", "p": { "c2": "#e8b04a" }, "src": ["g1"], "layers": ["L2"] }
+]
+```
+
+| Field | Meaning | Default |
 |---|---|---|
-| `size` | `on`, `min` (far), `max` (near) | Scale. Line layouts vary width; voronoi varies stone size |
-| `spacing` | `on`, `amt` (-0.9 denser … 0.9 sparser) | Packs pieces closer or spreads them near gradients |
-| `rot` | `on`, `deg` | Turn pieces near gradients |
-| `align` | `on`, `off` | Point pieces along the gradient (+ offset) |
-| `opacity` | `on`, `min` (far opacity) | Fade |
-| `feather` | `on`, `w` (0.05–1) | Fade to nothing where the gradient dies |
-| `drop` | `on`, `mode` (`threshold` or `dither`), `t` | Remove pieces where the gradient is weak |
-| `color` | `on`, `c2` (far colour) | Blend from `c2` to `fill` |
-| `morph` | `on`, `shape`, `steps` | Morph into another shape across the gradient |
+| `kind` | One of the kinds below | |
+| `p` | The settings for that kind | the kind's defaults |
+| `src` | `"all"`, or a list of gradient `id`s that drive it | `"all"` |
+| `layers` | `"all"`, or a list of layer `id`s it applies to | `"all"` |
+| `on` | Turn the effect off without removing it | `true` |
+
+To point an effect at particular gradients or layers, give those gradients and layers an `id` (any short text, like `"g1"` or `"L2"`) and list the ids.
+
+| `kind` | `p` | Effect |
+|---|---|---|
+| `size` | `min` (far), `max` (near) | Scale. Line layouts vary width; voronoi varies stone size |
+| `spacing` | `amt` (-0.9 denser … 0.9 sparser) | Packs pieces closer or spreads them near gradients |
+| `rot` | `deg` | Turn pieces near gradients |
+| `align` | `off` | Point pieces along the gradient (plus an offset) |
+| `opacity` | `min` (far opacity) | Fade |
+| `feather` | `w` (0.05 to 1) | Fade to nothing where the gradient dies |
+| `drop` | `mode` (`threshold` or `dither`), `t` | Remove pieces where the gradient is weak |
+| `color` | `c2` (far colour) | Blend from `c2` to each layer's `fill` |
+| `morph` | `shape`, `steps` | Morph into another shape across the gradient |
+
+`rot`, `align` and `morph` act on shape layers only. Older projects stored responses per layer as `"mod": { "size": { "on": true, … } }`; those still load and become effects for that layer.
 
 ### Gradients: `ctrls[]` and `mix`
 
-Gradients are shared by all layers and give a value from 0 to 1 everywhere on the surface; each layer's `mod` decides what that value does.
+Gradients are sources: each gives a value from 0 to 1 everywhere on the surface, and the effects decide what that value does. Give a gradient an `id` when an effect should follow only that one.
 
 | `type` | Fields |
 |---|---|
@@ -194,15 +217,15 @@ Gradients are shared by all layers and give a value from 0 to 1 everywhere on th
 | `noise` | `radius` (feature size), `seed` |
 | `image` | `data` (an image data URL; dark = 1), `contrast` |
 
-All types also take `curve` (falloff: `linear smooth in out step`), `invert`, `weight` (strength 0–1) and `on`. `mix` combines several: `max` (default), `add`, `multiply`, `min`.
+All types also take `curve` (falloff: `linear smooth in out step`), `invert`, `weight` (strength 0 to 1) and `on`. `mix` combines several: `max` (default), `add`, `multiply`, `min`.
 
 ### Shapes
 
-Built-in ids:
-- **Organic:** `comma` `leaf` `drop` `crescent` `seigaiha` (wave scale)
-- **Geometric:** `dot` `ellipse` `pill` `bar` `square` `tri` `hex` `star` `ring` `plus` `ell`
-- **Lines:** `line` `wave` `arc` `hook`. These are drawn as strokes; their thickness is `sw`.
-- **Surface outlines:** `insole`
+Built in ids:
+* **Organic:** `comma` `leaf` `drop` `crescent` `seigaiha` (wave scale)
+* **Geometric:** `dot` `ellipse` `pill` `bar` `square` `tri` `hex` `star` `ring` `plus` `ell`
+* **Lines:** `line` `wave` `arc` `hook`. These are drawn as strokes; their thickness is `sw`.
+* **Surface outlines:** `insole`
 
 Define your own with `svgShapes`, then use the id like any other:
 
@@ -214,15 +237,15 @@ Define your own with `svgShapes`, then use the id like any other:
 ]
 ```
 
-- **Coordinates:** any units work; shapes are scaled to fit.
-- **Holes:** a path with several closed parts uses even-odd filling, so inner parts become holes.
-- **Line shapes:** add `"line": true` to draw the path as a stroke instead of a fill.
+* **Coordinates:** any units work; shapes are scaled to fit.
+* **Holes:** a path with several closed parts uses even odd filling, so inner parts become holes.
+* **Line shapes:** add `"line": true` to draw the path as a stroke instead of a fill.
 
 ### Export settings: `exp`
 
 `dpi`, `expand` (SVG copies as paths), `reliefH`, `baseT`, `solid` (`relief` or `perforated`), `split`, `stepTol`, `jpgQ`. The render script's options set these for you.
 
----
+***
 
 ## Recipes
 
@@ -230,16 +253,26 @@ Define your own with `svgShapes`, then use the id like any other:
 ```json
 { "region": { "W": 120, "H": 120, "shape": "ellipse", "edge": "inside", "featherOn": true, "featherW": 10, "featherMin": 0.3 },
   "ctrls": [ { "type": "point", "x": 60, "y": 60, "radius": 62 } ],
-  "layers": [ { "group": "p1", "shape": "dot", "cellW": 4.2, "bLen": 4.2, "angle": 60, "sx": 60, "sy": 60, "mx": 0, "my": 0, "size": 3.2,
-                "mod": { "size": { "on": true, "min": 0.45, "max": 1 } } } ] }
+  "layers": [ { "group": "p1", "shape": "dot", "cellW": 4.2, "bLen": 4.2, "angle": 60, "sx": 60, "sy": 60, "mx": 0, "my": 0, "size": 3.2 } ],
+  "fx": [ { "kind": "size", "p": { "min": 0.45, "max": 1 } } ] }
 ```
 
 **Laptop vent: slots that fade out along a ramp**
 ```json
 { "region": { "W": 220, "H": 70, "shape": "rounded", "radius": 14, "edge": "inside" },
   "ctrls": [ { "type": "ramp", "x1": 10, "y1": 35, "x2": 210, "y2": 35 } ],
-  "layers": [ { "group": "p1", "shape": "pill", "cellW": 10, "bLen": 6, "angle": 63.4, "mx": 0, "my": 0, "size": 8,
-                "mod": { "size": { "on": true, "min": 0.3, "max": 1 }, "feather": { "on": true, "w": 0.3 } } } ] }
+  "layers": [ { "group": "p1", "shape": "pill", "cellW": 10, "bLen": 6, "angle": 63.4, "mx": 0, "my": 0, "size": 8 } ],
+  "fx": [ { "kind": "size", "p": { "min": 0.3, "max": 1 } }, { "kind": "feather", "p": { "w": 0.3 } } ] }
+```
+
+**Two layers, one effect each**
+```json
+{ "ctrls": [ { "id": "centre", "type": "point", "x": 100, "y": 75, "radius": 90 }, { "id": "ramp", "type": "ramp", "x1": 0, "y1": 0, "x2": 200, "y2": 0 } ],
+  "layers": [ { "id": "dots", "group": "p4", "shape": "dot", "cellW": 10, "size": 7 },
+              { "id": "rings", "group": "p6", "shape": "ring", "cellW": 16, "size": 9, "fill": "#d4552b" } ],
+  "fx": [ { "kind": "size", "src": ["centre"], "layers": ["dots"], "p": { "min": 0.2, "max": 1 } },
+          { "kind": "rot", "src": ["ramp"], "layers": ["rings"], "p": { "deg": 180 } },
+          { "kind": "color", "p": { "c2": "#e8b04a" } } ] }
 ```
 
 **Tread with mirrored leaves**
@@ -251,13 +284,13 @@ Define your own with `svgShapes`, then use the id like any other:
 **Halftone from noise**
 ```json
 { "ctrls": [ { "type": "noise", "radius": 30, "seed": 4 } ],
-  "layers": [ { "layout": "fibonacci", "shape": "dot", "lay": { "spacing": 3.5, "cx": 50, "cy": 50 }, "size": 3.2,
-                "mod": { "size": { "on": true, "min": 0.1, "max": 1 }, "drop": { "on": true, "t": 0.08 } } } ] }
+  "layers": [ { "layout": "fibonacci", "shape": "dot", "lay": { "spacing": 3.5, "cx": 50, "cy": 50 }, "size": 3.2 } ],
+  "fx": [ { "kind": "size", "p": { "min": 0.1, "max": 1 } }, { "kind": "drop", "p": { "t": 0.08 } } ] }
 ```
 
 ## Good to know
 
-- **Piece count:** keep the motif smaller than its cell, and keep `size` and `spacing` sensible for the surface. Rendering stops at about 60,000 pieces.
-- **Seamless tiles** (`svgtile`, `pngtile`, `disptile`, `dxftile`) need wallpaper layers at 0° or 90° rotation, no active gradient responses and no feather.
-- **STEP** with `perforated` needs pieces that don't overlap.
-- **Holes inside shapes** are kept in exports, but morphing uses only each shape's outer outline.
+* **Piece count:** keep the motif smaller than its cell, and keep `size` and `spacing` sensible for the surface. Rendering stops at about 60,000 pieces.
+* **Seamless tiles** (`svgtile`, `pngtile`, `disptile`, `dxftile`) need wallpaper layers at 0° or 90° rotation, no active effects and no feather.
+* **STEP** with `perforated` needs pieces that don't overlap.
+* **Holes inside shapes** are kept in exports, but morphing uses only each shape's outer outline.

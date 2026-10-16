@@ -151,6 +151,18 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
 .layer .sw{width:18px;height:18px;border-radius:5px;border:1px solid var(--line-strong);flex:none}
 .layer .nm{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .layer .eye{border:0;background:none;padding:0 4px;min-height:28px;color:var(--muted)}
+.fxBadge{min-height:22px;padding:0 6px;font-size:11px;font-style:italic;font-weight:650;border-radius:6px;background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.fxList{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.fx{border:1px solid var(--line);border-radius:8px;background:var(--field)}
+.fx.open{border-color:var(--line-strong)}
+.fx.off .fxName{opacity:.5}
+.fxHead{display:flex;align-items:center;gap:6px;padding:6px 8px;cursor:pointer;min-height:40px}
+.fxHead .eye{border:0;background:none;padding:0 4px;min-height:28px;color:var(--muted)}
+.fxName{flex:1;min-width:0;display:flex;flex-direction:column;font-weight:600}
+.fxName small{font-weight:400;color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fxBody{padding:2px 10px 10px;border-top:1px solid var(--line)}
+.fxPick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin-top:8px;font-size:12px;color:var(--muted)}
+.fxPickT{width:100%;color:var(--ink);font-weight:600;font-size:12px}
 
 /* ---------- modals, toast ---------- */
 .modal{position:fixed;inset:0;background:rgba(2,8,5,.6);display:none;align-items:center;justify-content:center;z-index:20;padding:12px}
@@ -171,7 +183,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
 #sandbox{position:fixed;left:-20000px;top:0;width:400px;height:400px;overflow:hidden;opacity:0;pointer-events:none}
 .drop{outline:3px dashed var(--accent);outline-offset:-6px}
 
-/* ---------- touch screens: bigger targets, no iOS zoom-on-focus ---------- */
+/* ---------- touch screens: bigger targets, no iOS zoom on focus ---------- */
 @media (pointer:coarse){
   :root{--tap:40px}
   input[type=number],input[type=text],select{font-size:16px;min-height:36px}
@@ -209,7 +221,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
   #toast{bottom:calc(84px + env(safe-area-inset-bottom))}
 }
 @media (max-width:520px){
-  .toolbar{gap:3px;padding-left:6px;padding-right:6px}
+  .toolbar{gap:4px 3px;padding-left:6px;padding-right:6px;flex-wrap:wrap;overflow-x:visible}
   .toolbar button,.toolbar .menu>summary{padding:0 8px;font-size:12.5px}
   .toolbar .lblBtn svg{display:none}
 }
@@ -229,7 +241,6 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
     <summary>File</summary>
     <div class="menuList">
       <button id="bNew">New pattern</button>
-      <button id="bClear">Clear everything</button>
       <button id="bOpen">Open project…</button>
       <button id="bSave">Save project</button>
       <button id="bLink" title="A link that opens this exact pattern in any browser">Copy share link</button>
@@ -252,6 +263,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
       <button id="tCenter" class="lblBtn" title="Center the pattern on the surface"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>Center</button>
       <button id="tAuto" class="lblBtn" title="Reset motif: put the motif back to a tidy size and spot in its cell"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>Reset motif</button>
       <button id="tRand" class="lblBtn" title="Shuffle: try a random symmetry group and motif placement (Undo brings back the last one)"><svg class="i" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>Shuffle</button>
+      <button id="tClear" class="lblBtn" title="Clear everything: one empty layer, no gradients or effects (Undo brings it back)"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>Clear everything</button>
       <span class="sp"></span>
       <button id="tFit" title="Fit the surface to the screen (F or Ctrl/Cmd+0)">Fit</button>
       <details class="menu" id="viewMenu">
@@ -292,7 +304,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
     <nav class="tabs" role="tablist" aria-label="Settings">
       <button data-tab="layout" class="on" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="12" cy="12" r="2"/></svg>Layout</button>
       <button data-tab="shape" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3c4 4 7 6.5 7 10.5A7 7 0 0 1 5 13.5C5 9.5 8 7 12 3z"/></svg>Motif</button>
-      <button data-tab="grad" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="6" stroke-dasharray="2 2.4"/><circle cx="12" cy="12" r="9.5" stroke-dasharray="1.5 3"/></svg>Gradients</button>
+      <button data-tab="grad" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="6" stroke-dasharray="2 2.4"/><circle cx="12" cy="12" r="9.5" stroke-dasharray="1.5 3"/></svg>Effects</button>
       <button data-tab="style" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.4-1.3-1.6-1.3-3 0-1 .8-1.6 1.8-1.6H17a4 4 0 0 0 4-4C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg>Style</button>
       <button data-tab="presets" role="tab"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Presets</button>
       <button data-tab="export" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 19h14"/></svg>Export</button>
@@ -333,8 +345,8 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
       </div>
 
       <div class="pane" data-pane="grad">
-        <details open><summary>Gradients &amp; attractors <small>all layers</small></summary><div class="sec" id="secGrad"></div></details>
-        <details open><summary>Gradient response <small>this layer</small></summary><div class="sec" id="secResp"></div></details>
+        <details open><summary>Gradients &amp; attractors <small>sources</small></summary><div class="sec" id="secGrad"></div></details>
+        <details open><summary>Effects <small>what the gradients do</small></summary><div class="sec" id="secResp"></div></details>
       </div>
 
       <div class="pane" data-pane="style">
@@ -363,7 +375,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
     <p class="padStatus" id="padStatus"></p>
     <div class="btns">
       <button id="padDel" class="mini">Delete point</button>
-      <button id="padKind" class="mini" title="Switch the selected point between a sharp corner and a smooth curve (Alt/Option-click a point)">Corner ↔ smooth</button>
+      <button id="padKind" class="mini" title="Switch the selected point between a sharp corner and a smooth curve (Alt/Option click a point)">Corner ↔ smooth</button>
       <button id="padClear" class="mini">Clear</button>
       <span style="flex:1"></span>
       <label class="mini"><input type="checkbox" id="padClosed" checked> Fill</label>
@@ -375,7 +387,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
         <li><b>Click</b> to place a corner point. <b>Click and drag</b> to place a smooth point and pull out its curve handles.</li>
         <li><b>Click the first point</b> to close the path.</li>
         <li><b>Drag a point</b> to move it. Select a point to see its handles, then <b>drag a handle</b> to reshape the curve.</li>
-        <li><b>Alt/Option-drag a handle</b> to break the pair for a sharp turn. <b>Alt/Option-click a point</b> switches it between corner and smooth.</li>
+        <li><b>Alt/Option drag a handle</b> to break the pair for a sharp turn. <b>Alt/Option click a point</b> switches it between corner and smooth.</li>
         <li><b>Shift</b> keeps lines and handles at 45° steps. <b>Delete</b> removes the selected point, <b>Ctrl/Cmd+Z</b> the last one, and <b>Enter</b> adds the shape.</li>
         <li><b>Fill</b> closes the shape when you add it. Untick it to get a line instead.</li>
       </ul>
@@ -460,22 +472,22 @@ const OBL = { a: [1, 0], b: [0.25, 0.9] }, RECT = { a: [1, 0], b: [0, 0.9] }, CE
 const FAMS = ['Oblique', 'Rectangular', 'Centered', 'Square', 'Hexagonal'];
 const GROUPS = [
   { id: 'p1', fam: 0, lat: OBL, ops: [], d: 'Slides only. Every copy faces the same way.' },
-  { id: 'p2', fam: 0, lat: OBL, ops: [rotOp(180)], d: 'Half-turns. No mirrors or glides.' },
+  { id: 'p2', fam: 0, lat: OBL, ops: [rotOp(180)], d: 'Half turns. No mirrors or glides.' },
   { id: 'pm', fam: 1, lat: RECT, ops: [mirOp([0, 0], [0, 1])], d: 'Parallel mirror lines in one direction.' },
   { id: 'pg', fam: 1, lat: RECT, ops: [gldOp([0, 0], [0, 1], 0.45)], d: 'Parallel glide axes. No mirrors, no turns.' },
-  { id: 'pmm', fam: 1, lat: RECT, ops: [mirOp([0, 0], [0, 1]), mirOp([0, 0], [1, 0])], d: 'Mirrors in two perpendicular directions; half-turns where they cross.' },
-  { id: 'pmg', fam: 1, lat: RECT, ops: [mirOp([0, 0], [0, 1]), gldOp([0, 0.25], [1, 0], 0.5)], d: 'Mirrors one way, glides across them; half-turns on the glide axes.' },
-  { id: 'pgg', fam: 1, lat: RECT, ops: [gldOp([0.25, 0], [0, 1], 0.45), gldOp([0, 0.225], [1, 0], 0.5)], d: 'Glides in two directions, no mirrors; half-turns between the axes.' },
+  { id: 'pmm', fam: 1, lat: RECT, ops: [mirOp([0, 0], [0, 1]), mirOp([0, 0], [1, 0])], d: 'Mirrors in two perpendicular directions; half turns where they cross.' },
+  { id: 'pmg', fam: 1, lat: RECT, ops: [mirOp([0, 0], [0, 1]), gldOp([0, 0.25], [1, 0], 0.5)], d: 'Mirrors one way, glides across them; half turns on the glide axes.' },
+  { id: 'pgg', fam: 1, lat: RECT, ops: [gldOp([0.25, 0], [0, 1], 0.45), gldOp([0, 0.225], [1, 0], 0.5)], d: 'Glides in two directions, no mirrors; half turns between the axes.' },
   { id: 'cm', fam: 2, lat: CENT, ops: [mirOp([0, 0], [0, 1])], d: 'Mirrors with glides halfway between; rows offset like bricks.' },
-  { id: 'cmm', fam: 2, lat: CENT, ops: [mirOp([0, 0], [0, 1]), mirOp([0, 0], [1, 0])], d: 'Two mirror directions; extra half-turns off the mirrors.' },
-  { id: 'p4', fam: 3, lat: SQL, ops: [rotOp(180), rotOp(90)], d: 'Quarter-turns and half-turns. No mirrors.' },
-  { id: 'p4m', fam: 3, lat: SQL, ops: [rotOp(180), rotOp(90), mirOp([0, 0], [0, 1])], d: 'Quarter-turns with straight and diagonal mirrors through every turn point.' },
-  { id: 'p4g', fam: 3, lat: SQL, ops: [rotOp(180), rotOp(90), gldOp([0.25, 0], [0, 1], 0.5)], d: 'Quarter-turns; mirrors on the diagonals only, glides straight.' },
-  { id: 'p3', fam: 4, lat: HEX, ops: [rotOp(120), rotOp(120)], d: 'Third-turns only. No mirrors.' },
-  { id: 'p3m1', fam: 4, lat: HEX, ops: [rotOp(120), rotOp(120), mirOp([0, 0], [0, 1])], d: 'Third-turns; every 3-fold point sits on a mirror.' },
-  { id: 'p31m', fam: 4, lat: HEX, ops: [rotOp(120), rotOp(120), mirOp([0, 0], [1, 0])], d: 'Third-turns; some 3-fold points sit off the mirrors.' },
-  { id: 'p6', fam: 4, lat: HEX, ops: [rotOp(180), rotOp(120), rotOp(120)], d: 'Sixth-, third- and half-turns. No mirrors.' },
-  { id: 'p6m', fam: 4, lat: HEX, ops: [rotOp(180), rotOp(120), rotOp(120), mirOp([0, 0], [0, 1])], d: 'Sixth-turns with mirrors through every turn point.' }
+  { id: 'cmm', fam: 2, lat: CENT, ops: [mirOp([0, 0], [0, 1]), mirOp([0, 0], [1, 0])], d: 'Two mirror directions; extra half turns off the mirrors.' },
+  { id: 'p4', fam: 3, lat: SQL, ops: [rotOp(180), rotOp(90)], d: 'Quarter turns and half turns. No mirrors.' },
+  { id: 'p4m', fam: 3, lat: SQL, ops: [rotOp(180), rotOp(90), mirOp([0, 0], [0, 1])], d: 'Quarter turns with straight and diagonal mirrors through every turn point.' },
+  { id: 'p4g', fam: 3, lat: SQL, ops: [rotOp(180), rotOp(90), gldOp([0.25, 0], [0, 1], 0.5)], d: 'Quarter turns; mirrors on the diagonals only, glides straight.' },
+  { id: 'p3', fam: 4, lat: HEX, ops: [rotOp(120), rotOp(120)], d: 'Third turns only. No mirrors.' },
+  { id: 'p3m1', fam: 4, lat: HEX, ops: [rotOp(120), rotOp(120), mirOp([0, 0], [0, 1])], d: 'Third turns; every 3-fold point sits on a mirror.' },
+  { id: 'p31m', fam: 4, lat: HEX, ops: [rotOp(120), rotOp(120), mirOp([0, 0], [1, 0])], d: 'Third turns; some 3-fold points sit off the mirrors.' },
+  { id: 'p6', fam: 4, lat: HEX, ops: [rotOp(180), rotOp(120), rotOp(120)], d: 'Sixth-, third- and half turns. No mirrors.' },
+  { id: 'p6m', fam: 4, lat: HEX, ops: [rotOp(180), rotOp(120), rotOp(120), mirOp([0, 0], [0, 1])], d: 'Sixth turns with mirrors through every turn point.' }
 ];
 const GBY = {}; GROUPS.forEach(g => GBY[g.id] = g);
 
@@ -756,7 +768,7 @@ function commonTile() {
   if (!vis.length) return null;
   if (vis.some(L => L.layout && L.layout !== 'wallpaper' && L.layout !== 'grid')) return null;
   if (S.region.featherOn && S.region.featherW > 0) return null;
-  if ((S.ctrls || []).some(c => c.on) && vis.some(L => Object.values(L.mod || {}).some(m => m.on))) return null;
+  if (vis.some(L => fxFor(L).length)) return null;
   const ts = vis.map(L => rectTileOf(geom(L)));
   if (ts.some(t => !t)) return null;
   const w = lcmFloat(ts.map(t => t.w)), h = lcmFloat(ts.map(t => t.h));
@@ -1244,7 +1256,7 @@ function parseDXF(text) {
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + [mnx, mny, mxx - mnx, mxy - mny].map(fmt).join(' ') + '">' + body + '</svg>';
 }
 
-/* ---------- Built-in shapes ---------- */
+/* ---------- Built in shapes ---------- */
 function commaD() {
   const P0 = [0.11, 0.11], C = [0.34, 0.05], P1 = [0.27, 0.36];
   const bez = s => [(1 - s) * (1 - s) * P0[0] + 2 * (1 - s) * s * C[0] + s * s * P1[0], (1 - s) * (1 - s) * P0[1] + 2 * (1 - s) * s * C[1] + s * s * P1[1]];
@@ -1302,14 +1314,14 @@ function newLayer(over) {
   L.lay = Object.assign(LAY0(), over.lay || {});
   const m0 = MOD0(), mo = over.mod || {};
   L.mod = {}; Object.keys(m0).forEach(k => { L.mod[k] = Object.assign(m0[k], mo[k] || {}); });
-  // Grid and Along-a-path layouts were retired. A grid is exactly a p1 wallpaper whose second side is (row offset × width, row height).
+  // Grid and Along a path layouts were retired. A grid is exactly a p1 wallpaper whose second side is (row offset × width, row height).
   if (L.layout === 'grid') { const ro = (L.lay.rowOff || 0) * L.cellW; L.layout = 'wallpaper'; L.group = 'p1'; L.bLen = +Math.hypot(ro, L.cellH).toFixed(3); L.angle = +(Math.atan2(L.cellH, ro) / D2R).toFixed(3); }
   if (L.layout === 'path') L.layout = 'scatter';
   return L;
 }
 function defaultState() {
   return {
-    layers: [newLayer()], sel: 0, ctrls: [], mix: 'max',
+    layers: [newLayer()], sel: 0, ctrls: [], mix: 'max', fx: [],
     region: { W: 200, H: 150, shape: 'rect', margin: 0, radius: 12, edge: 'clip', bgOn: true, bg: '#f7f3ea', boundary: false, shapeId: '', fit: 'contain', featherOn: false, featherW: 10, featherMode: 'size', featherCurve: 'smooth', featherMin: 0 },
     exp: { fmt: 'svg', expand: true, dpi: 300, reliefH: 1.0, baseT: 2.0, jpgQ: 0.92, solid: 'relief', split: 1, stepTol: 0.01 }
   };
@@ -1322,7 +1334,7 @@ const cur = () => S.layers[S.sel] || S.layers[0];
 
 /* ---------- History & autosave ---------- */
 let hist = [], hIdx = -1, hT = 0;
-const snap = () => JSON.stringify({ layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix });
+const snap = () => JSON.stringify({ layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, fx: S.fx });
 function pushHistory(now) {
   clearTimeout(hT);
   const go = () => {
@@ -1331,12 +1343,12 @@ function pushHistory(now) {
   };
   if (now) go(); else hT = setTimeout(go, 250);
 }
-function restore(s) { const o = JSON.parse(s); S.layers = o.layers; S.sel = Math.min(o.sel, o.layers.length - 1); S.region = o.region; S.exp = o.exp; S.ctrls = o.ctrls || []; S.mix = o.mix || 'max'; if (selCtrl >= S.ctrls.length) selCtrl = -1; rebuildAll(); }
+function restore(s) { const o = JSON.parse(s); S.layers = o.layers; S.sel = Math.min(o.sel, o.layers.length - 1); S.region = o.region; S.exp = o.exp; S.ctrls = o.ctrls || []; S.mix = o.mix || 'max'; S.fx = o.fx || []; if (selCtrl >= S.ctrls.length) selCtrl = -1; rebuildAll(); }
 function undo() { if (hIdx > 0) { hIdx--; restore(hist[hIdx]); updUndo(); autosave(); } }
 function redo() { if (hIdx < hist.length - 1) { hIdx++; restore(hist[hIdx]); updUndo(); autosave(); } }
 function updUndo() { $('#bUndo').disabled = hIdx <= 0; $('#bRedo').disabled = hIdx >= hist.length - 1; }
 function customShapes() { return Object.values(SHAPES).filter(s => !s.builtin).map(s => ({ id: s.id, name: s.name, kind: s.kind, inner: s.inner, w: s.w, h: s.h, k: s.k, polys: s.polys, lineArt: s.lineArt, data: s.data || null })); }
-function projectJSON() { return JSON.stringify({ app: 'pattern-studio', v: 2, layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, shapes: customShapes() }); }
+function projectJSON() { return JSON.stringify({ app: 'pattern-studio', v: 3, layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, fx: S.fx, shapes: customShapes() }); }
 let saveT = 0;
 function autosave() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('pattern-studio-v1', projectJSON()); } catch (e) { /* storage full or blocked: fine */ } }, 500); }
 function loadProject(o) {
@@ -1352,6 +1364,7 @@ function loadProject(o) {
   // a layer that gives no motif size or position gets the same tidy placement as Reset motif
   S.layers = o.layers.map(L0 => { const L = newLayer(L0); if (L0.size == null && L0.mx == null && L0.my == null) autoPlace(L); return L; }); S.sel = clamp(o.sel || 0, 0, S.layers.length - 1);
   S.ctrls = Array.isArray(o.ctrls) ? o.ctrls.filter(c => c && CTRL_NAMES[c.type]).map(c => Object.assign(newCtrl(c.type), c)) : []; S.mix = o.mix || 'max'; selCtrl = -1;
+  S.fx = normFx(o.fx); migrateMods();
   S.layers.forEach(L => { if (!SHAPES[L.shape]) L.shape = 'comma'; });
   shapesDirty = true; rebuildAll(); fit(); pushHistory(true);
 }
@@ -1413,10 +1426,17 @@ let FIELD = null, fieldKey = '';
 function getField() {
   const key = JSON.stringify([S.ctrls, S.mix, S.region.W, S.region.H], (k, v) => k === 'data' ? (v ? v.length : 0) : v) + '|' + [...IMG.keys()].filter(k => IMG.get(k)).join();
   if (FIELD && key === fieldKey) return FIELD;
-  fieldKey = key; FIELD = buildField(); return FIELD;
+  fieldKey = key; FIELD = buildField(); SUBFIELDS.clear(); return FIELD;
 }
-function buildField() {
-  const cs = (S.ctrls || []).filter(c => c.on && (c.type !== 'image' || (c.data && IMG.get(imgKey(c)))));
+// The field made by only some gradients (an effect can be driven by a chosen few).
+const SUBFIELDS = new Map();
+function fieldFor(src) {
+  const all = getField();
+  if (!Array.isArray(src)) return all;
+  const k = src.join(','); if (!SUBFIELDS.has(k)) SUBFIELDS.set(k, buildField(src)); return SUBFIELDS.get(k);
+}
+function buildField(only) {
+  const cs = (S.ctrls || []).filter(c => c.on && (!only || only.includes(c.id)) && (c.type !== 'image' || (c.data && IMG.get(imgKey(c)))));
   (S.ctrls || []).forEach(c => { if (c.type === 'image') loadCtrlImage(c); });
   if (!cs.length) return { active: false, v: () => 1, maxWarp: 0 };
   const W = S.region.W, H = S.region.H;
@@ -1467,6 +1487,45 @@ function buildField() {
   return { active: true, v: v, grad: grad, warp: warp, maxWarp: Math.max.apply(null, comp.map(k => k.R)) * 0.25 + Math.max(W, H) * 0.05 };
 }
 
+/* ---------- effects ---------- */
+// Like Photoshop layer effects: each effect is one response (size, rotation, colour…) driven by some or all gradients,
+// applied to some or all layers. Several effects of the same kind stack.
+const FX_KINDS = {
+  size: { label: 'Size', p: { min: 0.3, max: 1 } },
+  spacing: { label: 'Spacing', p: { amt: -0.5 } },
+  rot: { label: 'Rotation', p: { deg: 90 }, shapes: true },
+  align: { label: 'Face the gradient', p: { off: 0 }, shapes: true },
+  opacity: { label: 'Opacity', p: { min: 0.2 } },
+  feather: { label: 'Feather', p: { w: 0.35 } },
+  drop: { label: 'Drop out', p: { mode: 'threshold', t: 0.3 } },
+  color: { label: 'Colour', p: { c2: '#e8b04a' } },
+  morph: { label: 'Morph shape', p: { shape: 'star', steps: 10 }, shapes: true }
+};
+const newFxId = () => 'fx' + Math.random().toString(36).slice(2, 8);
+function normFx(list) {
+  return (Array.isArray(list) ? list : []).filter(e => e && FX_KINDS[e.kind]).map(e => ({
+    id: e.id || newFxId(), kind: e.kind, on: e.on !== false, p: Object.assign({}, FX_KINDS[e.kind].p, e.p || {}),
+    src: Array.isArray(e.src) ? e.src.slice() : 'all', layers: Array.isArray(e.layers) ? e.layers.slice() : 'all'
+  }));
+}
+// Older projects and presets kept responses on each layer (L.mod); they become effects for that layer.
+function migrateMods() {
+  if (!Array.isArray(S.fx)) S.fx = [];
+  S.layers.forEach(L => Object.keys(L.mod || {}).forEach(k => {
+    const m = L.mod[k]; if (!m || !m.on || !FX_KINDS[k]) return;
+    const p = Object.assign({}, m); delete p.on;
+    S.fx.push({ id: newFxId(), kind: k, on: true, p: Object.assign({}, FX_KINDS[k].p, p), src: 'all', layers: [L.id] }); m.on = false;
+  }));
+}
+const fxTargets = (e, L) => e.layers === 'all' || e.layers.includes(L.id);
+// The effects that act on a layer right now, each with its own field.
+function fxFor(L) { return (S.fx || []).map((e, n) => ({ kind: e.kind, p: e.p, n: n, on: e.on, F: e.on && fxTargets(e, L) ? fieldFor(e.src) : null })).filter(e => e.F && e.F.active); }
+const FXC = new WeakMap(); // layer -> effects, refreshed for every render
+const fxOf = L => FXC.get(L) || [];
+const fxKind = (L, k) => fxOf(L).filter(e => e.kind === k);
+// spacing effects move copies like a lens; several apply one after another
+function fxWarp(L, c) { const sp = fxKind(L, 'spacing'); for (let i = 0; i < sp.length; i++) c = sp[i].F.warp(c, sp[i].p.amt); return c; }
+
 /* ---------- colour + random helpers ---------- */
 function rnd01(a, b, c) { return hash3(a, b, c) / 4294967296; }
 function rng(seed) { let a = (seed >>> 0) || 1; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -1482,15 +1541,18 @@ function featherF(reg, R, c) {
 }
 // How one copy (or one point on a line) responds to the gradients and the edge feather. null = dropped.
 function respond(L, F, R, reg, c, key) {
-  const md = L.mod; let s = 1, op = 1, col = null, rot = 0, v = 1;
-  if (F.active) {
-    v = F.v(c);
-    if (md.drop.on && (md.drop.mode === 'dither' ? rnd01(key[0], key[1], key[2] + 17) > v : v < md.drop.t)) return null;
-    if (md.size.on) s *= md.size.min + (md.size.max - md.size.min) * v;
-    if (md.opacity.on) op *= md.opacity.min + (1 - md.opacity.min) * v;
-    if (md.feather.on) op *= CURVES.smooth(clamp(v / Math.max(0.01, md.feather.w), 0, 1)); // fade out over the weakest part of the gradient
-    if (md.rot.on) rot += md.rot.deg * v;
-    if (md.color.on) col = lerpColor(md.color.c2, L.fill, v);
+  let s = 1, op = 1, col = null, rot = 0, mv = 1;
+  const fx = fxOf(L);
+  for (let i = 0; i < fx.length; i++) {
+    const e = fx[i], p = e.p; if (e.kind === 'spacing' || e.kind === 'align') continue;
+    const v = e.F.v(c);
+    if (e.kind === 'drop') { if (p.mode === 'dither' ? rnd01(key[0], key[1], key[2] + 17 + e.n) > v : v < p.t) return null; }
+    else if (e.kind === 'size') s *= p.min + (p.max - p.min) * v;
+    else if (e.kind === 'opacity') op *= p.min + (1 - p.min) * v;
+    else if (e.kind === 'feather') op *= CURVES.smooth(clamp(v / Math.max(0.01, p.w), 0, 1)); // fade out over the weakest part of the gradient
+    else if (e.kind === 'rot') rot += p.deg * v;
+    else if (e.kind === 'color') col = lerpColor(p.c2, col || L.fill, v);
+    else if (e.kind === 'morph') mv = v;
   }
   if (R.featherOn && R.featherW > 0) {
     const f = featherF(reg, R, c), fm = R.featherMode, mn = R.featherMin || 0;
@@ -1499,19 +1561,19 @@ function respond(L, F, R, reg, c, key) {
     if (fm === 'fade' || fm === 'sizefade') op *= f;
   }
   if (s < 0.01 || op < 0.01) return null;
-  return { s: s, op: op, col: col, rot: rot, v: v };
+  return { s: s, op: op, col: col, rot: rot, v: mv };
 }
 function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
-  const md = L.mod, out = [], amt = F.active && md.spacing.on ? md.spacing.amt : 0;
+  const out = [], warps = fxKind(L, 'spacing').length > 0, al = fxKind(L, 'align')[0];
   for (let q = 0; q < base.length; q++) {
     const it = base[q], T = it.T; let c = [T[4], T[5]];
-    if (amt && it.warp !== false) c = F.warp(c, amt);
+    if (warps && it.warp !== false) c = fxWarp(L, c);
     const r = respond(L, F, R, reg, c, [it.i, it.j, it.k]); if (!r) continue;
     let A = [T[0] * r.s, T[1] * r.s, T[2] * r.s, T[3] * r.s], rot = r.rot;
-    if (F.active && md.align.on) { const g = F.grad(c); if (g) rot += (Math.atan2(g[1], g[0]) - Math.atan2(A[1], A[0])) / D2R + md.align.off; }
+    if (al) { const g = al.F.grad(c); if (g) rot += (Math.atan2(g[1], g[0]) - Math.atan2(A[1], A[0])) / D2R + al.p.off; }
     if (rot) A = Af.mul(Af.R(rot), A.concat([0, 0])).slice(0, 4);
     const T2 = [A[0], A[1], A[2], A[3], c[0], c[1]];
-    const m = morph && F.active ? Math.round(r.v * (morph.length - 1)) : -1;
+    const m = morph ? Math.round(r.v * (morph.length - 1)) : -1;
     const hull = m >= 0 ? morph[m].hull : sh.hull;
     if (mode === 'inside') { let ok = true; for (let h = 0; h < hull.length; h++) if (!reg.contains(Af.ap(T2, hull[h]))) { ok = false; break; } if (!ok) continue; }
     else if (!reg.contains(c, rad * r.s)) continue;
@@ -1522,12 +1584,12 @@ function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
 }
 
 /* ================= Layouts ================= */
-const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Cross-hatch lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
+const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Crosshatch lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
 const LAYOUT_DESC = {
   wallpaper: 'Copies follow one of the 17 symmetry groups.', grid: 'Rows and columns. Row offset 0.5 gives a brick / staggered grid.',
   scatter: 'Even random spacing (Poisson disc). Gradients can make it denser or sparser.', path: 'Copies along a Curve or Line gradient (or a default curve), in one or more rows.',
   spiral: 'Copies along an Archimedean spiral from the centre.', concentric: 'Rings of copies around a centre, or following the surface outline.',
-  fibonacci: 'Golden-angle sunflower packing. Very even, no visible rows.', hatch: 'Continuous lines whose width follows the gradients. Two directions make cross-hatching.',
+  fibonacci: 'Golden angle sunflower packing. Very even, no visible rows.', hatch: 'Continuous lines whose width follows the gradients. Two directions make crosshatching.',
   voronoi: 'Stones separated by cracks. Gradients change stone size, so cracks open and close.', flow: 'Each line bends with the gradients and can wave. Size drives width, spacing drives density.'
 };
 const GEOM_LAYOUTS = { hatch: 1, flow: 1, voronoi: 1 };
@@ -1594,8 +1656,8 @@ function pointBase(L, idx, reg, F) {
   const cap = MAX_INST * 2, pts = [], al = lay.align;
   const add = (p, ang, i, j) => { if (inBox(p) && pts.length < cap) pts.push({ p: p, ang: ang, i: i, j: j }); };
   if (L.layout === 'scatter') {
-    const amt = F.active && L.mod.spacing.on ? L.mod.spacing.amt : 0;
-    scatterPoints(lay, box, F, amt, (lay.seed || 1) * 7919 + idx).forEach((p, i) => add(p, 0, i, 0));
+    const sp = fxKind(L, 'spacing')[0];
+    scatterPoints(lay, box, sp ? sp.F : F, sp ? sp.p.amt : 0, (lay.seed || 1) * 7919 + idx).forEach((p, i) => add(p, 0, i, 0));
   } else if (L.layout === 'spiral') {
     const n = Math.max(1, Math.round(lay.arms)), pitch = Math.max(0.3, lay.pitch);
     add(C.slice(), 0, 0, 0);
@@ -1642,7 +1704,7 @@ function pointBase(L, idx, reg, F) {
   });
 }
 
-/* ---------- line layouts: variable-width strokes become closed outlines ---------- */
+/* ---------- line layouts: variable width strokes become closed outlines ---------- */
 function ribbon(run, capA, capB) {
   const n = run.length, Lp = [], Rp = [], tan = [];
   for (let i = 0; i < n; i++) {
@@ -1696,11 +1758,11 @@ function flowLines(L, reg, F) {
   return lines;
 }
 function strokesToPolys(L, idx, lines, F, R, reg, mode) {
-  const amt = F.active && L.mod.spacing.on ? L.mod.spacing.amt : 0, base = Math.max(0.02, L.lay.width), out = [];
-  const varies = (F.active && (L.mod.color.on || L.mod.opacity.on || L.mod.feather.on)) || (R.featherOn && /fade/.test(R.featherMode));
+  const warps = fxKind(L, 'spacing').length > 0, base = Math.max(0.02, L.lay.width), out = [];
+  const varies = fxOf(L).some(e => e.kind === 'color' || e.kind === 'opacity' || e.kind === 'feather') || (R.featherOn && /fade/.test(R.featherMode));
   const CH = 8;
   lines.forEach((ln, li) => {
-    const pts = amt ? ln.pts.map(p => F.warp(p, amt)) : ln.pts;
+    const pts = warps ? ln.pts.map(p => fxWarp(L, p)) : ln.pts;
     const ws = new Float32Array(pts.length), cols = new Array(pts.length), ops = new Float32Array(pts.length);
     for (let q = 0; q < pts.length; q++) {
       const p = pts[q];
@@ -1727,9 +1789,9 @@ function strokesToPolys(L, idx, lines, F, R, reg, mode) {
   return out;
 }
 function voronoiStones(L, idx, reg, F, R, mode) {
-  const lay = L.lay, sp = Math.max(0.8, lay.spacing), amt = F.active && L.mod.spacing.on ? L.mod.spacing.amt : 0;
+  const spe = fxKind(L, 'spacing')[0], lay = L.lay, sp = Math.max(0.8, lay.spacing), amt = spe ? spe.p.amt : 0;
   const pad = sp * 2, box = [reg.x0 - pad, reg.y0 - pad, reg.x1 + pad, reg.y1 + pad];
-  const seeds = scatterPoints(lay, box, F, amt, (lay.seed || 1) * 104729 + idx);
+  const seeds = scatterPoints(lay, box, spe ? spe.F : F, amt, (lay.seed || 1) * 104729 + idx);
   const cs = sp * (1 + Math.abs(amt)) * 1.2, gw = Math.ceil((box[2] - box[0]) / cs) + 1, gh = Math.ceil((box[3] - box[1]) / cs) + 1, cells = new Array(gw * gh);
   seeds.forEach((p, i) => { const k = (((p[1] - box[1]) / cs) | 0) * gw + (((p[0] - box[0]) / cs) | 0); (cells[k] || (cells[k] = [])).push(i); });
   const gap = Math.max(0, lay.gap), out = [], rings = 3;
@@ -1773,7 +1835,7 @@ function resampleLoop(loop, N) {
   const r = resample(pts, tot / N, false); return r.slice(0, N).map(s => s.p);
 }
 function getMorph(L) {
-  const md = L.mod.morph; if (!md || !md.on) return null;
+  const mf = fxKind(L, 'morph')[0], md = mf && mf.p; if (!md) return null;
   const A = SHAPES[L.shape], B = SHAPES[md.shape]; if (!A || !B || A.id === B.id) return null;
   const steps = clamp(Math.round(md.steps || 10), 2, 24), key = A.id + '|' + B.id + '|' + steps;
   if (MORPHS[key] !== undefined) return MORPHS[key];
@@ -1798,6 +1860,7 @@ function getMorph(L) {
 /* ---------- one layer → copies or outlines ---------- */
 const shown = L => L.visible && !L.empty; // an empty layer (after Clear everything) has nothing on it until a shape or layout is picked
 function layerOut(L, idx, R, reg, mode, F, budget) {
+  FXC.set(L, fxFor(L));
   const lay = L.layout || 'wallpaper';
   if (GEOM_LAYOUTS[lay]) {
     let polys;
@@ -1808,9 +1871,9 @@ function layerOut(L, idx, R, reg, mode, F, budget) {
   }
   const geo = geom(L), sh = geo.sh, morph = getMorph(L);
   let rad = geo.rad; if (morph) rad = Math.max(rad, 0.75 * L.size * Math.max(1, L.aspect));
-  const amt = F.active && L.mod.spacing.on ? Math.abs(L.mod.spacing.amt) : 0;
+  const pad = fxKind(L, 'spacing').reduce((a, e) => a + Math.abs(e.p.amt) * e.F.maxWarp, 0);
   let base, over = false;
-  if (lay === 'wallpaper' || lay === 'grid') { const res = instances(geo, reg, mode, budget * 4, true, amt * F.maxWarp); base = res.list; over = res.over; }
+  if (lay === 'wallpaper' || lay === 'grid') { const res = instances(geo, reg, mode, budget * 4, true, pad); base = res.list; over = res.over; }
   else base = pointBase(L, idx, reg, F);
   const items = modulate(L, base, F, R, reg, mode, sh, rad, budget, morph);
   if (L.lay.stack === 'down') items.sort((a, b) => a.T[5] - b.T[5] || a.T[4] - b.T[4]); else if (L.lay.stack === 'up') items.sort((a, b) => b.T[5] - a.T[5] || a.T[4] - b.T[4]);
@@ -1947,7 +2010,7 @@ function render() {
   const L = cur(), tile = commonTile(), isWP = !L.layout || L.layout === 'wallpaper';
   const g = GBY[eff(L).group];
   const tileTxt = tile ? fmt(tile.w) + ' × ' + fmt(tile.h) + ' mm' : 'none';
-  $('#status').innerHTML = '<span>' + (isWP ? 'Group <b>' + g.id + '</b> · ' + g.order + ' copies per cell' : 'Layout <b>' + layoutName(L) + '</b>') + '</span><span>Pieces <b>' + pb.count.toLocaleString() + '</b>' + (pb.over ? ' <span class="warn">(limit reached — increase spacing)</span>' : '') + '</span><span>Open area <b>' + (pb.open > 1 ? 'pieces overlap' : '≈ ' + (pb.open * 100).toFixed(1) + '%') + '</b></span><span>Seamless tile <b>' + tileTxt + '</b></span><span>Surface <b>' + fmt(R.W) + ' × ' + fmt(R.H) + ' mm</b></span>';
+  $('#status').innerHTML = '<span>' + (isWP ? 'Group <b>' + g.id + '</b> · ' + g.order + ' copies per cell' : 'Layout <b>' + layoutName(L) + '</b>') + '</span><span>Pieces <b>' + pb.count.toLocaleString() + '</b>' + (pb.over ? ' <span class="warn">(limit reached: increase spacing)</span>' : '') + '</span><span>Open area <b>' + (pb.open > 1 ? 'pieces overlap' : '≈ ' + (pb.open * 100).toFixed(1) + '%') + '</b></span><span>Seamless tile <b>' + tileTxt + '</b></span><span>Surface <b>' + fmt(R.W) + ' × ' + fmt(R.H) + ' mm</b></span>';
   $('#gName').textContent = isWP ? g.id : '';
   $('#gDesc').textContent = g.d;
 }
@@ -2219,41 +2282,71 @@ function buildLayout() {
     case 'fibonacci': box.append(spacing(), ...centre(), align('Point copies outward'), jitter()); break;
     case 'path': {
       const curves = (S.ctrls || []).filter(c => c.type === 'curve' || c.type === 'line' || c.type === 'ramp');
-      box.append(line(E('label', {}, 'Path'), sel([['', 'Default S-curve']].concat(curves.map(c => [c.id, (S.ctrls.indexOf(c) + 1) + ' ' + CTRL_NAMES[c.type]])), P('pathId'), Q('pathId'))));
+      box.append(line(E('label', {}, 'Path'), sel([['', 'Default S curve']].concat(curves.map(c => [c.id, (S.ctrls.indexOf(c) + 1) + ' ' + CTRL_NAMES[c.type]])), P('pathId'), Q('pathId'))));
       if (!curves.length) box.append(E('p', { class: 'hint' }, 'Add a Curve gradient and pick it here to draw your own path.'));
       box.append(spacing(), numRow('Rows', P('rows'), Q('rows'), 1, 15, 1, ''), numRow('Row gap', P('rowGap'), Q('rowGap'), 0.5, 40, 0.1, 'mm'), align('Point copies along the path'), jitter());
       break;
     }
-    case 'hatch': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Angle', P('angle'), Q('angle'), -180, 180, 0.5, '°'), line(chk('Cross-hatch', P('cross'), v => { lay.cross = v; buildLayout(); })), lay.cross ? numRow('Cross angle', P('crossAngle'), Q('crossAngle'), 5, 175, 0.5, '°') : ''); box.append(E('p', { class: 'hint' }, 'Turn on Size in Gradient response to thicken lines near controllers, and Spacing to bend them like a lens.')); break;
+    case 'hatch': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Angle', P('angle'), Q('angle'), -180, 180, 0.5, '°'), line(chk('Crosshatch', P('cross'), v => { lay.cross = v; buildLayout(); })), lay.cross ? numRow('Cross angle', P('crossAngle'), Q('crossAngle'), 5, 175, 0.5, '°') : ''); box.append(E('p', { class: 'hint' }, 'Turn on Size in Gradient response to thicken lines near controllers, and Spacing to bend them like a lens.')); break;
     case 'flow': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Direction', P('angle'), Q('angle'), -180, 180, 0.5, '°'), numRow('Bend', P('bend'), Q('bend'), -180, 180, 1, '°', 'How far gradients turn the lines'), numRow('Wave', P('wave'), Q('wave'), 0, 80, 0.5, '°'), numRow('Wavelength', P('waveLen'), Q('waveLen'), 2, 300, 1, 'mm'), numRow('Wave skew', P('waveSkew'), Q('waveSkew'), -2, 2, 0.01, '×', 'Tilts the wave fronts for moiré ripples')); break;
     case 'voronoi': box.append(spacing('Stone size'), numRow('Crack width', P('gap'), Q('gap'), 0, 20, 0.05, 'mm'), numRow('Round corners', P('round'), Q('round'), 0, 4, 1, 'steps'), seed()); break;
   }
 }
-const RESP_OFF = 'Add a gradient (Gradients & attractors) to drive these.';
+// The Effects panel: a stack of effects, each driven by some or all gradients and applied to some or all layers.
+const fxOpen = new Set();
+function fxSummary(e) {
+  const src = e.src === 'all' ? 'all gradients' : e.src.length ? e.src.map(id => { const i = S.ctrls.findIndex(c => c.id === id); return i < 0 ? '?' : (i + 1) + ' ' + CTRL_NAMES[S.ctrls[i].type]; }).join(', ') : 'no gradient';
+  const lys = e.layers === 'all' ? 'all layers' : e.layers.length ? e.layers.map(id => { const i = S.layers.findIndex(L => L.id === id); return i < 0 ? '?' : 'Layer ' + (i + 1); }).join(', ') : 'no layer';
+  return src + ' → ' + lys;
+}
+function addFx(kind) {
+  const e = { id: newFxId(), kind: kind, on: true, p: Object.assign({}, FX_KINDS[kind].p), src: 'all', layers: 'all' };
+  S.fx.push(e); fxOpen.add(e.id); buildResponse(); renderLayers(); requestRender(); pushHistory();
+}
+// "All" plus one tick box per item; unticking from "All" starts from every item ticked.
+function pickList(title, items, get, set) {
+  const wrap = E('div', { class: 'fxPick' }, E('span', { class: 'fxPickT' }, title));
+  const all = get() === 'all';
+  wrap.append(chk('All', () => all, v => { set(v ? 'all' : items.map(it => it[0])); buildResponse(); }));
+  if (!all) items.forEach(it => wrap.append(chk(it[1], () => get().includes(it[0]), v => { const keep = get().filter(x => x !== it[0]); if (v) keep.push(it[0]); set(keep); buildResponse(); })));
+  return wrap;
+}
 function buildResponse() {
-  const L = cur(), md = L.mod, box = $('#secResp'); box.innerHTML = '';
-  const isGeom = !!GEOM_LAYOUTS[L.layout];
-  if (!(S.ctrls || []).length) box.append(E('p', { class: 'hint' }, RESP_OFF));
-  const ch = (key, label, rows, title) => {
-    const on = md[key].on;
-    box.append(line(chk(label, () => md[key].on, v => { md[key].on = v; buildResponse(); }, title)));
-    if (on) rows.forEach(r => box.append(r));
-  };
-  const nr = (k, f, lbl, mn, mx, st, u, t) => numRow(lbl, () => md[k][f], v => { md[k][f] = v; }, mn, mx, st, u, t);
-  ch('size', isGeom ? (L.layout === 'voronoi' ? 'Stone size' : 'Line width') : 'Size', [nr('size', 'min', 'Far ×', 0, 3, 0.01, '', 'Scale where the gradient is 0'), nr('size', 'max', 'Near ×', 0, 3, 0.01, '', 'Scale where the gradient is 1')]);
-  ch('spacing', 'Spacing (density)', [nr('spacing', 'amt', 'Denser ← → sparser', -0.9, 0.9, 0.01, '', 'Negative packs pieces closer near controllers, positive spreads them')]);
-  if (!isGeom) {
-    ch('rot', 'Rotation', [nr('rot', 'deg', 'Turn near', -360, 360, 1, '°')]);
-    ch('align', 'Angle: face along the gradient', [nr('align', 'off', 'Offset', -180, 180, 1, '°', '0 = point up the gradient, 90 = run along it')]);
-  }
-  ch('opacity', 'Opacity', [nr('opacity', 'min', 'Far opacity', 0, 1, 0.01, '')]);
-  ch('feather', 'Feather: fade out where the gradient dies', [nr('feather', 'w', 'Feather width', 0.05, 1, 0.01, '', 'How much of the gradient\'s weak end fades to transparent. 1 = fade across the whole gradient'), E('p', { class: 'hint' }, 'Pieces fade to nothing as the gradient runs out, so the edge of a gradient dissolves instead of stopping.')], 'Pieces fade to transparent as the gradient weakens');
-  ch('drop', 'Drop out', [line(E('label', {}, 'Mode'), sel([['threshold', 'Below a threshold'], ['dither', 'Random thinning (dither)']], () => md.drop.mode, v => { md.drop.mode = v; buildResponse(); })), md.drop.mode === 'threshold' ? nr('drop', 't', 'Threshold', 0, 1, 0.01, '') : '']);
-  ch('color', 'Colour gradient', [line(E('label', {}, 'Far colour'), color(() => md.color.c2, v => { md.color.c2 = v; }), E('span', { class: 'hint' }, '→ near = fill colour'))]);
-  if (!isGeom) {
-    const closed = Object.values(SHAPES).filter(s => mainLoop(s) && !RETIRED_SHAPES[s.id]);
-    ch('morph', 'Morph shape', [line(E('label', {}, 'Morph to'), sel(closed.map(s => [s.id, s.name]), () => md.morph.shape, v => { md.morph.shape = v; })), nr('morph', 'steps', 'Steps', 2, 24, 1, ''), getMorph(L) === null && md.morph.on ? E('p', { class: 'warn' }, 'Both shapes need a closed outline, and they must differ.') : '']);
-  }
+  const box = $('#secResp'); box.innerHTML = '';
+  if (!(S.ctrls || []).length) box.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Effects need a gradient to follow. Add a point, line, ramp or other gradient above, then add effects here.'));
+  box.append(E('div', { class: 'btns', style: 'margin-top:0' }, ...Object.keys(FX_KINDS).map(k => E('button', { class: 'mini', onclick: () => addFx(k) }, '+ ' + FX_KINDS[k].label))));
+  if (!S.fx.length) { box.append(E('p', { class: 'hint' }, 'Each effect works on every layer unless you narrow it down, and several effects can stack, like layer effects in Photoshop.')); return; }
+  const list = E('div', { class: 'fxList' });
+  S.fx.forEach((e, i) => {
+    const K = FX_KINDS[e.kind], open = fxOpen.has(e.id), P = k => () => e.p[k], Q = k => v => { e.p[k] = v; };
+    const card = E('div', { class: 'fx' + (e.on ? '' : ' off') + (open ? ' open' : '') });
+    card.append(E('div', { class: 'fxHead', onclick: () => { open ? fxOpen.delete(e.id) : fxOpen.add(e.id); buildResponse(); } },
+      E('button', { class: 'eye', title: e.on ? 'Turn off' : 'Turn on', onclick: ev => { ev.stopPropagation(); e.on = !e.on; buildResponse(); renderLayers(); requestRender(); pushHistory(); } }, e.on ? '●' : '○'),
+      E('span', { class: 'fxName' }, K.label, E('small', {}, fxSummary(e))),
+      E('button', { class: 'eye', title: 'Move up', onclick: ev => { ev.stopPropagation(); if (i > 0) { [S.fx[i - 1], S.fx[i]] = [S.fx[i], S.fx[i - 1]]; buildResponse(); requestRender(); pushHistory(); } } }, '↑'),
+      E('button', { class: 'eye', title: 'Delete effect', onclick: ev => { ev.stopPropagation(); S.fx.splice(i, 1); buildResponse(); renderLayers(); requestRender(); pushHistory(); } }, '✕')));
+    if (open) {
+      const body = E('div', { class: 'fxBody' });
+      if (e.kind === 'size') body.append(numRow('Far ×', P('min'), Q('min'), 0, 3, 0.01, '', 'Scale where the gradient is 0'), numRow('Near ×', P('max'), Q('max'), 0, 3, 0.01, '', 'Scale where the gradient is 1'));
+      if (e.kind === 'spacing') body.append(numRow('Denser ← → sparser', P('amt'), Q('amt'), -0.9, 0.9, 0.01, '', 'Negative packs pieces closer near the gradient, positive spreads them'));
+      if (e.kind === 'rot') body.append(numRow('Turn near', P('deg'), Q('deg'), -360, 360, 1, '°'));
+      if (e.kind === 'align') body.append(numRow('Offset', P('off'), Q('off'), -180, 180, 1, '°', '0 = point up the gradient, 90 = run along it'));
+      if (e.kind === 'opacity') body.append(numRow('Far opacity', P('min'), Q('min'), 0, 1, 0.01, ''));
+      if (e.kind === 'feather') body.append(numRow('Feather width', P('w'), Q('w'), 0.05, 1, 0.01, '', 'How much of the weak end fades to transparent. 1 = fade across the whole gradient'));
+      if (e.kind === 'drop') { body.append(line(E('label', {}, 'Mode'), sel([['threshold', 'Below a threshold'], ['dither', 'Random thinning (dither)']], P('mode'), v => { e.p.mode = v; buildResponse(); }))); if (e.p.mode === 'threshold') body.append(numRow('Threshold', P('t'), Q('t'), 0, 1, 0.01, '')); }
+      if (e.kind === 'color') body.append(line(E('label', {}, 'Far colour'), color(P('c2'), Q('c2')), E('span', { class: 'hint' }, '→ near = each layer’s fill colour')));
+      if (e.kind === 'morph') {
+        const closed = Object.values(SHAPES).filter(sh => mainLoop(sh) && !RETIRED_SHAPES[sh.id]);
+        body.append(line(E('label', {}, 'Morph to'), sel(closed.map(sh => [sh.id, sh.name]), P('shape'), Q('shape'))), numRow('Steps', P('steps'), Q('steps'), 2, 24, 1, ''));
+      }
+      if (K.shapes) body.append(E('p', { class: 'hint' }, 'Works on shape layers; line and Voronoi layouts ignore it.'));
+      body.append(pickList('Driven by', S.ctrls.map((c, ci) => [c.id, (ci + 1) + ' ' + CTRL_NAMES[c.type]]), () => e.src, v => { e.src = v; }));
+      body.append(pickList('Applies to', S.layers.map((L, li) => [L.id, 'Layer ' + (li + 1)]), () => e.layers, v => { e.layers = v; renderLayers(); }));
+      card.append(body);
+    }
+    list.append(card);
+  });
+  box.append(list);
 }
 function addCtrl(type) {
   if (type === 'image') { $('#imgIn').click(); return; }
@@ -2263,7 +2356,7 @@ function addCtrl(type) {
 function buildGradients() {
   const box = $('#secGrad'); box.innerHTML = '';
   box.append(E('div', { class: 'btns' }, ...Object.keys(CTRL_NAMES).map(t => E('button', { class: 'mini', onclick: () => addCtrl(t), title: t === 'image' ? 'Brightness of an image drives the pattern (halftone)' : '' }, '+ ' + CTRL_NAMES[t]))));
-  if (!S.ctrls.length) { box.append(E('p', { class: 'hint' }, 'No gradients yet, so every piece is the same. Add one of any type above, then drag its handles on the canvas; each layer chooses how it responds under “Gradient response”.')); return; }
+  if (!S.ctrls.length) { box.append(E('p', { class: 'hint' }, 'No gradients yet, so every piece is the same. Add one of any type above and drag its handles on the canvas, then add Effects below to choose what it does.')); return; }
   S.ctrls.forEach((c, i) => {
     box.append(E('div', { class: 'layer' + (i === selCtrl ? ' sel' : ''), onclick: () => { selCtrl = i === selCtrl ? -1 : i; buildGradients(); requestRender(); } },
       E('span', { class: 'nm' }, (i + 1) + ' · ' + CTRL_NAMES[c.type] + (c.invert ? ' (inverted)' : '')),
@@ -2280,7 +2373,7 @@ function buildGradients() {
   box.append(numRow('Strength', P('weight'), Q('weight'), 0, 1, 0.01, ''));
   const bt = E('div', { class: 'btns' });
   if (c.type === 'curve') bt.append(E('button', { class: 'mini', onclick: () => { const a = c.pts[c.pts.length - 2], b = c.pts[c.pts.length - 1]; c.pts.push([+(b[0] + (b[0] - a[0]) * 0.5).toFixed(1), +(b[1] + (b[1] - a[1]) * 0.5).toFixed(1)]); requestRender(); pushHistory(); } }, '+ Point'), E('button', { class: 'mini', onclick: () => { if (c.pts.length > 2) { c.pts.pop(); requestRender(); pushHistory(); } } }, '− Point'));
-  bt.append(E('button', { class: 'mini', onclick: () => { S.ctrls.splice(selCtrl, 1); selCtrl = -1; buildGradients(); buildResponse(); buildLayout(); requestRender(); pushHistory(); } }, 'Delete controller'));
+  bt.append(E('button', { class: 'mini', onclick: () => { const gone = S.ctrls[selCtrl].id; S.fx.forEach(e => { if (Array.isArray(e.src)) e.src = e.src.filter(id => id !== gone); }); S.ctrls.splice(selCtrl, 1); selCtrl = -1; buildGradients(); buildResponse(); buildLayout(); requestRender(); pushHistory(); } }, 'Delete controller'));
   box.append(bt);
 }
 let imgTarget = null;
@@ -2309,7 +2402,7 @@ function buildSurface() {
 function buildExport() {
   const X = S.exp, P = (k) => () => X[k], Q = (k) => (v) => { X[k] = v; };
   const ex = $('#secExport'); ex.innerHTML = '';
-  const fmts = [['svg', 'SVG — whole surface'], ['svgtile', 'SVG — one seamless tile'], ['png', 'PNG — whole surface'], ['pngtile', 'PNG — one seamless tile'], ['jpg', 'JPG — whole surface'], ['webp', 'WebP — whole surface'], ['disp', 'Displacement map PNG (white on black)'], ['disptile', 'Displacement map — seamless tile'], ['dxf', 'DXF — outlines for CAD / laser / CNC'], ['dxftile', 'DXF — one seamless tile'], ['step', 'STEP (.stp) — solid for SolidWorks, Fusion, Rhino'], ['stl', 'STL — relief for 3D printing'], ['json', 'Project file (.json)']];
+  const fmts = [['svg', 'SVG: whole surface'], ['svgtile', 'SVG: one seamless tile'], ['png', 'PNG: whole surface'], ['pngtile', 'PNG: one seamless tile'], ['jpg', 'JPG: whole surface'], ['webp', 'WebP: whole surface'], ['disp', 'Displacement map PNG (white on black)'], ['disptile', 'Displacement map: seamless tile'], ['dxf', 'DXF: outlines for CAD / laser / CNC'], ['dxftile', 'DXF: one seamless tile'], ['step', 'STEP (.stp): solid for SolidWorks, Fusion, Rhino'], ['stl', 'STL: relief for 3D printing'], ['json', 'Project file (.json)']];
   ex.append(line(sel(fmts, P('fmt'), v => { X.fmt = v; buildExport(); })));
   const f = X.fmt;
   if (f.startsWith('svg')) ex.append(line(chk('Expand copies (best for Fusion, Illustrator, laser software)', P('expand'), Q('expand'))));
@@ -2341,6 +2434,7 @@ function renderLayers() {
     const row = E('div', { class: 'layer' + (i === S.sel ? ' sel' : ''), onclick: () => { S.sel = i; renderLayers(); buildLayerControls(); renderShapes(); requestRender(); } },
       E('span', { class: 'sw', style: 'background:' + L.fill }),
       E('span', { class: 'nm' }, 'Layer ' + (i + 1) + ' · ' + (L.empty ? 'empty' : layoutName(L) + (geomL ? '' : ' · ' + sh.name))),
+      (() => { const n = (S.fx || []).filter(e => e.on && fxTargets(e, L)).length; return n ? E('button', { class: 'fxBadge', title: n + ' effect' + (n > 1 ? 's' : '') + ' on this layer', onclick: ev => { ev.stopPropagation(); showTab('grad'); } }, 'fx ' + n) : null; })(),
       E('button', { class: 'eye', title: L.visible ? 'Hide' : 'Show', onclick: (ev) => { ev.stopPropagation(); L.visible = !L.visible; renderLayers(); requestRender(); pushHistory(); } }, L.visible ? '●' : '○'));
     box.append(row);
   });
@@ -2352,7 +2446,7 @@ function presetBase(region, ctrls, layers) {
   S.ctrls = []; (ctrls || []).forEach(c => S.ctrls.push(Object.assign(newCtrlAt(c.type, S.region), c)));
   S.mix = 'max';
   S.layers = layers.map(l => newLayer(l));
-  S.sel = 0; selCtrl = -1;
+  S.sel = 0; selCtrl = -1; S.fx = []; migrateMods();
 }
 function newCtrlAt(type, R) { const keep = S.region; S.region = R; const c = newCtrl(type); S.region = keep; return c; }
 const PRESETS = [
@@ -3036,7 +3130,7 @@ function centerPattern() {
   buildLayerControls(); buildLayout(); requestRender(); pushHistory(); toast('Pattern centered on the surface');
 }
 
-/* ---------- rulers (millimetres, 0 at the surface's top-left corner) ---------- */
+/* ---------- rulers (millimetres, 0 at the surface's top left corner) ---------- */
 function drawRulers() {
   if (!show.rulers) return;
   const css = getComputedStyle(document.documentElement), tok = k => css.getPropertyValue(k).trim();
@@ -3069,7 +3163,7 @@ function drawRulers() {
   });
 }
 
-// Two fingers on a touch screen pinch-zoom and pan together; one finger drags as usual.
+// Two fingers on a touch screen pinch zoom and pan together; one finger drags as usual.
 const touchPts = new Map(); let pinch = null;
 function pinchInfo() { const p = [...touchPts.values()]; return { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) || 1, x: (p[0][0] + p[1][0]) / 2, y: (p[0][1] + p[1][1]) / 2 }; }
 function undoDragPreview() { const L = cur(); if (!drag) return; if (drag.mode === 'motif') { L.mx = drag.mx; L.my = drag.my; } if (drag.mode === 'pattern') { L.sx = drag.sx; L.sy = drag.sy; } }
@@ -3149,7 +3243,7 @@ const endDrag = ev => {
 };
 stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
 stage.addEventListener('pointerleave', () => { if (!drag) { lastPtr = null; drawRulers(); } });
-// Like Illustrator/Figma: the wheel or two-finger trackpad scroll pans; Ctrl/Cmd/Alt + wheel or a trackpad pinch zooms.
+// Like Illustrator/Figma: the wheel or two finger trackpad scroll pans; Ctrl/Cmd/Alt + wheel or a trackpad pinch zooms.
 stage.addEventListener('wheel', ev => {
   ev.preventDefault();
   const k = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
@@ -3168,8 +3262,8 @@ function zoomBy(f) { view.scale = clamp(view.scale * f, 0.05, 400); requestRende
 new ResizeObserver(() => requestRender()).observe(stage);
 
 /* ================= Draw pad: a pen tool like Illustrator / Photoshop ================= */
-// Each anchor keeps absolute positions for its in-handle (ix,iy) and out-handle (ox,oy). A handle sitting on the anchor means none.
-// split = the two handles move independently (Alt/Option-drag), otherwise they stay in a straight line through the anchor.
+// Each anchor keeps absolute positions for its in handle (ix,iy) and out handle (ox,oy). A handle sitting on the anchor means none.
+// split = the two handles move independently (Alt/Option drag), otherwise they stay in a straight line through the anchor.
 const pad = $('#pad'), pctx = pad.getContext('2d');
 let padPts = [], padShut = false, padSel = -1, padAct = null, padHover = null, padExtra = [], padEdit = null; // padExtra: other outlines of an edited shape (holes, extra parts), kept as they are
 const anchor = (x, y) => ({ x: x, y: y, ix: x, iy: y, ox: x, oy: y, split: false });
@@ -3274,7 +3368,7 @@ pad.addEventListener('pointermove', ev => {
   if (!padAct) { padDraw(); return; }
   const a = padPts[padAct.i]; if (!a) return;
   if (padAct.type === 'drawHandle') {
-    // click-drag pulls the out-handle out of the new point; the in-handle mirrors it (a smooth point)
+    // click and drag pulls the out handle out of the new point; the in handle mirrors it (a smooth point)
     if (!padAct.moved && Math.hypot(xy[0] - padAct.start[0], xy[1] - padAct.start[1]) < 3 * padScale()) return;
     padAct.moved = true; setOut(a, ev.shiftKey ? constrain45([a.x, a.y], xy) : xy);
   } else if (padAct.type === 'anchor') {
@@ -3311,7 +3405,7 @@ $('#padOk').onclick = () => {
   if (padPts.length < need) { toast('Add at least ' + need + ' points'); return; }
   const d = padPath(padPts, closed) + (padExtra.length ? ' ' + padExtra.join(' ') : '');
   const body = closed ? '<path d="' + d + '" fill="#000"' + (padExtra.length ? ' fill-rule="evenodd"' : '') + '/>' : '<path d="' + d + '" fill="none" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>';
-  // editing one of your shapes updates it everywhere; editing a built-in shape makes an edited copy
+  // editing one of your shapes updates it everywhere; editing a built in shape makes an edited copy
   const inPlace = padEdit && !padEdit.builtin && SHAPES[padEdit.id];
   try {
     const rec = processSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">' + body + '</svg>', padEdit ? padEdit.name + (inPlace ? '' : ' (edited)') : 'Drawn ' + shapeSeq, { inheritSW: !closed, id: inPlace ? padEdit.id : undefined });
@@ -3462,8 +3556,8 @@ $('#lAdd').onclick = () => {
   const L = newLayer({ group: base.group, cellW: base.cellW, cellH: base.cellH, bLen: base.bLen, angle: base.angle, rot: base.rot, link: true, fill: pal[0], palette: pal.slice(), shape: 'dot', size: +(base.cellW * 0.12).toFixed(2), mx: 0, my: 0 });
   S.layers.push(L); S.sel = S.layers.length - 1; rebuildAll(); pushHistory();
 };
-$('#lDup').onclick = () => { const L = JSON.parse(JSON.stringify(cur())); L.id = 'L' + Math.random().toString(36).slice(2, 8); L.link = S.sel === 0 ? true : L.link; S.layers.splice(S.sel + 1, 0, L); S.sel++; rebuildAll(); pushHistory(); };
-$('#lDel').onclick = () => { if (S.layers.length < 2) { toast('Keep at least one layer'); return; } S.layers.splice(S.sel, 1); S.sel = Math.max(0, S.sel - 1); if (S.layers[0]) S.layers[0].link = false; rebuildAll(); pushHistory(); };
+$('#lDup').onclick = () => { const L = JSON.parse(JSON.stringify(cur())), was = L.id; L.id = 'L' + Math.random().toString(36).slice(2, 8); S.fx.forEach(e => { if (Array.isArray(e.layers) && e.layers.includes(was)) e.layers.push(L.id); }); L.link = S.sel === 0 ? true : L.link; S.layers.splice(S.sel + 1, 0, L); S.sel++; rebuildAll(); pushHistory(); };
+$('#lDel').onclick = () => { if (S.layers.length < 2) { toast('Keep at least one layer'); return; } const gone = S.layers[S.sel].id; S.fx.forEach(e => { if (Array.isArray(e.layers)) e.layers = e.layers.filter(id => id !== gone); }); S.layers.splice(S.sel, 1); S.sel = Math.max(0, S.sel - 1); if (S.layers[0]) S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#lUp').onclick = () => { const i = S.sel; if (i >= S.layers.length - 1) return; [S.layers[i], S.layers[i + 1]] = [S.layers[i + 1], S.layers[i]]; S.sel = i + 1; S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#lDown').onclick = () => { const i = S.sel; if (i <= 0) return; [S.layers[i], S.layers[i - 1]] = [S.layers[i - 1], S.layers[i]]; S.sel = i - 1; S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#bImport').onclick = () => $('#fileIn').click();
@@ -3476,12 +3570,12 @@ let newKind = 'new';
 function askNew(kind) {
   newKind = kind;
   $('#newTitle').textContent = kind === 'clear' ? 'Clear everything?' : 'Start a new pattern?';
-  $('#newText').textContent = kind === 'clear' ? 'Removes all layers, gradients, colours and surface settings, leaving one empty layer. Your shapes and export settings stay. Undo brings everything back.' : 'Starts again from the example pattern. Undo brings your current pattern back.';
+  $('#newText').textContent = kind === 'clear' ? 'Removes all layers, gradients, effects, colours and surface settings, leaving one empty layer. Your shapes and export settings stay. Undo brings everything back.' : 'Starts again from the example pattern. Undo brings your current pattern back.';
   $('#newOk').textContent = kind === 'clear' ? 'Clear everything' : 'Start new';
   $('#newModal').classList.add('open');
 }
 $('#bNew').onclick = () => askNew('new');
-$('#bClear').onclick = () => askNew('clear');
+$('#tClear').onclick = () => askNew('clear');
 $('#newCancel').onclick = () => $('#newModal').classList.remove('open');
 $('#newOk').onclick = () => {
   $('#newModal').classList.remove('open'); const keep = S.exp; S = defaultState(); S.exp = keep; selCtrl = -1;
@@ -3534,13 +3628,13 @@ BUILTINS.forEach(b => {
 });
 buildGroupPick(); buildPresets();
 let restored = false;
-try { const s = localStorage.getItem('pattern-studio-v1'); if (s) { const o = JSON.parse(s); (o.shapes || []).forEach(sh => { SHAPES[sh.id] = finishShape(Object.assign({ builtin: false }, sh)); }); S.layers = o.layers.map(L => newLayer(L)); S.sel = Math.min(o.sel || 0, S.layers.length - 1); S.region = Object.assign(defaultState().region, o.region); S.exp = Object.assign(defaultState().exp, o.exp); S.ctrls = Array.isArray(o.ctrls) ? o.ctrls : []; S.mix = o.mix || 'max'; S.layers.forEach(L => { if (!SHAPES[L.shape]) L.shape = 'comma'; }); restored = true; } } catch (e) { S = defaultState(); }
+try { const s = localStorage.getItem('pattern-studio-v1'); if (s) { const o = JSON.parse(s); (o.shapes || []).forEach(sh => { SHAPES[sh.id] = finishShape(Object.assign({ builtin: false }, sh)); }); S.layers = o.layers.map(L => newLayer(L)); S.sel = Math.min(o.sel || 0, S.layers.length - 1); S.region = Object.assign(defaultState().region, o.region); S.exp = Object.assign(defaultState().exp, o.exp); S.ctrls = Array.isArray(o.ctrls) ? o.ctrls : []; S.mix = o.mix || 'max'; S.fx = normFx(o.fx); migrateMods(); S.layers.forEach(L => { if (!SHAPES[L.shape]) L.shape = 'comma'; }); restored = true; } } catch (e) { S = defaultState(); }
 rebuildAll(); render(); fit(); pushHistory(true); renderThumbs();
 if (/^#(p|pattern)=/.test(location.hash)) setTimeout(openFromHash); else if (restored) toast('Restored your last session');
 window.__PS = { buildSTEP: buildSTEP, stepSolids: stepSolids, getField: getField, layerOut: layerOut, PRESETS: PRESETS, newCtrl: newCtrl, MORPHS: MORPHS, shapeSolid: shapeSolid, S: S, GROUPS: GROUPS, SHAPES: SHAPES, geom: geom, buildSVG: buildSVG, buildDXF: buildDXF, buildSTL: buildSTL, parseDXF: parseDXF, processSvg: processSvg, commonTile: commonTile, rectTileOf: rectTileOf, instances: instances, regionInfo: regionInfo, marksFor: marksFor, traceImage: traceImage, processRaster: processRaster, addShape: addShape, importText: importText, bakeCell: bakeCell, getS: () => S, rebuildAll: rebuildAll };
 
 /* ================= Share links and scripting API ================= */
-// Links carry the whole pattern after the #:  #p=<deflate + base64url>  (made by the app)  or  #pattern=<URL-encoded JSON>  (easy to write by hand or by an AI).
+// Links carry the whole pattern after the #:  #p=<deflate + base64url>  (made by the app)  or  #pattern=<URL encoded JSON>  (easy to write by hand or by an AI).
 const PUBLIC_URL = 'https://camembert-picante.github.io/pattern_studio/';
 function b64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
 const b64u = {
