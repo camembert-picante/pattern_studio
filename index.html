@@ -229,6 +229,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
     <summary>File</summary>
     <div class="menuList">
       <button id="bNew">New pattern</button>
+      <button id="bClear">Clear everything</button>
       <button id="bOpen">Open project…</button>
       <button id="bSave">Save project</button>
       <hr>
@@ -407,8 +408,8 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
 
 <div class="modal" id="newModal">
   <div class="card" style="max-width:380px">
-    <h3>Start a new pattern?</h3>
-    <p class="hint">Your current pattern is cleared. You can still bring it back with Undo.</p>
+    <h3 id="newTitle">Start a new pattern?</h3>
+    <p class="hint" id="newText">Your current pattern is cleared. You can still bring it back with Undo.</p>
     <div class="btns"><span style="flex:1"></span><button id="newCancel">Cancel</button><button id="newOk" class="primary">Start new</button></div>
   </div>
 </div>
@@ -741,7 +742,7 @@ function lcmFloat(vals) {
   return null;
 }
 function commonTile() {
-  const vis = S.layers.filter(L => L.visible);
+  const vis = S.layers.filter(shown);
   if (!vis.length) return null;
   if (vis.some(L => L.layout && L.layout !== 'wallpaper' && L.layout !== 'grid')) return null;
   if (S.region.featherOn && S.region.featherW > 0) return null;
@@ -1779,6 +1780,7 @@ function getMorph(L) {
 }
 
 /* ---------- one layer → copies or outlines ---------- */
+const shown = L => L.visible && !L.empty; // an empty layer (after Clear everything) has nothing on it until a shape or layout is picked
 function layerOut(L, idx, R, reg, mode, F, budget) {
   const lay = L.layout || 'wallpaper';
   if (GEOM_LAYOUTS[lay]) {
@@ -1870,7 +1872,7 @@ function patternBody(R, o) {
   let budget = o.budget || MAX_INST, count = 0, over = false, area = 0;
   const used = new Set(), morphUsed = new Map(), out = [];
   S.layers.forEach((L, idx) => {
-    if (!L.visible) return;
+    if (!shown(L)) return;
     const lo = layerOut(L, idx, R, reg, mode, F, Math.max(0, budget));
     budget -= lo.count; count += lo.count; over = over || lo.over;
     if (lo.kind === 'inst') { used.add(lo.sh.id); lo.items.forEach(it => { if (it.m >= 0) morphUsed.set(lo.morph[it.m].id, lo.morph[it.m]); }); }
@@ -1885,7 +1887,7 @@ function buildSVG(R, o) {
   const pb = patternBody(R, Object.assign({ xlink: true }, o));
   const reg = pb.reg, W = R.W, H = R.H;
   let s = '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + fmt(W) + 'mm" height="' + fmt(H) + 'mm" viewBox="0 0 ' + fmt(W) + ' ' + fmt(H) + '">\n';
-  s += '<!-- Pattern Studio · ' + S.layers.filter(L => L.visible).map(layoutName).join(' + ') + ' · units: mm -->\n';
+  s += '<!-- Pattern Studio · ' + S.layers.filter(shown).map(layoutName).join(' + ') + ' · units: mm -->\n';
   s += '<defs>' + fxDefs(S.layers, o.disp) + (o.expand ? '' : shapeDefs([...pb.used]) + morphDefs(pb.morphUsed)) + '<clipPath id="regionClip">' + reg.svg() + '</clipPath></defs>\n';
   if (o.disp) s += '<rect width="' + fmt(W) + '" height="' + fmt(H) + '" fill="#000"/>\n';
   else if (o.bg !== false && R.bgOn) s += '<rect width="' + fmt(W) + '" height="' + fmt(H) + '" fill="' + esc(R.bg) + '"/>\n';
@@ -1969,6 +1971,14 @@ function drawOverlays(reg) {
     s += fr.svg('fill="none" stroke="var(--ov-line)" stroke-dasharray="1 3" stroke-width="1" vector-effect="non-scaling-stroke"');
   }
   if (!L) { $('#ov').innerHTML = s; return; }
+  if (L.empty) {
+    const fs = Math.min(13 * px, S.region.W / 22), cx = S.region.W / 2, cy = S.region.H / 2;
+    s += '<text x="' + fmt(cx) + '" y="' + fmt(cy - fs * 0.4) + '" text-anchor="middle" font-size="' + fmt(fs) + '" font-weight="600" fill="var(--ov-line)">Empty layer</text>';
+    s += '<text x="' + fmt(cx) + '" y="' + fmt(cy + fs * 1.1) + '" text-anchor="middle" font-size="' + fmt(fs * 0.85) + '" fill="var(--ov-line)">Pick a shape on the left to start.</text>';
+    if (show.grad) s += drawCtrls(px);
+    if (cropMode) s += cropOverlay(px);
+    $('#ov').innerHTML = s; return;
+  }
   const isLat = !L.layout || L.layout === 'wallpaper' || L.layout === 'grid';
   if (isLat) {
     const geo = geom(L), o = geo.origin, a = geo.a, b = geo.b;
@@ -2034,7 +2044,7 @@ function renderThumbs() {
     const reg = { x0: o[0] - span / 2, y0: o[1] - span / 2, x1: o[0] + span / 2, y1: o[1] + span / 2, contains: (q, r) => Math.abs(q[0] - o[0]) <= span / 2 + (r || 0) && Math.abs(q[1] - o[1]) <= span / 2 + (r || 0) };
     let h = '<rect x="' + fmt(reg.x0) + '" y="' + fmt(reg.y0) + '" width="' + fmt(span) + '" height="' + fmt(span) + '" fill="' + (S.region.bgOn ? esc(S.region.bg) : 'transparent') + '"/>';
     S.layers.forEach((M, idx) => {
-      if (!M.visible && M !== L) return;
+      if ((!M.visible || M.empty) && M !== L) return;
       const geo = M === L ? geoSel : geom(M);
       const res = instances(geo, reg, 'clip', 3000), sh = geo.sh, v = sh.kind === 'raster' ? 'o' : (M.useOrig ? 'o' : 'm');
       const sw = (M.sw || 0) / ((sh.k || 1) * Math.max(1e-6, geo.p.size)), pal = M.palette.slice(0, M.paletteN);
@@ -2178,7 +2188,7 @@ function buildLayerControls() {
 function buildLayout() {
   const L = cur(), lay = L.lay, P = k => () => lay[k], Q = k => v => { lay[k] = v; };
   const box = $('#secLayout'); box.innerHTML = '';
-  box.append(line(sel(LAYOUTS, () => L.layout || 'wallpaper', v => { L.layout = v; if (v !== 'wallpaper' && v !== 'grid' && L.size > lay.spacing * 1.2) L.size = +(lay.spacing * 0.7).toFixed(2); buildLayerControls(); renderLayers(); })));
+  box.append(line(sel(LAYOUTS, () => L.layout || 'wallpaper', v => { L.layout = v; L.empty = false; if (v !== 'wallpaper' && v !== 'grid' && L.size > lay.spacing * 1.2) L.size = +(lay.spacing * 0.7).toFixed(2); buildLayerControls(); renderLayers(); })));
   box.append(E('p', { class: 'hint' }, LAYOUT_DESC[L.layout || 'wallpaper']));
   const spacing = (lbl) => numRow(lbl || 'Spacing', P('spacing'), Q('spacing'), 0.5, 60, 0.1, 'mm');
   const centre = () => [numRow('Centre x', P('cx'), Q('cx'), -20, 120, 0.5, '%', 'Drag the + on the canvas too'), numRow('Centre y', P('cy'), Q('cy'), -20, 120, 0.5, '%')];
@@ -2314,7 +2324,7 @@ function renderLayers() {
     const i = S.layers.indexOf(L), sh = SHAPES[L.shape] || SHAPES.comma, geomL = GEOM_LAYOUTS[L.layout];
     const row = E('div', { class: 'layer' + (i === S.sel ? ' sel' : ''), onclick: () => { S.sel = i; renderLayers(); buildLayerControls(); renderShapes(); requestRender(); } },
       E('span', { class: 'sw', style: 'background:' + L.fill }),
-      E('span', { class: 'nm' }, 'Layer ' + (i + 1) + ' · ' + layoutName(L) + (geomL ? '' : ' · ' + sh.name)),
+      E('span', { class: 'nm' }, 'Layer ' + (i + 1) + ' · ' + (L.empty ? 'empty' : layoutName(L) + (geomL ? '' : ' · ' + sh.name))),
       E('button', { class: 'eye', title: L.visible ? 'Hide' : 'Show', onclick: (ev) => { ev.stopPropagation(); L.visible = !L.visible; renderLayers(); requestRender(); pushHistory(); } }, L.visible ? '●' : '○'));
     box.append(row);
   });
@@ -2378,9 +2388,9 @@ const SHAPE_GROUPS = [
 let flyGroup = null;
 const RETIRED_SHAPES = { flag: 1, kite: 1, wedge: 1 };
 const groupShapes = gr => gr[2] ? gr[2].filter(id => SHAPES[id]) : Object.values(SHAPES).filter(sh => !sh.builtin).map(sh => sh.id);
-function pickShape(id) { cur().shape = id; flyGroup = null; renderShapes(); buildLayerControls(); renderLayers(); requestRender(); pushHistory(); }
+function pickShape(id) { cur().shape = id; cur().empty = false; flyGroup = null; renderShapes(); buildLayerControls(); renderLayers(); requestRender(); pushHistory(); }
 function renderShapes() {
-  const rail = $('#shapeRail'), cs = cur().shape; rail.innerHTML = '';
+  const rail = $('#shapeRail'), cs = cur().empty ? null : cur().shape; rail.innerHTML = '';
   SHAPE_GROUPS.forEach((gr, gi) => {
     const ids = groupShapes(gr), has = ids.includes(cs), show = has ? cs : ids[0];
     if (gr[0] === 'yours') rail.append(E('div', { class: 'railSep' }));
@@ -2437,7 +2447,7 @@ function rebuildAll() { renderLayers(); renderShapes(); buildGradients(); buildL
 function addShape(rec, assign) {
   SHAPES[rec.id] = rec; shapesDirty = true;
   if (assign !== false) {
-    const L = cur(); L.shape = rec.id;
+    const L = cur(); L.shape = rec.id; L.empty = false;
   }
   render(); renderShapes(); buildLayerControls(); renderLayers(); requestRender(); pushHistory();
 }
@@ -2524,7 +2534,7 @@ async function download(name, data, type) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
-function baseName(suffix) { const gs = [...new Set(S.layers.filter(L => L.visible).map(L => layoutName(L).split(' ')[0].toLowerCase()))].join('+'); return 'pattern-' + gs + (suffix ? '-' + suffix : ''); }
+function baseName(suffix) { const gs = [...new Set(S.layers.filter(shown).map(L => layoutName(L).split(' ')[0].toLowerCase()))].join('+'); return 'pattern-' + gs + (suffix ? '-' + suffix : ''); }
 function tileRegion() { const t = commonTile(); if (!t) { toast('No seamless tile for these settings. Set rotation to 0° or link layer spacing.', 4500); return null; } return Object.assign({}, S.region, { W: +t.w.toFixed(6), H: +t.h.toFixed(6), shape: 'rect', margin: 0, edge: 'clip', boundary: false }); }
 function rasterize(svgText, wmm, hmm, mime, q) {
   return new Promise((res, rej) => {
@@ -2605,7 +2615,7 @@ function exportParts(R, forSolid) {
   const mode = forSolid ? (R.edge === 'inside' ? 'inside' : (R.edge === 'clip' ? 'clip' : 'touch')) : R.edge;
   const reg = regionInfo(R), F = getField(); let budget = MAX_INST, skipped = 0; const parts = [];
   S.layers.forEach((L, idx) => {
-    if (!L.visible) return;
+    if (!shown(L)) return;
     const lo = layerOut(L, idx, R, reg, forSolid && mode === 'clip' ? 'touch' : mode, F, Math.max(0, budget)); budget -= lo.count;
     const lname = ('L' + (idx + 1) + '_' + layoutName(L)).replace(/[^A-Za-z0-9_]+/g, '_');
     if (lo.kind === 'inst') {
@@ -3422,6 +3432,7 @@ $('#imgIn').onchange = async ev => {
 function autoPlace(L) { if (L.layout && L.layout !== 'wallpaper' && L.layout !== 'grid') { L.size = +(L.lay.spacing * 0.7).toFixed(2); L.mrot = 0; L.aspect = 1; return; } if (L.layout === 'grid') { L.mx = 0; L.my = 0; L.size = +(Math.min(L.cellW, L.cellH) * 0.75).toFixed(2); L.mrot = 0; L.aspect = 1; return; } const c = L.cellW, g = GBY[eff(L).group]; L.mx = +(-0.19 * c).toFixed(2); L.my = +(-0.29 * (g.fam === 1 || g.fam === 2 ? L.cellH : c)).toFixed(2); L.size = +((g.order >= 8 ? 0.26 : g.order >= 4 ? 0.36 : 0.42) * c).toFixed(2); L.mrot = 0; L.aspect = 1; }
 $('#tAuto').onclick = () => { autoPlace(cur()); buildLayerControls(); requestRender(); pushHistory(); };
 $('#tRand').onclick = () => {
+  cur().empty = false;
   const L = cur(), g = GROUPS[Math.floor(Math.random() * GROUPS.length)], c = L.cellW;
   L.group = g.id; L.mx = +((Math.random() - 0.5) * c).toFixed(2); L.my = +((Math.random() - 0.5) * c).toFixed(2);
   L.mrot = Math.round((Math.random() - 0.5) * 360); L.size = +(c * (0.2 + Math.random() * 0.35)).toFixed(2);
@@ -3442,9 +3453,24 @@ $('#fileIn').onchange = ev => { [...ev.target.files].forEach(importFile); ev.tar
 $('#bOpen').onclick = () => $('#projIn').click();
 $('#projIn').onchange = async ev => { const f = ev.target.files[0]; ev.target.value = ''; if (!f) return; try { loadProject(JSON.parse(await readFile(f))); toast('Project opened'); } catch (e) { toast(e.message, 4000); } };
 $('#bSave').onclick = () => download('pattern-project.json', projectJSON(), 'application/json');
-$('#bNew').onclick = () => $('#newModal').classList.add('open');
+// New pattern starts from the example; Clear everything leaves one empty layer, no gradients and a plain surface.
+let newKind = 'new';
+function askNew(kind) {
+  newKind = kind;
+  $('#newTitle').textContent = kind === 'clear' ? 'Clear everything?' : 'Start a new pattern?';
+  $('#newText').textContent = kind === 'clear' ? 'Removes all layers, gradients, colours and surface settings, leaving one empty layer. Your shapes and export settings stay. Undo brings everything back.' : 'Starts again from the example pattern. Undo brings your current pattern back.';
+  $('#newOk').textContent = kind === 'clear' ? 'Clear everything' : 'Start new';
+  $('#newModal').classList.add('open');
+}
+$('#bNew').onclick = () => askNew('new');
+$('#bClear').onclick = () => askNew('clear');
 $('#newCancel').onclick = () => $('#newModal').classList.remove('open');
-$('#newOk').onclick = () => { $('#newModal').classList.remove('open'); const keep = S.exp; S = defaultState(); S.exp = keep; rebuildAll(); fit(); pushHistory(true); };
+$('#newOk').onclick = () => {
+  $('#newModal').classList.remove('open'); const keep = S.exp; S = defaultState(); S.exp = keep; selCtrl = -1;
+  if (newKind === 'clear') S.layers[0].empty = true;
+  if (cropMode) setCrop(false);
+  rebuildAll(); fit(); pushHistory(true); if (newKind === 'clear') toast('Cleared. Pick a shape on the left to start.');
+};
 $('#bDraw').onclick = openDraw;
 $('#bText').onclick = openText;
 $('#sBake').onclick = bakeCell;
