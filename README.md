@@ -19,10 +19,28 @@ Your work autosaves in the browser. Use **Save project** to keep a `.json` file 
 ## Finding your way around
 
 - **Top bar:** Undo, Redo, a **File** menu (new, open, save, import, draw or type a shape) and **Export**.
-- **Canvas toolbar:** Pan or Move motif, Fit and zoom, a **View** menu for guides (cell, motif box, gradient handles, symmetry marks, seamless tile, heat map), Auto-place and Surprise.
+- **Canvas toolbar:**
+  - **Crop** puts handles on the surface edges. Drag them to trim or extend the surface; the pattern stays where it is. Press Esc or Enter when done.
+  - **Center** moves the pattern so a symmetry point sits in the middle of the surface (spirals, rings and sunflowers move their centre there).
+  - **Reset motif** puts the motif back to a tidy size and spot in its cell.
+  - **Shuffle** tries a random symmetry group and motif placement. Undo brings the last one back.
+  - **Fit** shows the whole surface, and **View** turns guides on or off: rulers, cell, motif box, gradient handles, symmetry marks, seamless tile and heat map.
+- **Rulers** along the top and left of the canvas are in millimetres, with 0 at the surface's top-left corner.
 - **Settings panel**, with one tab per job: **Start** (presets, layers), **Layout**, **Shape** (shapes, motif), **Gradients**, **Style** (colour, surface) and **Export**.
 
-On a phone the canvas stays at the top and the settings sit in a sheet below it, with the tabs along the bottom. Tap the open tab again, or the grab bar, to give the canvas the full screen. Pinch to zoom, and drag with one finger to pan or to move handles.
+### Moving around and moving things
+
+It works like Illustrator or Figma:
+
+| To do this | Do this |
+|---|---|
+| Pan | Drag an empty spot, scroll with the mouse wheel or trackpad, or hold Space and drag |
+| Zoom | Ctrl/Cmd or Alt + scroll, pinch on a trackpad, or Ctrl/Cmd + `+` / `-` (Ctrl/Cmd + 0 fits) |
+| Move the motif | Drag the dashed motif box (or Shift-drag anywhere) |
+| Move the whole pattern | Drag the green cell box |
+| Move a gradient | Drag its round handles |
+
+On a phone the canvas stays at the top and the settings sit in a sheet below it, with the tabs along the bottom. Tap the open tab again, or the grab bar, to give the canvas the full screen. Drag with one finger to pan or move things, and pinch with two fingers to zoom.
 
 ## The idea
 
@@ -67,6 +85,7 @@ These settings are per layer:
 - **Spacing**, which packs pieces denser or spreads them sparser near a controller, like a lens.
 - **Rotation**, and **Angle**, which makes pieces face along the gradient.
 - **Opacity**. In the displacement map this becomes grey levels.
+- **Feather**, which fades pieces to transparent as the gradient runs out, so its edge dissolves instead of stopping. Feather width sets how much of the weak end fades.
 - **Drop out**, either below a threshold or by random thinning (dither).
 - **Colour gradient**, from a far colour to the fill colour.
 - **Morph shape**, which blends one shape into another across the gradient (for example a square into a star).

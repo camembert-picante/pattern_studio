@@ -61,6 +61,7 @@ kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-radius:
 .menu[open]>summary{background:var(--sel);border-color:var(--accent)}
 .menuList{position:absolute;right:0;top:calc(100% + 6px);z-index:15;min-width:220px;background:var(--raise);border:1px solid var(--line-strong);border-radius:10px;padding:6px;box-shadow:0 14px 40px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px}
 .menuList.left{left:0;right:auto}
+.menuList.fixed{position:fixed}
 .menuList button{justify-content:flex-start;background:transparent;border-color:transparent;width:100%;min-height:36px}
 .menuList button:hover{background:var(--chip-hover)}
 .menuList hr{border:0;border-top:1px solid var(--line);margin:4px 2px;width:auto}
@@ -74,12 +75,14 @@ kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-radius:
 main{display:grid;grid-template-columns:minmax(0,1fr) 372px;min-height:0}
 .canvasWrap{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-height:0;background:var(--canvas);position:relative}
 .toolbar{display:flex;gap:6px;padding:8px 10px;align-items:center;border-bottom:1px solid var(--line);background:var(--panel)}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--chip)}
-.seg button{border:0;border-radius:0;background:transparent}
-.seg button+button{border-left:1px solid var(--line)}
-.seg button.on{background:var(--sel);color:var(--accent)}
-#stage{width:100%;height:100%;display:block;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
-#stage.move{cursor:move}
+.stageWrap{--rul:20px;display:grid;grid-template-columns:var(--rul) minmax(0,1fr);grid-template-rows:var(--rul) minmax(0,1fr);min-height:0}
+.canvasWrap.noRulers .stageWrap{--rul:0px}
+.rCorner{background:var(--panel);border-right:1px solid var(--line);border-bottom:1px solid var(--line);font-size:9px;color:var(--muted);display:grid;place-items:center;overflow:hidden}
+#rulerX{grid-column:2;grid-row:1}#rulerY{grid-column:1;grid-row:2}
+#rulerX,#rulerY{display:block;width:100%;height:100%;min-width:0;min-height:0}
+#stage{grid-column:2;grid-row:2;width:100%;height:100%;display:block;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#stage.panning{cursor:grabbing}
+.toolbar .lblBtn{padding:0 10px 0 8px}
 .status{padding:6px 12px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);background:var(--panel);display:flex;gap:16px;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
 .status::-webkit-scrollbar{display:none}
 .status b{color:var(--ink);font-weight:600}
@@ -154,7 +157,6 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
   input[type=color]{width:40px;height:34px}
   button.mini{min-height:36px}
   .shape .x{display:block;font-size:14px;padding:2px}
-  .tZoom{display:none}
 }
 
 /* ---------- phones & narrow windows: canvas on top, settings sheet below, tabs at the bottom ---------- */
@@ -164,8 +166,10 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
   .hideNarrow{display:none}
   main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,var(--sheetH,52%))}
   body.sheetMin main{--sheetH:auto}
-  .toolbar{padding:6px 8px;gap:5px}
-  .toolbar .lbl{display:none}
+  .toolbar{padding:6px 8px;gap:5px;overflow-x:auto;scrollbar-width:none}
+  .toolbar::-webkit-scrollbar{display:none}
+  .toolbar>*{flex:none}
+  .stageWrap{--rul:16px}
   .status{padding:5px 10px;font-size:11.5px}
   aside.panel{border-left:0;border-top:1px solid var(--line-strong);grid-template-rows:auto minmax(0,1fr) auto;border-radius:16px 16px 0 0;position:relative;z-index:3;box-shadow:0 -10px 30px rgba(0,0,0,.35)}
   .sheetGrip{display:flex;width:100%;min-height:26px;background:transparent;border:0;border-radius:16px 16px 0 0;padding:0;align-items:center;justify-content:center}
@@ -178,6 +182,11 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
   .row{grid-template-columns:92px minmax(0,1fr) 64px}
   .shapes{grid-template-columns:repeat(6,minmax(0,1fr))}
   #toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+}
+@media (max-width:520px){
+  .toolbar{gap:3px;padding-left:6px;padding-right:6px}
+  .toolbar button,.toolbar .menu>summary{padding:0 8px;font-size:12.5px}
+  .toolbar .lblBtn svg{display:none}
 }
 @media (max-width:420px){
   .shapes{grid-template-columns:repeat(5,minmax(0,1fr))}
@@ -212,38 +221,38 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
 <main>
   <section class="canvasWrap">
     <div class="toolbar">
-      <div class="seg" role="group" aria-label="Drag mode">
-        <button id="tPan" class="on" title="Drag to pan">Pan</button>
-        <button id="tMove" title="Drag to move the motif (or hold Shift while dragging)">Move<span class="lbl">motif</span></button>
-      </div>
+      <button id="tCrop" class="lblBtn" title="Crop: drag the handles on the surface edges to trim or extend it (Esc to finish)"><svg class="i" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>Crop</button>
+      <button id="tCenter" class="lblBtn" title="Center the pattern on the surface"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>Center</button>
+      <button id="tAuto" class="lblBtn" title="Reset motif: put the motif back to a tidy size and spot in its cell"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>Reset motif</button>
+      <button id="tRand" class="lblBtn" title="Shuffle: try a random symmetry group and motif placement (Undo brings back the last one)"><svg class="i" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>Shuffle</button>
       <span class="sp"></span>
-      <button id="tZout" class="icon tZoom" title="Zoom out" aria-label="Zoom out"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-      <button id="tFit" title="Fit to screen (F)">Fit</button>
-      <button id="tZin" class="icon tZoom" title="Zoom in" aria-label="Zoom in"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
+      <button id="tFit" title="Fit the surface to the screen (F or Ctrl/Cmd+0)">Fit</button>
       <details class="menu" id="viewMenu">
         <summary title="Choose which guides to show on the canvas">View</summary>
         <div class="menuList">
           <div class="mh">Show on canvas</div>
-          <button id="oCell" class="tg on">Cell</button>
-          <button id="oBox" class="tg on">Motif box</button>
+          <button id="oRul" class="tg on">Rulers</button>
+          <button id="oCell" class="tg on">Cell <small>drag to move the pattern</small></button>
+          <button id="oBox" class="tg on">Motif box <small>drag to move the motif</small></button>
           <button id="oGrad" class="tg on" title="Show gradient controllers and their handles">Gradient handles</button>
           <button id="oMarks" class="tg">Symmetry marks</button>
           <button id="oTile" class="tg">Seamless tile</button>
           <button id="oField" class="tg" title="Show the combined gradient as a heat map">Gradient heat map</button>
         </div>
       </details>
-      <button id="tAuto" class="icon" title="Auto-place: reset the motif to a sensible size and spot" aria-label="Auto-place"><svg class="i" viewBox="0 0 24 24"><path d="m4 20 11-11"/><path d="m14 5 1-2 1 2 2 1-2 1-1 2-1-2-2-1z"/><path d="m19 12 .6-1.2L21 10l-1.4-.8L19 8l-.6 1.2L17 10l1.4.8z"/></svg></button>
-      <button id="tRand" class="icon" title="Surprise me: random group and motif placement" aria-label="Surprise me"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r=".6" fill="currentColor"/><circle cx="15" cy="15" r=".6" fill="currentColor"/><circle cx="15" cy="9" r=".6" fill="currentColor"/><circle cx="9" cy="15" r=".6" fill="currentColor"/></svg></button>
     </div>
-    <svg id="stage" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-      <defs id="shapeDefs"></defs>
-      <defs id="fxDefs"></defs>
-      <g id="world">
-        <g id="paperG"></g>
-        <g id="pat"></g>
-        <g id="ov"></g>
-      </g>
-    </svg>
+    <div class="stageWrap">
+      <div class="rCorner">mm</div><canvas id="rulerX"></canvas><canvas id="rulerY"></canvas>
+      <svg id="stage" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <defs id="shapeDefs"></defs>
+        <defs id="fxDefs"></defs>
+        <g id="world">
+          <g id="paperG"></g>
+          <g id="pat"></g>
+          <g id="ov"></g>
+        </g>
+      </svg>
+    </div>
     <div class="status" id="status"></div>
   </section>
 
@@ -1237,7 +1246,7 @@ const BUILTINS = [
 /* ================= State ================= */
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
 const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none' });
-const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, morph: { on: false, shape: 'star', steps: 10 } });
+const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
 function newLayer(over) {
   over = over || {};
   const L = Object.assign({
@@ -1261,8 +1270,8 @@ function defaultState() {
 }
 let S = defaultState();
 const view = { cx: 100, cy: 75, scale: 3 };
-const show = { cell: true, marks: false, tile: false, box: true, grad: true, field: false };
-let tool = 'pan';
+const show = { cell: true, marks: false, tile: false, box: true, grad: true, field: false, rulers: true };
+let cropMode = false, spaceDown = false, CELL_POLY = null, MOTIF_POLY = null, lastPtr = null;
 const cur = () => S.layers[S.sel] || S.layers[0];
 
 /* ---------- History & autosave ---------- */
@@ -1427,6 +1436,7 @@ function respond(L, F, R, reg, c, key) {
     if (md.drop.on && (md.drop.mode === 'dither' ? rnd01(key[0], key[1], key[2] + 17) > v : v < md.drop.t)) return null;
     if (md.size.on) s *= md.size.min + (md.size.max - md.size.min) * v;
     if (md.opacity.on) op *= md.opacity.min + (1 - md.opacity.min) * v;
+    if (md.feather.on) op *= CURVES.smooth(clamp(v / Math.max(0.01, md.feather.w), 0, 1)); // fade out over the weakest part of the gradient
     if (md.rot.on) rot += md.rot.deg * v;
     if (md.color.on) col = lerpColor(md.color.c2, L.fill, v);
   }
@@ -1635,7 +1645,7 @@ function flowLines(L, reg, F) {
 }
 function strokesToPolys(L, idx, lines, F, R, reg, mode) {
   const amt = F.active && L.mod.spacing.on ? L.mod.spacing.amt : 0, base = Math.max(0.02, L.lay.width), out = [];
-  const varies = (F.active && (L.mod.color.on || L.mod.opacity.on)) || (R.featherOn && /fade/.test(R.featherMode));
+  const varies = (F.active && (L.mod.color.on || L.mod.opacity.on || L.mod.feather.on)) || (R.featherOn && /fade/.test(R.featherMode));
   const CH = 8;
   lines.forEach((ln, li) => {
     const pts = amt ? ln.pts.map(p => F.warp(p, amt)) : ln.pts;
@@ -1874,6 +1884,7 @@ function render() {
   const R = S.region, reg = regionInfo(R);
   const W = stage.clientWidth || 800, H = stage.clientHeight || 600;
   stage.setAttribute('viewBox', [view.cx - W / 2 / view.scale, view.cy - H / 2 / view.scale, W / view.scale, H / view.scale].map(fmt).join(' '));
+  drawRulers();
   $('#paperG').innerHTML = '<rect x="0" y="0" width="' + fmt(R.W) + '" height="' + fmt(R.H) + '" fill="' + (R.bgOn ? esc(R.bg) : 'url(#chk)') + '" stroke="rgba(0,0,0,.25)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
   const pb = patternBody(R, {});
   if (morphDirty) { morphDirty = false; let m = ''; Object.values(MORPHS).forEach(set => { if (set) set.forEach(r => { m += '<g id="' + r.id + '">' + r.inner.m + '</g>'; }); }); $('#shapeDefs').innerHTML = shapeDefs(Object.keys(SHAPES)) + m; }
@@ -1913,6 +1924,7 @@ function drawCtrls(px) {
   return s;
 }
 function drawOverlays(reg) {
+  CELL_POLY = null; MOTIF_POLY = null; HANDLES = [];
   const L = cur(); let s = '';
   const px = 1 / view.scale;
   if (show.field) s += fieldOverlay();
@@ -1946,13 +1958,13 @@ function drawOverlays(reg) {
       $('#fxDefs').insertAdjacentHTML('beforeend', '<clipPath id="ovClip"><rect x="-50" y="-50" width="' + fmt(S.region.W + 100) + '" height="' + fmt(S.region.H + 100) + '"/></clipPath>');
     }
     if (show.cell) {
-      const pts = [o, [o[0] + a[0], o[1] + a[1]], [o[0] + a[0] + b[0], o[1] + a[1] + b[1]], [o[0] + b[0], o[1] + b[1]]];
+      const pts = CELL_POLY = [o, [o[0] + a[0], o[1] + a[1]], [o[0] + a[0] + b[0], o[1] + a[1] + b[1]], [o[0] + b[0], o[1] + b[1]]];
       s += '<polygon points="' + pts.map(p => fmt(p[0]) + ',' + fmt(p[1])).join(' ') + '" fill="var(--ov)" fill-opacity=".07" stroke="var(--ov)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
       s += '<circle cx="' + fmt(o[0]) + '" cy="' + fmt(o[1]) + '" r="' + fmt(3 * px) + '" fill="var(--ov)"/>';
     }
     if (show.box) {
       const sh = geo.sh, hw = sh.w / 2, hh = sh.h / 2;
-      const c = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(q => Af.ap(geo.M, q));
+      const c = MOTIF_POLY = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(q => Af.ap(geo.M, q));
       s += '<polygon points="' + c.map(p => fmt(p[0]) + ',' + fmt(p[1])).join(' ') + '" fill="none" stroke="var(--ov)" stroke-width="1.5" stroke-dasharray="3 2" vector-effect="non-scaling-stroke"/>';
       const m = Af.ap(geo.M, [0, 0]);
       s += '<circle cx="' + fmt(m[0]) + '" cy="' + fmt(m[1]) + '" r="' + fmt(3.5 * px) + '" fill="var(--panel)" stroke="var(--ov)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
@@ -1963,6 +1975,7 @@ function drawOverlays(reg) {
     s += '<path d="M' + fmt(C[0] - 7 * px) + ' ' + fmt(C[1]) + 'H' + fmt(C[0] + 7 * px) + 'M' + fmt(C[0]) + ' ' + fmt(C[1] - 7 * px) + 'V' + fmt(C[1] + 7 * px) + '" stroke="var(--ov)" stroke-width="2" vector-effect="non-scaling-stroke"/>';
   }
   if (show.grad) s += drawCtrls(px);
+  if (cropMode) s += cropOverlay(px);
   if (L.layout && L.lay && (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci')) HANDLES.push({ x: L.lay.cx / 100 * S.region.W, y: L.lay.cy / 100 * S.region.H, ci: -1, key: 'centre' });
   $('#ov').innerHTML = s;
 }
@@ -2088,10 +2101,10 @@ function buildLayerControls() {
     numRow('Size', P('size'), Q('size'), 0.3, span * 2, 0.1, 'mm', 'Longest side of the motif'),
     numRow('Turn', P('mrot'), Q('mrot'), -180, 180, 0.5, '°'),
     numRow('Stretch', P('aspect'), Q('aspect'), 0.2, 4, 0.01, '×', 'Width multiplier'),
-    line(chk('Flip motif', P('flip'), Q('flip')), isLat ? E('span', { class: 'hint' }, 'Tip: ', E('kbd', {}, 'Shift'), '-drag on the canvas moves it.') : '')
+    line(chk('Flip motif', P('flip'), Q('flip')), isLat ? E('span', { class: 'hint' }, 'Tip: drag the motif box on the canvas to move it.') : '')
   );
   const pl = $('#secPlace'); pl.innerHTML = '';
-  pl.append(numRow('Shift x', P('sx'), Q('sx'), -span, span, 0.1, 'mm', 'Moves the whole layer'), numRow('Shift y', P('sy'), Q('sy'), -span, span, 0.1, 'mm'));
+  pl.append(numRow('Shift x', P('sx'), Q('sx'), -Math.max(span, S.region.W), Math.max(span, S.region.W), 0.1, 'mm', 'Moves the whole layer. You can also drag the cell on the canvas.'), numRow('Shift y', P('sy'), Q('sy'), -Math.max(span, S.region.H), Math.max(span, S.region.H), 0.1, 'mm'));
   pl.append(E('p', { class: 'hint' }, 'Shift slides this layer against the others. Rotation lives under Spacing.'));
 
   const st = $('#secStyle'); st.innerHTML = '';
@@ -2162,6 +2175,7 @@ function buildResponse() {
     ch('align', 'Angle: face along the gradient', [nr('align', 'off', 'Offset', -180, 180, 1, '°', '0 = point up the gradient, 90 = run along it')]);
   }
   ch('opacity', 'Opacity', [nr('opacity', 'min', 'Far opacity', 0, 1, 0.01, '')]);
+  ch('feather', 'Feather: fade out where the gradient dies', [nr('feather', 'w', 'Feather width', 0.05, 1, 0.01, '', 'How much of the gradient\'s weak end fades to transparent. 1 = fade across the whole gradient'), E('p', { class: 'hint' }, 'Pieces fade to nothing as the gradient runs out, so the edge of a gradient dissolves instead of stopping.')], 'Pieces fade to transparent as the gradient weakens');
   ch('drop', 'Drop out', [line(E('label', {}, 'Mode'), sel([['threshold', 'Below a threshold'], ['dither', 'Random thinning (dither)']], () => md.drop.mode, v => { md.drop.mode = v; buildResponse(); })), md.drop.mode === 'threshold' ? nr('drop', 't', 'Threshold', 0, 1, 0.01, '') : '']);
   ch('color', 'Colour gradient', [line(E('label', {}, 'Far colour'), color(() => md.color.c2, v => { md.color.c2 = v; }), E('span', { class: 'hint' }, '→ near = fill colour'))]);
   if (!isGeom) {
@@ -2839,29 +2853,120 @@ function hitHandle(ev) {
   HANDLES.forEach(h => { const d = Math.hypot(h.x - w[0], h.y - w[1]); if (d < bd) { bd = d; best = h; } });
   return best;
 }
+function inPoly(P, q) {
+  if (!P) return false; let inside = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][1] > q[1]) !== (P[j][1] > q[1]) && q[0] < (P[j][0] - P[i][0]) * (q[1] - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]) inside = !inside;
+  return inside;
+}
+// What a plain drag at this spot does, like a design app: handles first, then the motif, then the whole pattern (its cell), otherwise pan.
+function dragModeAt(ev) {
+  if (spaceDown || ev.button === 1) return 'pan';
+  const w = toWorld(ev), L = cur(), isLat = !L.layout || L.layout === 'wallpaper' || L.layout === 'grid';
+  if (!isLat) return 'pan';
+  if (ev.shiftKey || inPoly(MOTIF_POLY, w)) return 'motif';
+  if (inPoly(CELL_POLY, w)) return 'pattern';
+  return 'pan';
+}
+
+/* ---------- crop: drag the surface edges; content stays where it is on screen ---------- */
+const CROP_KEYS = ['lt', 't', 'rt', 'r', 'rb', 'b', 'lb', 'l'];
+function cropOverlay(px) {
+  const W = S.region.W, H = S.region.H, hs = (HANDLE_R + 1) * px;
+  let s = '<path d="M-100000 -100000H100000V100000H-100000Z M0 0V' + fmt(H) + 'H' + fmt(W) + 'V0Z" fill="#000" fill-opacity=".45" fill-rule="evenodd"/>';
+  s += '<rect x="0" y="0" width="' + fmt(W) + '" height="' + fmt(H) + '" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+  CROP_KEYS.forEach(k => {
+    const x = k.includes('l') ? 0 : k.includes('r') ? W : W / 2, y = k.includes('t') ? 0 : k.includes('b') ? H : H / 2;
+    HANDLES.push({ x: x, y: y, ci: -2, key: 'crop-' + k });
+    s += '<rect x="' + fmt(x - hs) + '" y="' + fmt(y - hs) + '" width="' + fmt(2 * hs) + '" height="' + fmt(2 * hs) + '" fill="var(--accent)" stroke="var(--accent-ink)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
+  });
+  s += '<text x="' + fmt(W) + '" y="' + fmt(H + 16 * px) + '" text-anchor="end" font-size="' + fmt(12 * px) + '" fill="var(--accent)" font-weight="600">' + fmt(W) + ' × ' + fmt(H) + ' mm</text>';
+  return s;
+}
+// Make the rectangle (x0,y0)-(x1,y1) the new surface. Everything is shifted so it keeps its place on the surface.
+function cropTo(x0, y0, x1, y1) {
+  const R = S.region, W = +Math.max(1, x1 - x0).toFixed(2), H = +Math.max(1, y1 - y0).toFixed(2);
+  const sh = (o, kx, ky) => { if (o[kx] != null) o[kx] = +(o[kx] - x0).toFixed(2); if (o[ky] != null) o[ky] = +(o[ky] - y0).toFixed(2); };
+  S.layers.forEach(L => {
+    sh(L, 'sx', 'sy');
+    if (L.lay && L.lay.cx != null) { L.lay.cx = +((L.lay.cx / 100 * R.W - x0) / W * 100).toFixed(3); L.lay.cy = +((L.lay.cy / 100 * R.H - y0) / H * 100).toFixed(3); }
+  });
+  (S.ctrls || []).forEach(c => { sh(c, 'x', 'y'); sh(c, 'x1', 'y1'); sh(c, 'x2', 'y2'); if (c.pts) c.pts = c.pts.map(p => [+(p[0] - x0).toFixed(2), +(p[1] - y0).toFixed(2)]); });
+  R.W = W; R.H = H; view.cx -= x0; view.cy -= y0; FIELD = null;
+}
+function setCrop(on) {
+  cropMode = on; $('#tCrop').classList.toggle('on', on);
+  if (on) toast('Drag the green handles to crop or extend the surface. Press Esc or Crop again when done.', 3600);
+  requestRender();
+}
+/* ---------- center: put a symmetry point of each layer on the middle of the surface ---------- */
+function centerPattern() {
+  const R = S.region, C = [R.W / 2, R.H / 2]; let n = 0;
+  S.layers.forEach(L => {
+    if (!L.layout || L.layout === 'wallpaper' || L.layout === 'grid') {
+      L.sx = +C[0].toFixed(3); L.sy = +C[1].toFixed(3); n++; // the lattice origin is a symmetry point, so the cell box lands in the middle
+    } else if (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci') { L.lay.cx = 50; L.lay.cy = 50; n++; }
+  });
+  if (!n) { toast('This layout already spreads evenly over the surface, so there is nothing to center.'); return; }
+  buildLayerControls(); buildLayout(); requestRender(); pushHistory(); toast('Pattern centered on the surface');
+}
+
+/* ---------- rulers (millimetres, 0 at the surface's top-left corner) ---------- */
+function drawRulers() {
+  if (!show.rulers) return;
+  const css = getComputedStyle(document.documentElement), tok = k => css.getPropertyValue(k).trim();
+  const bg = tok('--panel'), fg = tok('--muted'), ln = tok('--line-strong'), band = tok('--raise'), acc = tok('--accent'), dpr = window.devicePixelRatio || 1;
+  [['#rulerX', 0], ['#rulerY', 1]].forEach(([id, ax]) => {
+    const cv = $(id), w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const len = ax ? h : w, th = ax ? w : h, cen = ax ? view.cy : view.cx, sc = view.scale, size = ax ? S.region.H : S.region.W;
+    const at = v => len / 2 + (v - cen) * sc;
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    const s0 = clamp(at(0), 0, len), s1 = clamp(at(size), 0, len);
+    g.fillStyle = band; if (ax) g.fillRect(0, s0, w, s1 - s0); else g.fillRect(s0, 0, s1 - s0, h);
+    const major = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000].find(v => v * sc >= 56) || 5000;
+    const parts = String(major)[0] === '2' ? 4 : 5, minor = major / parts;
+    const i0 = Math.ceil((cen - len / 2 / sc) / minor), i1 = Math.floor((cen + len / 2 / sc) / minor);
+    g.strokeStyle = fg; g.fillStyle = fg; g.lineWidth = 1; g.font = '10px ui-sans-serif,system-ui,sans-serif'; g.textBaseline = 'top';
+    g.beginPath();
+    for (let i = i0; i <= i1; i++) {
+      const p = Math.round(at(i * minor)) + 0.5, isMaj = i % parts === 0, t = isMaj ? th * 0.6 : th * 0.25;
+      if (ax) { g.moveTo(w - t, p); g.lineTo(w, p); } else { g.moveTo(p, h - t); g.lineTo(p, h); }
+      if (isMaj) {
+        const lbl = String(+(i * minor).toFixed(2));
+        if (ax) { g.save(); g.translate(2, p - 3); g.rotate(-Math.PI / 2); g.fillText(lbl, 0, 0); g.restore(); } else g.fillText(lbl, p + 3, 2);
+      }
+    }
+    g.stroke();
+    g.strokeStyle = ln; g.beginPath(); if (ax) { g.moveTo(w - 0.5, 0); g.lineTo(w - 0.5, h); } else { g.moveTo(0, h - 0.5); g.lineTo(w, h - 0.5); } g.stroke();
+    if (lastPtr) { const p = Math.round(at(lastPtr[ax])) + 0.5; g.strokeStyle = acc; g.lineWidth = 1.5; g.beginPath(); if (ax) { g.moveTo(0, p); g.lineTo(w, p); } else { g.moveTo(p, 0); g.lineTo(p, h); } g.stroke(); }
+  });
+}
+
 // Two fingers on a touch screen pinch-zoom and pan together; one finger drags as usual.
 const touchPts = new Map(); let pinch = null;
 function pinchInfo() { const p = [...touchPts.values()]; return { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) || 1, x: (p[0][0] + p[1][0]) / 2, y: (p[0][1] + p[1][1]) / 2 }; }
+function undoDragPreview() { const L = cur(); if (!drag) return; if (drag.mode === 'motif') { L.mx = drag.mx; L.my = drag.my; } if (drag.mode === 'pattern') { L.sx = drag.sx; L.sy = drag.sy; } }
 stage.addEventListener('pointerdown', ev => {
   stage.setPointerCapture(ev.pointerId);
   if (ev.pointerType === 'touch') {
     touchPts.set(ev.pointerId, [ev.clientX, ev.clientY]);
     if (touchPts.size === 2) {
-      if (drag && drag.moving) { const L = cur(); L.mx = drag.mx; L.my = drag.my; }
+      undoDragPreview();
       if (drag && drag.handle) pushHistory();
       drag = null; const m = pinchInfo(); pinch = { d0: m.d, s0: view.scale, w0: toWorld({ clientX: m.x, clientY: m.y }) }; requestRender(); return;
     }
     if (touchPts.size > 2) return;
   }
-  const h = hitHandle(ev);
+  const mode = dragModeAt(ev), h = mode === 'pan' && (spaceDown || ev.button === 1) ? null : hitHandle(ev);
   if (h) {
     drag = { handle: h, w0: toWorld(ev) };
     if (h.ci >= 0 && selCtrl !== h.ci) { selCtrl = h.ci; buildGradients(); }
     stage.style.cursor = 'grabbing'; return;
   }
-  const moving = tool === 'move' || ev.shiftKey, L = cur();
-  drag = { x: ev.clientX, y: ev.clientY, cx: view.cx, cy: view.cy, moving: moving, w0: toWorld(ev), mx: L.mx, my: L.my };
-  if (moving) stage.classList.add('move'); else stage.style.cursor = 'grabbing';
+  const L = cur();
+  drag = { x: ev.clientX, y: ev.clientY, cx: view.cx, cy: view.cy, mode: mode, w0: toWorld(ev), mx: L.mx, my: L.my, sx: L.sx, sy: L.sy, moved: false };
+  stage.style.cursor = mode === 'pan' ? 'grabbing' : 'move';
 });
 stage.addEventListener('pointermove', ev => {
   if (touchPts.has(ev.pointerId)) touchPts.set(ev.pointerId, [ev.clientX, ev.clientY]);
@@ -2872,9 +2977,21 @@ stage.addEventListener('pointermove', ev => {
     view.cx = pinch.w0[0] - (m.x - r.left - r.width / 2) / view.scale; view.cy = pinch.w0[1] - (m.y - r.top - r.height / 2) / view.scale;
     requestRender(); return;
   }
-  if (!drag) { if (ev.pointerType === 'touch') return; const h = hitHandle(ev); stage.style.cursor = h ? 'pointer' : ''; return; }
+  if (ev.pointerType !== 'touch') { lastPtr = toWorld(ev); drawRulers(); }
+  if (!drag) {
+    if (ev.pointerType === 'touch') return;
+    const h = !spaceDown && hitHandle(ev), m = dragModeAt(ev);
+    stage.style.cursor = h ? (h.key.startsWith('crop-') ? (h.key.length === 6 ? (h.key === 'crop-t' || h.key === 'crop-b' ? 'ns-resize' : 'ew-resize') : (h.key === 'crop-lt' || h.key === 'crop-rb' ? 'nwse-resize' : 'nesw-resize')) : 'pointer') : m === 'pan' ? '' : 'move';
+    return;
+  }
   if (drag.handle) {
     const h = drag.handle, w = toWorld(ev).map(v => +v.toFixed(2));
+    if (h.key.startsWith('crop-')) {
+      const k = h.key.slice(5), R = S.region; let x0 = 0, y0 = 0, x1 = R.W, y1 = R.H;
+      if (k.includes('l')) x0 = Math.min(w[0], R.W - 1); if (k.includes('r')) x1 = Math.max(w[0], 1);
+      if (k.includes('t')) y0 = Math.min(w[1], R.H - 1); if (k.includes('b')) y1 = Math.max(w[1], 1);
+      cropTo(x0, y0, x1, y1); requestRender(); return;
+    }
     if (h.key === 'centre') { const L = cur(); L.lay.cx = +(w[0] / S.region.W * 100).toFixed(2); L.lay.cy = +(w[1] / S.region.H * 100).toFixed(2); }
     else {
       const c = S.ctrls[h.ci]; if (!c) return;
@@ -2886,29 +3003,41 @@ stage.addEventListener('pointermove', ev => {
     h.x = w[0]; h.y = w[1];
     requestRender(); return;
   }
-  if (drag.moving) {
-    const L = cur(), w = toWorld(ev), p = eff(L);
-    const d = Af.lin(Af.R(-p.rot), [w[0] - drag.w0[0], w[1] - drag.w0[1]]);
+  const L = cur(), w = toWorld(ev);
+  drag.moved = drag.moved || Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) > 3;
+  if (drag.mode === 'motif') {
+    const p = eff(L), d = Af.lin(Af.R(-p.rot), [w[0] - drag.w0[0], w[1] - drag.w0[1]]);
     L.mx = +(drag.mx + d[0]).toFixed(2); L.my = +(drag.my + d[1]).toFixed(2);
-    requestRender();
-  } else { view.cx = drag.cx - (ev.clientX - drag.x) / view.scale; view.cy = drag.cy - (ev.clientY - drag.y) / view.scale; requestRender(); }
+  } else if (drag.mode === 'pattern') {
+    L.sx = +(drag.sx + w[0] - drag.w0[0]).toFixed(2); L.sy = +(drag.sy + w[1] - drag.w0[1]).toFixed(2);
+  } else { view.cx = drag.cx - (ev.clientX - drag.x) / view.scale; view.cy = drag.cy - (ev.clientY - drag.y) / view.scale; }
+  requestRender();
 });
 const endDrag = ev => {
   touchPts.delete(ev.pointerId);
   if (pinch) { if (touchPts.size === 0) pinch = null; return; }
-  if (drag && drag.handle) { pushHistory(); if (drag.handle.key === 'centre') buildLayout(); }
-  else if (drag && drag.moving) { buildLayerControls(); pushHistory(); }
-  drag = null; stage.classList.toggle('move', tool === 'move'); stage.style.cursor = '';
+  if (drag && drag.handle) { pushHistory(); if (drag.handle.key === 'centre') buildLayout(); if (drag.handle.key.startsWith('crop-')) rebuildAll(); }
+  else if (drag && drag.mode !== 'pan' && drag.moved) { buildLayerControls(); pushHistory(); }
+  drag = null; stage.style.cursor = spaceDown ? 'grab' : '';
 };
 stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
+stage.addEventListener('pointerleave', () => { if (!drag) { lastPtr = null; drawRulers(); } });
+// Like Illustrator/Figma: the wheel or two-finger trackpad scroll pans; Ctrl/Cmd/Alt + wheel or a trackpad pinch zooms.
 stage.addEventListener('wheel', ev => {
   ev.preventDefault();
-  const w = toWorld(ev), f = Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015));
-  view.scale = clamp(view.scale * f, 0.05, 400);
-  const r = stage.getBoundingClientRect();
-  view.cx = w[0] - (ev.clientX - r.left - r.width / 2) / view.scale; view.cy = w[1] - (ev.clientY - r.top - r.height / 2) / view.scale;
+  const k = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) {
+    const w = toWorld(ev), f = Math.exp(-ev.deltaY * k * (ev.ctrlKey ? 0.01 : 0.0025));
+    view.scale = clamp(view.scale * f, 0.05, 400);
+    const r = stage.getBoundingClientRect();
+    view.cx = w[0] - (ev.clientX - r.left - r.width / 2) / view.scale; view.cy = w[1] - (ev.clientY - r.top - r.height / 2) / view.scale;
+  } else {
+    const dx = ev.shiftKey && !ev.deltaX ? ev.deltaY : ev.deltaX, dy = ev.shiftKey && !ev.deltaX ? 0 : ev.deltaY;
+    view.cx += dx * k / view.scale; view.cy += dy * k / view.scale;
+  }
   requestRender();
 }, { passive: false });
+function zoomBy(f) { view.scale = clamp(view.scale * f, 0.05, 400); requestRender(); }
 new ResizeObserver(() => requestRender()).observe(stage);
 
 /* ================= Draw pad ================= */
@@ -2974,12 +3103,11 @@ $('#txtOk').onclick = () => {
 };
 
 /* ================= Wiring ================= */
-function setTool(t) { tool = t; $('#tPan').classList.toggle('on', t === 'pan'); $('#tMove').classList.toggle('on', t === 'move'); stage.classList.toggle('move', t === 'move'); }
 function toggle(id, key) { const b = $(id); b.onclick = () => { show[key] = !show[key]; b.classList.toggle('on', show[key]); requestRender(); }; b.classList.toggle('on', show[key]); }
 $('#tFit').onclick = fit;
-$('#tZin').onclick = () => { view.scale *= 1.25; requestRender(); };
-$('#tZout').onclick = () => { view.scale /= 1.25; requestRender(); };
-$('#tPan').onclick = () => setTool('pan'); $('#tMove').onclick = () => setTool('move');
+$('#tCrop').onclick = () => setCrop(!cropMode);
+$('#tCenter').onclick = centerPattern;
+$('#oRul').onclick = () => { show.rulers = !show.rulers; $('#oRul').classList.toggle('on', show.rulers); $('.canvasWrap').classList.toggle('noRulers', !show.rulers); requestRender(); };
 toggle('#oCell', 'cell'); toggle('#oMarks', 'marks'); toggle('#oTile', 'tile'); toggle('#oBox', 'box'); toggle('#oGrad', 'grad'); toggle('#oField', 'field');
 $('#imgIn').onchange = async ev => {
   const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
@@ -3021,13 +3149,20 @@ document.addEventListener('keydown', ev => {
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.type !== 'range' && document.activeElement.type !== 'checkbox';
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'z' && !typing) { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'y' && !typing) { ev.preventDefault(); redo(); return; }
-  if (ev.key === 'Escape') document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
+  if (ev.key === 'Escape') { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); if (cropMode) setCrop(false); }
   if (typing || document.querySelector('.modal.open')) return;
+  if (ev.key === ' ') { ev.preventDefault(); if (!spaceDown) { spaceDown = true; if (!drag) stage.style.cursor = 'grab'; } return; }
+  if (ev.key === 'Enter' && cropMode) { setCrop(false); return; }
+  if ((ev.metaKey || ev.ctrlKey) && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); zoomBy(1.25); return; }
+  if ((ev.metaKey || ev.ctrlKey) && ev.key === '-') { ev.preventDefault(); zoomBy(0.8); return; }
+  if ((ev.metaKey || ev.ctrlKey) && ev.key === '0') { ev.preventDefault(); fit(); return; }
   const st = ev.shiftKey ? 1 : 0.1, L = cur();
   const mv = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] }[ev.key];
   if (mv && document.activeElement.type !== 'range') { ev.preventDefault(); L.mx = +(L.mx + mv[0]).toFixed(2); L.my = +(L.my + mv[1]).toFixed(2); buildLayerControls(); requestRender(); pushHistory(); }
   if (ev.key === 'f' || ev.key === 'F') fit();
 });
+document.addEventListener('keyup', ev => { if (ev.key === ' ') { spaceDown = false; if (!drag) stage.style.cursor = ''; } });
+window.addEventListener('blur', () => { spaceDown = false; });
 document.addEventListener('paste', ev => {
   if (/INPUT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.type === 'text') return;
   const items = [...(ev.clipboardData ? ev.clipboardData.items : [])];
@@ -3074,6 +3209,12 @@ $('#bExport').onclick = () => { showTab('export'); setSheet(false); };
 try { const t = localStorage.getItem(TAB_KEY); if (t && document.querySelector('.pane[data-pane="' + t + '"]')) showTab(t); } catch (e) { }
 // Dropdown menus: close when clicking outside; the File menu also closes after a choice (View stays open for several toggles).
 document.addEventListener('click', ev => document.querySelectorAll('.menu[open]').forEach(m => { if (!m.contains(ev.target)) m.open = false; }));
+// The View list hangs off a toolbar that scrolls sideways on phones, so it is placed against the window instead.
+$('#viewMenu').addEventListener('toggle', () => {
+  const m = $('#viewMenu'), list = m.querySelector('.menuList'); if (!m.open) return;
+  const r = m.querySelector('summary').getBoundingClientRect();
+  list.classList.add('fixed'); list.style.top = (r.bottom + 6) + 'px'; list.style.right = Math.max(8, innerWidth - r.right) + 'px';
+});
 $('#fileMenu .menuList').addEventListener('click', ev => { if (ev.target.closest('button')) $('#fileMenu').open = false; });
 })();
 </script>
