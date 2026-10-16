@@ -2,168 +2,238 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1310">
 <title>Pattern Studio</title>
 <style>
 :root{
-  --bg:#efece5; --panel:#fbfaf6; --ink:#1c1e22; --muted:#6c6f77; --line:#dcd7cc; --accent:#cf4f26; --accent-ink:#ffffff;
-  --field:#ffffff; --canvas:#e2ddd2; --chip:#f2efe8; --sel:#fbe3d7; --mirror:#cf4f26; --glide:#2f6fd6; --rot:#1c1e22;
-}
-@media (prefers-color-scheme: dark){
-  :root{ --bg:#141518; --panel:#1b1d21; --ink:#e8e6e1; --muted:#999ba2; --line:#2e3036; --accent:#f07a4f; --accent-ink:#17181b;
-    --field:#24262b; --canvas:#0f1012; --chip:#25272c; --sel:#3b2a22; --mirror:#f07a4f; --glide:#6aa1ff; --rot:#e8e6e1; }
+  color-scheme:dark;
+  /* app chrome: dark greens */
+  --bg:#0b1310; --panel:#111c17; --raise:#15221c; --field:#1a2922; --chip:#192620; --chip-hover:#20322a;
+  --line:#243630; --line-strong:#33493f;
+  --ink:#e3ede7; --muted:#8fa79a;
+  --accent:#5ad49a; --accent-ink:#04140c; --accent-soft:rgba(90,212,154,.13); --sel:#1b3a2c;
+  --warn:#f0b65a; --canvas:#08100c;
+  /* canvas overlays: drawn over the (often light) pattern paper, so they need to read on light and dark */
+  --ov:#0f9e63; --ov-line:#6b8578; --mirror:#0f9e63; --glide:#3b8ae6; --rot:#10201a;
+  --r:8px; --tap:34px;
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--ink);font:13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:grid;grid-template-rows:auto 1fr;overflow:hidden}
-header{display:flex;align-items:center;gap:6px;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
-header h1{font-size:14px;margin:0 10px 0 2px;letter-spacing:.02em;font-weight:700}
-header h1 b{color:var(--accent)}
-header .sp{flex:1}
-button{font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap}
-button:hover{border-color:var(--muted)}
-button:disabled{opacity:.45;cursor:default}
-button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
-button.on{background:var(--sel);border-color:var(--accent)}
-button.mini{padding:2px 6px;font-size:12px}
-main{display:grid;grid-template-columns:268px minmax(0,1fr) 340px;min-height:0}
-aside{overflow:auto;background:var(--panel);min-height:0}
-aside.left{border-right:1px solid var(--line)}
-aside.right{border-left:1px solid var(--line)}
-details{border-bottom:1px solid var(--line)}
-summary{padding:9px 12px;font-weight:650;cursor:pointer;user-select:none;list-style:none;display:flex;justify-content:space-between;align-items:center}
-summary::-webkit-details-marker{display:none}
-summary::after{content:'▾';color:var(--muted);font-size:11px}
-details:not([open]) summary::after{content:'▸'}
-summary small{font-weight:400;color:var(--muted);margin-left:auto;margin-right:8px}
-.sec{padding:0 12px 12px}
-.row{display:grid;grid-template-columns:96px minmax(0,1fr) 66px;gap:8px;align-items:center;margin:5px 0}
-.row>label{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-input[type=number],input[type=text],select{font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:5px;padding:3px 5px;min-width:0}
+body{height:100dvh;background:var(--bg);color:var(--ink);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden;-webkit-tap-highlight-color:transparent}
+svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- header ---------- */
+header{display:flex;align-items:center;gap:6px;padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top));border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:15px;margin:0 8px 0 0;letter-spacing:.01em;font-weight:700;display:flex;align-items:center;gap:8px;white-space:nowrap}
+header h1 .logo{width:22px;height:22px;border-radius:6px;background:var(--accent);display:grid;place-items:center;color:var(--accent-ink)}
+header h1 .logo svg{width:14px;height:14px;fill:currentColor}
+header h1 b{color:var(--accent);font-weight:700}
+.sp{flex:1}
+
+/* ---------- buttons & fields ---------- */
+button,.menu>summary{font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:var(--r);padding:0 11px;min-height:var(--tap);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .12s,border-color .12s}
+button:hover,.menu>summary:hover{background:var(--chip-hover);border-color:var(--line-strong)}
+button:focus-visible,.menu>summary:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button:disabled{opacity:.4;cursor:default}
+button:disabled:hover{background:var(--chip);border-color:var(--line)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:650}
+button.primary:hover{background:#74e0ab}
+button.on{background:var(--sel);border-color:var(--accent);color:var(--ink)}
+button.mini{min-height:30px;padding:0 10px;font-size:12px}
+button.icon{padding:0;width:var(--tap)}
+button.ghost{background:transparent;border-color:transparent}
+button.ghost:hover{background:var(--chip)}
+input[type=number],input[type=text],select{font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:6px;padding:4px 7px;min-height:30px;min-width:0}
+select{padding-right:4px}
 .row input[type=number]{width:100%}
-input[type=range]{width:100%;accent-color:var(--accent);margin:0}
-input[type=color]{width:30px;height:24px;border:1px solid var(--line);border-radius:5px;padding:1px;background:var(--field);cursor:pointer}
-input[type=checkbox]{accent-color:var(--accent)}
-.line{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}
-.line label{color:var(--muted);font-size:12px}
-.hint{color:var(--muted);font-size:12px;margin:6px 0}
-.warn{color:var(--accent);font-size:12px;margin:6px 0}
-.canvasWrap{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-height:0;background:var(--canvas)}
-.toolbar{display:flex;gap:5px;padding:6px 8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line);background:var(--panel)}
-.toolbar .sep{width:1px;height:20px;background:var(--line);margin:0 3px}
-#stage{width:100%;height:100%;display:block;touch-action:none;cursor:grab;user-select:none}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0;height:22px;background:transparent}
+input[type=color]{width:34px;height:28px;border:1px solid var(--line);border-radius:6px;padding:2px;background:var(--field);cursor:pointer}
+input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;margin:0 2px 0 0;vertical-align:-3px}
+code{font:12px ui-monospace,monospace;background:var(--chip);padding:0 3px;border-radius:3px}
+kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-radius:3px;padding:0 3px;background:var(--chip)}
+
+/* ---------- dropdown menus (File, View) ---------- */
+.menu{position:relative}
+.menu>summary{list-style:none;user-select:none}
+.menu>summary::-webkit-details-marker{display:none}
+.menu>summary::after{content:'';width:6px;height:6px;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(45deg) translate(-2px,-2px);margin-left:2px}
+.menu[open]>summary{background:var(--sel);border-color:var(--accent)}
+.menuList{position:absolute;right:0;top:calc(100% + 6px);z-index:15;min-width:220px;background:var(--raise);border:1px solid var(--line-strong);border-radius:10px;padding:6px;box-shadow:0 14px 40px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px}
+.menuList.left{left:0;right:auto}
+.menuList button{justify-content:flex-start;background:transparent;border-color:transparent;width:100%;min-height:36px}
+.menuList button:hover{background:var(--chip-hover)}
+.menuList hr{border:0;border-top:1px solid var(--line);margin:4px 2px;width:auto}
+.menuList .mh{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:6px 10px 2px}
+.menuList button.tg::before{content:'';width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line-strong);flex:none}
+.menuList button.tg.on{background:transparent;border-color:transparent}
+.menuList button.tg.on::before{background:var(--accent);border-color:var(--accent);box-shadow:inset 0 0 0 3px var(--raise)}
+.menuList button.tg small{margin-left:auto;color:var(--muted);font-size:11px}
+
+/* ---------- main layout ---------- */
+main{display:grid;grid-template-columns:minmax(0,1fr) 372px;min-height:0}
+.canvasWrap{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-height:0;background:var(--canvas);position:relative}
+.toolbar{display:flex;gap:6px;padding:8px 10px;align-items:center;border-bottom:1px solid var(--line);background:var(--panel)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--chip)}
+.seg button{border:0;border-radius:0;background:transparent}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--sel);color:var(--accent)}
+#stage{width:100%;height:100%;display:block;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
 #stage.move{cursor:move}
-.status{padding:5px 10px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);background:var(--panel);display:flex;gap:16px;flex-wrap:wrap}
+.status{padding:6px 12px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);background:var(--panel);display:flex;gap:16px;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+.status::-webkit-scrollbar{display:none}
 .status b{color:var(--ink);font-weight:600}
-.fam{font-size:11px;color:var(--muted);margin:10px 0 5px;text-transform:uppercase;letter-spacing:.06em}
+
+/* ---------- side panel with tabs ---------- */
+aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;background:var(--panel);border-left:1px solid var(--line)}
+.tabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;padding:6px;border-bottom:1px solid var(--line);background:var(--panel)}
+.tabs button{flex-direction:column;gap:3px;min-height:52px;padding:4px 0;font-size:11px;font-weight:550;color:var(--muted);background:transparent;border-color:transparent}
+.tabs button:hover{background:var(--chip);color:var(--ink)}
+.tabs button.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.panes{overflow:auto;min-height:0;overscroll-behavior:contain}
+.pane{display:none;padding:10px 10px 24px}
+.pane.on{display:block}
+.sheetGrip{display:none}
+
+/* sections inside a pane */
+.pane details{background:var(--raise);border:1px solid var(--line);border-radius:12px;margin:0 0 10px}
+.pane summary{padding:11px 14px;font-weight:650;cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:8px}
+.pane summary::-webkit-details-marker{display:none}
+.pane summary::after{content:'';width:7px;height:7px;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(45deg);margin:-3px 2px 0 auto;transition:transform .15s}
+.pane details:not([open]) summary::after{transform:rotate(-45deg);margin-top:0}
+.pane summary small{font-weight:400;color:var(--muted);margin-left:auto}
+.pane summary:has(small)::after{margin-left:10px}
+.sec{padding:0 14px 14px}
+.row{display:grid;grid-template-columns:100px minmax(0,1fr) 64px;gap:10px;align-items:center;margin:7px 0}
+.row>label{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.line{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+.line label{color:var(--muted);font-size:12px}
+.hint{color:var(--muted);font-size:12px;margin:8px 0 0}
+.warn{color:var(--warn);font-size:12px;margin:6px 0}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.fam{font-size:11px;color:var(--muted);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.06em}
 .fam:first-child{margin-top:0}
 .gridG{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-.gchip{border:1px solid var(--line);border-radius:6px;background:var(--field);padding:0;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;color:var(--ink)}
+.gchip{border:1px solid var(--line);border-radius:8px;background:var(--field);padding:0;min-height:0;cursor:pointer;overflow:hidden;display:flex;flex-direction:column;align-items:stretch;gap:0;color:var(--ink)}
 .gchip svg{width:100%;aspect-ratio:1;display:block}
-.gchip span{font-size:11px;padding:2px 0;text-align:center;border-top:1px solid var(--line);font-weight:600}
+.gchip span{font-size:11px;padding:3px 0;text-align:center;border-top:1px solid var(--line);font-weight:600}
 .gchip.sel{outline:2px solid var(--accent);outline-offset:-1px}
-.gdesc{margin:8px 0 0;font-size:12px;color:var(--muted)}
-.shapes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-.shape{position:relative;border:1px solid var(--line);border-radius:6px;background:var(--field);cursor:pointer;aspect-ratio:1;padding:6px;color:var(--ink)}
+.gchip.sel span{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.gdesc{margin:10px 0 0;font-size:12px;color:var(--muted)}
+.shapes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.shape{position:relative;border:1px solid var(--line);border-radius:8px;background:var(--field);cursor:pointer;aspect-ratio:1;padding:7px;min-height:0;color:var(--ink)}
 .shape svg{width:100%;height:100%;display:block}
-.shape.sel{outline:2px solid var(--accent);outline-offset:-1px}
-.shape .x{position:absolute;top:1px;right:3px;font-size:11px;color:var(--muted);display:none;line-height:1}
+.shape.sel{outline:2px solid var(--accent);outline-offset:-1px;background:var(--sel)}
+.shape .x{position:absolute;top:2px;right:4px;font-size:12px;color:var(--muted);display:none;line-height:1}
 .shape:hover .x{display:block}
-.layer{display:flex;align-items:center;gap:6px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;margin:4px 0;cursor:pointer;background:var(--field)}
+#presetGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:0}
+#presetGrid button{justify-content:flex-start;min-height:36px;font-size:12.5px;background:var(--field)}
+.layer{display:flex;align-items:center;gap:8px;padding:6px 8px;min-height:40px;border:1px solid var(--line);border-radius:8px;margin:0 0 6px;cursor:pointer;background:var(--field)}
 .layer.sel{border-color:var(--accent);background:var(--sel)}
-.layer .sw{width:16px;height:16px;border-radius:4px;border:1px solid var(--line);flex:none}
+.layer .sw{width:18px;height:18px;border-radius:5px;border:1px solid var(--line-strong);flex:none}
 .layer .nm{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.layer .eye{border:0;background:none;padding:0 2px;color:var(--muted)}
-.btns{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:20}
+.layer .eye{border:0;background:none;padding:0 4px;min-height:28px;color:var(--muted)}
+
+/* ---------- modals, toast ---------- */
+.modal{position:fixed;inset:0;background:rgba(2,8,5,.6);display:none;align-items:center;justify-content:center;z-index:20;padding:12px}
 .modal.open{display:flex}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;max-width:min(560px,94vw);width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)}
-.card h3{margin:0 0 8px;font-size:14px}
-#pad{width:100%;aspect-ratio:1;background:var(--field);border:1px solid var(--line);border-radius:6px;touch-action:none;display:block;cursor:crosshair}
-#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:8px 14px;border-radius:8px;font-size:12px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30;max-width:80vw}
-#toast.show{opacity:.95}
+.card{background:var(--raise);border:1px solid var(--line-strong);border-radius:14px;padding:16px;max-width:min(560px,100%);width:100%;max-height:calc(100dvh - 24px);overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.card h3{margin:0 0 10px;font-size:15px}
+#pad{width:100%;aspect-ratio:1;background:var(--field);border:1px solid var(--line);border-radius:8px;touch-action:none;display:block;cursor:crosshair}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 15px;border-radius:10px;font-size:12.5px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30;max-width:86vw;text-align:center}
+#toast.show{opacity:.96}
 #sandbox{position:fixed;left:-20000px;top:0;width:400px;height:400px;overflow:hidden;opacity:0;pointer-events:none}
 .drop{outline:3px dashed var(--accent);outline-offset:-6px}
-kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-radius:3px;padding:0 3px;background:var(--chip)}
-@media (max-width:980px){
-  body{overflow:auto;display:block}
-  main{grid-template-columns:1fr}
-  aside.left,aside.right{border:0}
-  .canvasWrap{height:72vh;position:sticky;top:0;z-index:2}
+
+/* ---------- touch screens: bigger targets, no iOS zoom-on-focus ---------- */
+@media (pointer:coarse){
+  :root{--tap:40px}
+  input[type=number],input[type=text],select{font-size:16px;min-height:36px}
+  input[type=range]{height:30px}
+  input[type=checkbox]{width:20px;height:20px}
+  input[type=color]{width:40px;height:34px}
+  button.mini{min-height:36px}
+  .shape .x{display:block;font-size:14px;padding:2px}
+  .tZoom{display:none}
+}
+
+/* ---------- phones & narrow windows: canvas on top, settings sheet below, tabs at the bottom ---------- */
+@media (max-width:860px){
+  header{padding:6px 10px;padding-top:max(6px,env(safe-area-inset-top))}
+  header h1 .word{display:none}
+  .hideNarrow{display:none}
+  main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,var(--sheetH,52%))}
+  body.sheetMin main{--sheetH:auto}
+  .toolbar{padding:6px 8px;gap:5px}
+  .toolbar .lbl{display:none}
+  .status{padding:5px 10px;font-size:11.5px}
+  aside.panel{border-left:0;border-top:1px solid var(--line-strong);grid-template-rows:auto minmax(0,1fr) auto;border-radius:16px 16px 0 0;position:relative;z-index:3;box-shadow:0 -10px 30px rgba(0,0,0,.35)}
+  .sheetGrip{display:flex;width:100%;min-height:26px;background:transparent;border:0;border-radius:16px 16px 0 0;padding:0;align-items:center;justify-content:center}
+  .sheetGrip:hover{background:transparent}
+  .sheetGrip::before{content:'';width:40px;height:4px;border-radius:2px;background:var(--line-strong)}
+  .tabs{order:3;border-bottom:0;border-top:1px solid var(--line);padding:4px 4px max(4px,env(safe-area-inset-bottom))}
+  .tabs button{min-height:50px}
+  .pane{padding:4px 10px 18px}
+  body.sheetMin .panes{display:none}
+  .row{grid-template-columns:92px minmax(0,1fr) 64px}
+  .shapes{grid-template-columns:repeat(6,minmax(0,1fr))}
+  #toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+}
+@media (max-width:420px){
+  .shapes{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .gridG{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
 </style>
 </head>
 <body>
 <header>
-  <h1>Pattern <b>Studio</b></h1>
-  <button id="bImport" title="SVG, PNG, JPG, GIF, WebP, BMP, AVIF, DXF or a saved project (.json)">Import…</button>
-  <button id="bDraw">Draw shape</button>
-  <button id="bText">Text shape</button>
-  <span class="sep"></span>
-  <button id="bUndo" title="Undo (Ctrl/Cmd+Z)">Undo</button>
-  <button id="bRedo" title="Redo (Ctrl/Cmd+Shift+Z)">Redo</button>
+  <h1><span class="logo"><svg viewBox="0 0 16 16"><circle cx="4" cy="4" r="2.4"/><circle cx="12" cy="4" r="2.4"/><circle cx="4" cy="12" r="2.4"/><circle cx="12" cy="12" r="2.4"/><circle cx="8" cy="8" r="1.6"/></svg></span><span class="word">Pattern <b>Studio</b></span></h1>
+  <button id="bUndo" class="icon ghost" title="Undo (Ctrl/Cmd+Z)" aria-label="Undo"><svg class="i" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+  <button id="bRedo" class="icon ghost" title="Redo (Ctrl/Cmd+Shift+Z)" aria-label="Redo"><svg class="i" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
   <span class="sp"></span>
-  <button id="bNew">New</button>
-  <button id="bSave">Save project</button>
-  <button id="bOpen">Open project</button>
+  <details class="menu" id="fileMenu">
+    <summary>File</summary>
+    <div class="menuList">
+      <button id="bNew">New pattern</button>
+      <button id="bOpen">Open project…</button>
+      <button id="bSave">Save project</button>
+      <hr>
+      <div class="mh">Add a shape</div>
+      <button id="bImport" title="SVG, PNG, JPG, GIF, WebP, BMP, AVIF, DXF or a saved project (.json)">Import file…</button>
+      <button id="bDraw">Draw a shape</button>
+      <button id="bText">Text shape</button>
+    </div>
+  </details>
+  <button id="bExport" class="primary">Export</button>
   <input type="file" id="fileIn" hidden accept=".svg,.png,.jpg,.jpeg,.gif,.webp,.bmp,.avif,.dxf,.json,image/*">
   <input type="file" id="projIn" hidden accept=".json,application/json">
   <input type="file" id="imgIn" hidden accept="image/*">
 </header>
 <main>
-  <aside class="left">
-    <details open>
-      <summary>Layers</summary>
-      <div class="sec">
-        <div id="layerList"></div>
-        <div class="btns">
-          <button id="lAdd">+ Layer</button>
-          <button id="lDup">Duplicate</button>
-          <button id="lUp" title="Move up">↑</button>
-          <button id="lDown" title="Move down">↓</button>
-          <button id="lDel">Delete</button>
-        </div>
-        <p class="hint">Each layer is one shape + one wallpaper group. Stack layers to combine groups. Layers drawn top of list last.</p>
-      </div>
-    </details>
-    <details open>
-      <summary>Presets <small>explore</small></summary>
-      <div class="sec"><div class="btns" id="presetGrid"></div><p class="hint">Starting points. Each one is fully editable.</p></div>
-    </details>
-    <details open>
-      <summary>Shapes</summary>
-      <div class="sec">
-        <div class="shapes" id="shapeGrid"></div>
-        <div class="btns">
-          <button id="sImport">Import…</button>
-          <button id="sDraw">Draw</button>
-          <button id="sText">Text</button>
-          <button id="sBake" title="Turn this layer's copies around one point into a new shape, so you can feed it into another group">Bake cell → shape</button>
-        </div>
-        <div id="traceBox"></div>
-        <p class="hint">Drop or paste files anywhere. Formats: SVG, PNG, JPG, GIF, WebP, BMP, AVIF, DXF, or paste SVG code / a path <code>d</code> string.</p>
-      </div>
-    </details>
-  </aside>
-
   <section class="canvasWrap">
     <div class="toolbar">
-      <button id="tFit">Fit</button>
-      <button id="tZin" title="Zoom in">+</button>
-      <button id="tZout" title="Zoom out">−</button>
-      <span class="sep"></span>
-      <button id="tPan" class="on" title="Drag to pan">Pan</button>
-      <button id="tMove" title="Drag to move the motif (or hold Shift while dragging)">Move motif</button>
-      <span class="sep"></span>
-      <button id="oCell" class="on">Cell</button>
-      <button id="oMarks">Symmetry</button>
-      <button id="oTile">Tile</button>
-      <button id="oBox" class="on">Motif</button>
-      <button id="oGrad" class="on" title="Show gradient controllers and their handles">Gradients</button>
-      <button id="oField" title="Show the combined gradient as a heat map">Field</button>
-      <span class="sep"></span>
-      <button id="tAuto" title="Reset motif to a sensible size and spot for this cell">Auto-place</button>
-      <button id="tRand" title="Random group and motif placement">Surprise</button>
+      <div class="seg" role="group" aria-label="Drag mode">
+        <button id="tPan" class="on" title="Drag to pan">Pan</button>
+        <button id="tMove" title="Drag to move the motif (or hold Shift while dragging)">Move<span class="lbl">motif</span></button>
+      </div>
+      <span class="sp"></span>
+      <button id="tZout" class="icon tZoom" title="Zoom out" aria-label="Zoom out"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      <button id="tFit" title="Fit to screen (F)">Fit</button>
+      <button id="tZin" class="icon tZoom" title="Zoom in" aria-label="Zoom in"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
+      <details class="menu" id="viewMenu">
+        <summary title="Choose which guides to show on the canvas">View</summary>
+        <div class="menuList">
+          <div class="mh">Show on canvas</div>
+          <button id="oCell" class="tg on">Cell</button>
+          <button id="oBox" class="tg on">Motif box</button>
+          <button id="oGrad" class="tg on" title="Show gradient controllers and their handles">Gradient handles</button>
+          <button id="oMarks" class="tg">Symmetry marks</button>
+          <button id="oTile" class="tg">Seamless tile</button>
+          <button id="oField" class="tg" title="Show the combined gradient as a heat map">Gradient heat map</button>
+        </div>
+      </details>
+      <button id="tAuto" class="icon" title="Auto-place: reset the motif to a sensible size and spot" aria-label="Auto-place"><svg class="i" viewBox="0 0 24 24"><path d="m4 20 11-11"/><path d="m14 5 1-2 1 2 2 1-2 1-1 2-1-2-2-1z"/><path d="m19 12 .6-1.2L21 10l-1.4-.8L19 8l-.6 1.2L17 10l1.4.8z"/></svg></button>
+      <button id="tRand" class="icon" title="Surprise me: random group and motif placement" aria-label="Surprise me"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r=".6" fill="currentColor"/><circle cx="15" cy="15" r=".6" fill="currentColor"/><circle cx="15" cy="9" r=".6" fill="currentColor"/><circle cx="9" cy="15" r=".6" fill="currentColor"/></svg></button>
     </div>
     <svg id="stage" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
       <defs id="shapeDefs"></defs>
@@ -177,23 +247,83 @@ kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-radius:
     <div class="status" id="status"></div>
   </section>
 
-  <aside class="right">
-    <details open><summary>Layout</summary><div class="sec" id="secLayout"></div></details>
-    <details open id="detGroup">
-      <summary>Wallpaper group <small id="gName"></small></summary>
-      <div class="sec">
-        <div id="groupPick"></div>
-        <p class="gdesc" id="gDesc"></p>
+  <aside class="panel">
+    <button class="sheetGrip" id="sheetGrip" aria-label="Show or hide settings"></button>
+    <nav class="tabs" role="tablist" aria-label="Settings">
+      <button data-tab="start" class="on" role="tab"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Start</button>
+      <button data-tab="layout" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="12" cy="12" r="2"/></svg>Layout</button>
+      <button data-tab="shape" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3c4 4 7 6.5 7 10.5A7 7 0 0 1 5 13.5C5 9.5 8 7 12 3z"/></svg>Shape</button>
+      <button data-tab="grad" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="6" stroke-dasharray="2 2.4"/><circle cx="12" cy="12" r="9.5" stroke-dasharray="1.5 3"/></svg>Gradients</button>
+      <button data-tab="style" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.4-1.3-1.6-1.3-3 0-1 .8-1.6 1.8-1.6H17a4 4 0 0 0 4-4C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg>Style</button>
+      <button data-tab="export" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 19h14"/></svg>Export</button>
+    </nav>
+    <div class="panes">
+      <div class="pane on" data-pane="start">
+        <details open>
+          <summary>Presets <small>tap to load</small></summary>
+          <div class="sec"><div class="btns" id="presetGrid"></div><p class="hint">Starting points. Every value stays editable.</p></div>
+        </details>
+        <details open>
+          <summary>Layers</summary>
+          <div class="sec">
+            <div id="layerList"></div>
+            <div class="btns">
+              <button id="lAdd" class="mini">+ Layer</button>
+              <button id="lDup" class="mini">Duplicate</button>
+              <button id="lUp" class="mini icon" title="Move up" aria-label="Move layer up">↑</button>
+              <button id="lDown" class="mini icon" title="Move down" aria-label="Move layer down">↓</button>
+              <button id="lDel" class="mini">Delete</button>
+            </div>
+            <p class="hint">Each layer has its own shape and layout. Stack layers to combine them; the top of the list draws last.</p>
+          </div>
+        </details>
       </div>
-    </details>
-    <details open id="detSpacing"><summary>Spacing</summary><div class="sec" id="secSpacing"></div></details>
-    <details open id="detMotif"><summary>Motif</summary><div class="sec" id="secMotif"></div></details>
-    <details open><summary>Gradients &amp; attractors <small>all layers</small></summary><div class="sec" id="secGrad"></div></details>
-    <details open><summary>Gradient response <small>this layer</small></summary><div class="sec" id="secResp"></div></details>
-    <details id="detPlace"><summary>Pattern placement</summary><div class="sec" id="secPlace"></div></details>
-    <details open><summary>Color &amp; style</summary><div class="sec" id="secStyle"></div></details>
-    <details open><summary>Surface</summary><div class="sec" id="secSurface"></div></details>
-    <details open><summary>Export</summary><div class="sec" id="secExport"></div></details>
+
+      <div class="pane" data-pane="layout">
+        <details open><summary>Layout</summary><div class="sec" id="secLayout"></div></details>
+        <details open id="detGroup">
+          <summary>Wallpaper group <small id="gName"></small></summary>
+          <div class="sec">
+            <div id="groupPick"></div>
+            <p class="gdesc" id="gDesc"></p>
+          </div>
+        </details>
+        <details open id="detSpacing"><summary>Spacing</summary><div class="sec" id="secSpacing"></div></details>
+        <details id="detPlace"><summary>Pattern placement</summary><div class="sec" id="secPlace"></div></details>
+      </div>
+
+      <div class="pane" data-pane="shape">
+        <details open>
+          <summary>Shapes</summary>
+          <div class="sec">
+            <div class="shapes" id="shapeGrid"></div>
+            <div class="btns">
+              <button id="sImport" class="mini">Import…</button>
+              <button id="sDraw" class="mini">Draw</button>
+              <button id="sText" class="mini">Text</button>
+              <button id="sBake" class="mini" title="Turn this layer's copies around one point into a new shape, so you can feed it into another group">Bake cell → shape</button>
+            </div>
+            <div id="traceBox"></div>
+            <p class="hint hideNarrow">Drop or paste files anywhere: SVG, PNG, JPG, GIF, WebP, BMP, AVIF, DXF, SVG code or a path <code>d</code> string.</p>
+          </div>
+        </details>
+        <details open id="detMotif"><summary>Motif</summary><div class="sec" id="secMotif"></div></details>
+      </div>
+
+      <div class="pane" data-pane="grad">
+        <details open><summary>Gradients &amp; attractors <small>all layers</small></summary><div class="sec" id="secGrad"></div></details>
+        <details open><summary>Gradient response <small>this layer</small></summary><div class="sec" id="secResp"></div></details>
+      </div>
+
+      <div class="pane" data-pane="style">
+        <details open><summary>Colour &amp; style</summary><div class="sec" id="secStyle"></div></details>
+        <details open><summary>Surface</summary><div class="sec" id="secSurface"></div></details>
+      </div>
+
+      <div class="pane" data-pane="export">
+        <details open><summary>Export</summary><div class="sec" id="secExport"></div></details>
+      </div>
+    </div>
   </aside>
 </main>
 
@@ -206,7 +336,7 @@ kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-radius:
       <label><input type="checkbox" id="padSmooth" checked> Smooth</label>
       <label><input type="checkbox" id="padSnap"> Snap to grid</label>
     </div>
-    <p class="hint">Click to add points. Drag a point to move it. Right-click or double-click a point to delete it. Open shapes become lines.</p>
+    <p class="hint">Tap or click to add points. Drag a point to move it. Double-tap or right-click a point to delete it. Open shapes become lines.</p>
     <div class="btns">
       <button id="padUndo">Remove last</button>
       <button id="padClear">Clear</button>
@@ -1750,11 +1880,12 @@ function render() {
   $('#gDesc').textContent = g.d;
 }
 let HANDLES = [], selCtrl = -1;
+const HANDLE_R = matchMedia('(pointer: coarse)').matches ? 10 : 6; // bigger drag handles for fingers
 function drawCtrls(px) {
   HANDLES = []; let s = '';
   (S.ctrls || []).forEach((c, ci) => {
-    const on = ci === selCtrl, col = on ? 'var(--accent)' : 'var(--glide)', op = c.on ? 1 : 0.4;
-    const hd = (p, key) => { HANDLES.push({ x: p[0], y: p[1], ci: ci, key: key }); s += '<circle cx="' + fmt(p[0]) + '" cy="' + fmt(p[1]) + '" r="' + fmt(6 * px) + '" fill="var(--panel)" stroke="' + col + '" stroke-width="2" vector-effect="non-scaling-stroke" opacity="' + op + '"/>'; };
+    const on = ci === selCtrl, col = on ? 'var(--ov)' : 'var(--glide)', op = c.on ? 1 : 0.4;
+    const hd = (p, key) => { HANDLES.push({ x: p[0], y: p[1], ci: ci, key: key }); s += '<circle cx="' + fmt(p[0]) + '" cy="' + fmt(p[1]) + '" r="' + fmt(HANDLE_R * px) + '" fill="var(--panel)" stroke="' + col + '" stroke-width="2" vector-effect="non-scaling-stroke" opacity="' + op + '"/>'; };
     const zone = (d, w) => { s += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-opacity="' + (0.09 * op) + '" stroke-width="' + fmt(w) + '" stroke-linecap="round" stroke-linejoin="round"/>'; };
     const ln = (d, dash) => { s += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.6" vector-effect="non-scaling-stroke" opacity="' + op + '"' + (dash ? ' stroke-dasharray="5 4"' : '') + '/>'; };
     const label = (p, t) => { s += '<text x="' + fmt(p[0] + 9 * px) + '" y="' + fmt(p[1] - 9 * px) + '" font-size="' + fmt(11 * px) + '" fill="' + col + '" opacity="' + op + '" font-family="system-ui,sans-serif" font-weight="600">' + esc(t) + '</text>'; };
@@ -1777,10 +1908,10 @@ function drawOverlays(reg) {
   const L = cur(); let s = '';
   const px = 1 / view.scale;
   if (show.field) s += fieldOverlay();
-  s += reg.svg('fill="none" stroke="var(--muted)" stroke-dasharray="4 3" stroke-width="1" vector-effect="non-scaling-stroke"');
+  s += reg.svg('fill="none" stroke="var(--ov-line)" stroke-dasharray="4 3" stroke-width="1" vector-effect="non-scaling-stroke"');
   if (S.region.featherOn && S.region.featherW > 0 && reg.shape !== 'custom') {
     const fr = regionInfo(Object.assign({}, S.region, { margin: (S.region.margin || 0) + S.region.featherW, radius: Math.max(0, (S.region.radius || 0) - S.region.featherW) }));
-    s += fr.svg('fill="none" stroke="var(--muted)" stroke-dasharray="1 3" stroke-width="1" vector-effect="non-scaling-stroke"');
+    s += fr.svg('fill="none" stroke="var(--ov-line)" stroke-dasharray="1 3" stroke-width="1" vector-effect="non-scaling-stroke"');
   }
   if (!L) { $('#ov').innerHTML = s; return; }
   const isLat = !L.layout || L.layout === 'wallpaper' || L.layout === 'grid';
@@ -1808,20 +1939,20 @@ function drawOverlays(reg) {
     }
     if (show.cell) {
       const pts = [o, [o[0] + a[0], o[1] + a[1]], [o[0] + a[0] + b[0], o[1] + a[1] + b[1]], [o[0] + b[0], o[1] + b[1]]];
-      s += '<polygon points="' + pts.map(p => fmt(p[0]) + ',' + fmt(p[1])).join(' ') + '" fill="var(--accent)" fill-opacity=".07" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
-      s += '<circle cx="' + fmt(o[0]) + '" cy="' + fmt(o[1]) + '" r="' + fmt(3 * px) + '" fill="var(--accent)"/>';
+      s += '<polygon points="' + pts.map(p => fmt(p[0]) + ',' + fmt(p[1])).join(' ') + '" fill="var(--ov)" fill-opacity=".07" stroke="var(--ov)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
+      s += '<circle cx="' + fmt(o[0]) + '" cy="' + fmt(o[1]) + '" r="' + fmt(3 * px) + '" fill="var(--ov)"/>';
     }
     if (show.box) {
       const sh = geo.sh, hw = sh.w / 2, hh = sh.h / 2;
       const c = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(q => Af.ap(geo.M, q));
-      s += '<polygon points="' + c.map(p => fmt(p[0]) + ',' + fmt(p[1])).join(' ') + '" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 2" vector-effect="non-scaling-stroke"/>';
+      s += '<polygon points="' + c.map(p => fmt(p[0]) + ',' + fmt(p[1])).join(' ') + '" fill="none" stroke="var(--ov)" stroke-width="1.5" stroke-dasharray="3 2" vector-effect="non-scaling-stroke"/>';
       const m = Af.ap(geo.M, [0, 0]);
-      s += '<circle cx="' + fmt(m[0]) + '" cy="' + fmt(m[1]) + '" r="' + fmt(3.5 * px) + '" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
+      s += '<circle cx="' + fmt(m[0]) + '" cy="' + fmt(m[1]) + '" r="' + fmt(3.5 * px) + '" fill="var(--panel)" stroke="var(--ov)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
     }
   } else if (L.layout && L.lay && (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci')) {
     const C = [L.lay.cx / 100 * S.region.W, L.lay.cy / 100 * S.region.H];
     HANDLES_CENTRE = C;
-    s += '<path d="M' + fmt(C[0] - 7 * px) + ' ' + fmt(C[1]) + 'H' + fmt(C[0] + 7 * px) + 'M' + fmt(C[0]) + ' ' + fmt(C[1] - 7 * px) + 'V' + fmt(C[1] + 7 * px) + '" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+    s += '<path d="M' + fmt(C[0] - 7 * px) + ' ' + fmt(C[1]) + 'H' + fmt(C[0] + 7 * px) + 'M' + fmt(C[0]) + ' ' + fmt(C[1] - 7 * px) + 'V' + fmt(C[1] + 7 * px) + '" stroke="var(--ov)" stroke-width="2" vector-effect="non-scaling-stroke"/>';
   }
   if (show.grad) s += drawCtrls(px);
   if (L.layout && L.lay && (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci')) HANDLES.push({ x: L.lay.cx / 100 * S.region.W, y: L.lay.cy / 100 * S.region.H, ci: -1, key: 'centre' });
@@ -2687,12 +2818,24 @@ function fit() {
 function toWorld(ev) { const r = stage.getBoundingClientRect(); return [view.cx + (ev.clientX - r.left - r.width / 2) / view.scale, view.cy + (ev.clientY - r.top - r.height / 2) / view.scale]; }
 let drag = null;
 function hitHandle(ev) {
-  const w = toWorld(ev), tol = 10 / view.scale; let best = null, bd = tol;
+  const w = toWorld(ev), tol = (ev.pointerType === 'touch' ? 24 : 10) / view.scale; let best = null, bd = tol;
   HANDLES.forEach(h => { const d = Math.hypot(h.x - w[0], h.y - w[1]); if (d < bd) { bd = d; best = h; } });
   return best;
 }
+// Two fingers on a touch screen pinch-zoom and pan together; one finger drags as usual.
+const touchPts = new Map(); let pinch = null;
+function pinchInfo() { const p = [...touchPts.values()]; return { d: Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) || 1, x: (p[0][0] + p[1][0]) / 2, y: (p[0][1] + p[1][1]) / 2 }; }
 stage.addEventListener('pointerdown', ev => {
   stage.setPointerCapture(ev.pointerId);
+  if (ev.pointerType === 'touch') {
+    touchPts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (touchPts.size === 2) {
+      if (drag && drag.moving) { const L = cur(); L.mx = drag.mx; L.my = drag.my; }
+      if (drag && drag.handle) pushHistory();
+      drag = null; const m = pinchInfo(); pinch = { d0: m.d, s0: view.scale, w0: toWorld({ clientX: m.x, clientY: m.y }) }; requestRender(); return;
+    }
+    if (touchPts.size > 2) return;
+  }
   const h = hitHandle(ev);
   if (h) {
     drag = { handle: h, w0: toWorld(ev) };
@@ -2704,7 +2847,15 @@ stage.addEventListener('pointerdown', ev => {
   if (moving) stage.classList.add('move'); else stage.style.cursor = 'grabbing';
 });
 stage.addEventListener('pointermove', ev => {
-  if (!drag) { const h = hitHandle(ev); stage.style.cursor = h ? 'pointer' : ''; return; }
+  if (touchPts.has(ev.pointerId)) touchPts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+  if (pinch) {
+    if (touchPts.size < 2) return;
+    const m = pinchInfo(), r = stage.getBoundingClientRect();
+    view.scale = clamp(pinch.s0 * m.d / pinch.d0, 0.05, 400);
+    view.cx = pinch.w0[0] - (m.x - r.left - r.width / 2) / view.scale; view.cy = pinch.w0[1] - (m.y - r.top - r.height / 2) / view.scale;
+    requestRender(); return;
+  }
+  if (!drag) { if (ev.pointerType === 'touch') return; const h = hitHandle(ev); stage.style.cursor = h ? 'pointer' : ''; return; }
   if (drag.handle) {
     const h = drag.handle, w = toWorld(ev).map(v => +v.toFixed(2));
     if (h.key === 'centre') { const L = cur(); L.lay.cx = +(w[0] / S.region.W * 100).toFixed(2); L.lay.cy = +(w[1] / S.region.H * 100).toFixed(2); }
@@ -2725,7 +2876,9 @@ stage.addEventListener('pointermove', ev => {
     requestRender();
   } else { view.cx = drag.cx - (ev.clientX - drag.x) / view.scale; view.cy = drag.cy - (ev.clientY - drag.y) / view.scale; requestRender(); }
 });
-const endDrag = () => {
+const endDrag = ev => {
+  touchPts.delete(ev.pointerId);
+  if (pinch) { if (touchPts.size === 0) pinch = null; return; }
   if (drag && drag.handle) { pushHistory(); if (drag.handle.key === 'centre') buildLayout(); }
   else if (drag && drag.moving) { buildLayerControls(); pushHistory(); }
   drag = null; stage.classList.toggle('move', tool === 'move'); stage.style.cursor = '';
@@ -2882,6 +3035,27 @@ try { const s = localStorage.getItem('pattern-studio-v1'); if (s) { const o = JS
 rebuildAll(); render(); fit(); pushHistory(true); renderThumbs();
 if (restored) toast('Restored your last session');
 window.__PS = { buildSTEP: buildSTEP, stepSolids: stepSolids, getField: getField, layerOut: layerOut, PRESETS: PRESETS, newCtrl: newCtrl, MORPHS: MORPHS, shapeSolid: shapeSolid, S: S, GROUPS: GROUPS, SHAPES: SHAPES, geom: geom, buildSVG: buildSVG, buildDXF: buildDXF, buildSTL: buildSTL, parseDXF: parseDXF, processSvg: processSvg, commonTile: commonTile, rectTileOf: rectTileOf, instances: instances, regionInfo: regionInfo, marksFor: marksFor, traceImage: traceImage, processRaster: processRaster, addShape: addShape, importText: importText, bakeCell: bakeCell, getS: () => S, rebuildAll: rebuildAll };
+
+/* ================= Panel tabs, menus, phone sheet ================= */
+const TAB_KEY = 'pattern-studio-tab';
+function showTab(name) {
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => { const on = b.dataset.tab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === name));
+  $('.panes').scrollTop = 0;
+  try { localStorage.setItem(TAB_KEY, name); } catch (e) { }
+}
+function setSheet(min) { document.body.classList.toggle('sheetMin', min); requestAnimationFrame(fit); }
+document.querySelectorAll('.tabs [data-tab]').forEach(b => b.addEventListener('click', () => {
+  const sheetMin = document.body.classList.contains('sheetMin');
+  if (b.classList.contains('on') && !sheetMin && innerWidth <= 860) { setSheet(true); return; } // tap the open tab again to give the canvas the whole screen
+  showTab(b.dataset.tab); if (sheetMin) setSheet(false);
+}));
+$('#sheetGrip').onclick = () => setSheet(!document.body.classList.contains('sheetMin'));
+$('#bExport').onclick = () => { showTab('export'); setSheet(false); };
+try { const t = localStorage.getItem(TAB_KEY); if (t && document.querySelector('.pane[data-pane="' + t + '"]')) showTab(t); } catch (e) { }
+// Dropdown menus: close when clicking outside; the File menu also closes after a choice (View stays open for several toggles).
+document.addEventListener('click', ev => document.querySelectorAll('.menu[open]').forEach(m => { if (!m.contains(ev.target)) m.open = false; }));
+$('#fileMenu .menuList').addEventListener('click', ev => { if (ev.target.closest('button')) $('#fileMenu').open = false; });
 })();
 </script>
 </body>

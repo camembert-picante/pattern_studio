@@ -16,6 +16,14 @@ Then open http://localhost:8000.
 
 Your work autosaves in the browser. Use **Save project** to keep a `.json` file you can reopen anywhere.
 
+## Finding your way around
+
+- **Top bar:** Undo, Redo, a **File** menu (new, open, save, import, draw or type a shape) and **Export**.
+- **Canvas toolbar:** Pan or Move motif, Fit and zoom, a **View** menu for guides (cell, motif box, gradient handles, symmetry marks, seamless tile, heat map), Auto-place and Surprise.
+- **Settings panel**, with one tab per job: **Start** (presets, layers), **Layout**, **Shape** (shapes, motif), **Gradients**, **Style** (colour, surface) and **Export**.
+
+On a phone the canvas stays at the top and the settings sit in a sheet below it, with the tabs along the bottom. Tap the open tab again, or the grab bar, to give the canvas the full screen. Pinch to zoom, and drag with one finger to pan or to move handles.
+
 ## The idea
 
 The canvas works as the control panel. You drop **gradient controllers** on it and drag their handles. Every layer then responds to the combined gradient, and the pattern redraws live.
