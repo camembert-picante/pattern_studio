@@ -259,19 +259,15 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
   <aside class="panel">
     <button class="sheetGrip" id="sheetGrip" aria-label="Show or hide settings"></button>
     <nav class="tabs" role="tablist" aria-label="Settings">
-      <button data-tab="start" class="on" role="tab"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Start</button>
-      <button data-tab="layout" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="12" cy="12" r="2"/></svg>Layout</button>
+      <button data-tab="layout" class="on" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="12" cy="12" r="2"/></svg>Layout</button>
       <button data-tab="shape" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3c4 4 7 6.5 7 10.5A7 7 0 0 1 5 13.5C5 9.5 8 7 12 3z"/></svg>Shape</button>
       <button data-tab="grad" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="6" stroke-dasharray="2 2.4"/><circle cx="12" cy="12" r="9.5" stroke-dasharray="1.5 3"/></svg>Gradients</button>
       <button data-tab="style" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.4-1.3-1.6-1.3-3 0-1 .8-1.6 1.8-1.6H17a4 4 0 0 0 4-4C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg>Style</button>
+      <button data-tab="presets" role="tab"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Presets</button>
       <button data-tab="export" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 19h14"/></svg>Export</button>
     </nav>
     <div class="panes">
-      <div class="pane on" data-pane="start">
-        <details open>
-          <summary>Presets <small>tap to load</small></summary>
-          <div class="sec"><div class="btns" id="presetGrid"></div><p class="hint">Starting points. Every value stays editable.</p></div>
-        </details>
+      <div class="pane on" data-pane="layout">
         <details open>
           <summary>Layers</summary>
           <div class="sec">
@@ -286,9 +282,6 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
             <p class="hint">Each layer has its own shape and layout. Stack layers to combine them; the top of the list draws last.</p>
           </div>
         </details>
-      </div>
-
-      <div class="pane" data-pane="layout">
         <details open><summary>Layout</summary><div class="sec" id="secLayout"></div></details>
         <details open id="detGroup">
           <summary>Wallpaper group <small id="gName"></small></summary>
@@ -327,6 +320,13 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
       <div class="pane" data-pane="style">
         <details open><summary>Colour &amp; style</summary><div class="sec" id="secStyle"></div></details>
         <details open><summary>Surface</summary><div class="sec" id="secSurface"></div></details>
+      </div>
+
+      <div class="pane" data-pane="presets">
+        <details open>
+          <summary>Presets <small>optional starting points</small></summary>
+          <div class="sec"><div class="btns" id="presetGrid"></div><p class="hint">Loading a preset replaces your current pattern, including its gradients. Every value stays editable, and Undo brings your work back.</p></div>
+        </details>
       </div>
 
       <div class="pane" data-pane="export">
@@ -2191,7 +2191,7 @@ function addCtrl(type) {
 function buildGradients() {
   const box = $('#secGrad'); box.innerHTML = '';
   box.append(E('div', { class: 'btns' }, ...Object.keys(CTRL_NAMES).map(t => E('button', { class: 'mini', onclick: () => addCtrl(t), title: t === 'image' ? 'Brightness of an image drives the pattern (halftone)' : '' }, '+ ' + CTRL_NAMES[t]))));
-  if (!S.ctrls.length) { box.append(E('p', { class: 'hint' }, 'Controllers sit on the canvas. Drag their handles; every layer can respond to them under “Gradient response”.')); return; }
+  if (!S.ctrls.length) { box.append(E('p', { class: 'hint' }, 'No gradients yet, so every piece is the same. Add one of any type above, then drag its handles on the canvas; each layer chooses how it responds under “Gradient response”.')); return; }
   S.ctrls.forEach((c, i) => {
     box.append(E('div', { class: 'layer' + (i === selCtrl ? ' sel' : ''), onclick: () => { selCtrl = i === selCtrl ? -1 : i; buildGradients(); requestRender(); } },
       E('span', { class: 'nm' }, (i + 1) + ' · ' + CTRL_NAMES[c.type] + (c.invert ? ' (inverted)' : '')),

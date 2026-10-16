@@ -26,7 +26,7 @@ Your work autosaves in the browser. Use **Save project** to keep a `.json` file 
   - **Shuffle** tries a random symmetry group and motif placement. Undo brings the last one back.
   - **Fit** shows the whole surface, and **View** turns guides on or off: rulers, cell, motif box, gradient handles, symmetry marks, seamless tile and heat map.
 - **Rulers** along the top and left of the canvas are in millimetres, with 0 at the surface's top-left corner.
-- **Settings panel**, with one tab per job: **Start** (presets, layers), **Layout**, **Shape** (shapes, motif), **Gradients**, **Style** (colour, surface) and **Export**.
+- **Settings panel**, with one tab per job: **Layout** (layers and how copies are arranged), **Shape** (shapes, motif), **Gradients**, **Style** (colour, surface), **Presets** and **Export**. The app opens on Layout with a plain pattern and no gradients; presets are optional and sit in their own tab.
 
 ### Moving around and moving things
 
