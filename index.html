@@ -326,7 +326,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
       <div class="pane" data-pane="shape">
         <div id="traceBox"></div>
         <details open id="detMotif"><summary>Motif</summary><div class="sec" id="secMotif"></div>
-          <div class="sec"><div class="btns"><button id="sBake" class="mini" title="Turn this layer's copies around one point into a new shape, so you can feed it into another group">Bake cell → new shape</button></div></div>
+          <div class="sec"><div class="btns"><button id="sEdit" class="mini" title="Open the current shape in the pen tool">Edit shape outline</button><button id="sBake" class="mini" title="Turn this layer's copies around one point into a new shape, so you can feed it into another group">Bake cell → new shape</button></div></div>
         </details>
       </div>
 
@@ -356,7 +356,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
 
 <div class="modal" id="drawModal">
   <div class="card drawCard">
-    <h3>Draw a shape <small>Pen tool</small></h3>
+    <h3><span id="padTitle">Draw a shape</span> <small>Pen tool</small></h3>
     <canvas id="pad" width="600" height="600"></canvas>
     <p class="padStatus" id="padStatus"></p>
     <div class="btns">
@@ -1260,6 +1260,8 @@ const BUILTINS = [
   ['hook', 'Hook', 'M22 94 V40 A28 28 0 0 1 78 40 V58', true],
   ['wave', 'Wave', 'M6 50 C22 14 38 14 50 50 S78 86 94 50', true],
   ['dot', 'Dot', 'M95 50 A45 45 0 1 1 5 50 A45 45 0 1 1 95 50 Z'],
+  ['ellipse', 'Ellipse', 'M95 50 A45 28 0 1 1 5 50 A45 28 0 1 1 95 50 Z'],
+  ['pill', 'Pill', 'M30 28 H70 A22 22 0 0 1 70 72 H30 A22 22 0 0 1 30 28 Z'],
   ['ring', 'Ring', 'M95 50 A45 45 0 1 1 5 50 A45 45 0 1 1 95 50 Z M75 50 A25 25 0 1 0 25 50 A25 25 0 1 0 75 50 Z'],
   ['square', 'Square', 'M10 10 H90 V90 H10 Z'],
   ['tri', 'Triangle', ngonD(3, 48, -Math.PI / 2)],
@@ -1281,7 +1283,7 @@ function newLayer(over) {
   over = over || {};
   const L = Object.assign({
     id: 'L' + Math.random().toString(36).slice(2, 8), visible: true, layout: 'wallpaper', shape: 'comma', group: 'p4',
-    cellW: 30, cellH: 30, bLen: 30, angle: 70, rot: 0, sx: 30, sy: 30, link: false,
+    cellW: 30, cellH: 30, bLen: 30, angle: 90, rot: 0, sx: 30, sy: 30, link: false,
     mx: -5.7, my: -8.7, mrot: 0, size: 12, aspect: 1, flip: false,
     fill: '#1f2a44', strokeOn: false, stroke: '#000000', sw: 0.6, opacity: 1, blend: 'normal', useOrig: false, tint: false,
     colorMode: 'single', palette: PALETTES[0].slice(), paletteN: 2
@@ -1934,7 +1936,7 @@ function render() {
 let HANDLES = [], selCtrl = -1;
 const HANDLE_R = matchMedia('(pointer: coarse)').matches ? 10 : 6; // bigger drag handles for fingers
 function drawCtrls(px) {
-  HANDLES = []; let s = '';
+  let s = '';
   (S.ctrls || []).forEach((c, ci) => {
     const on = ci === selCtrl, col = on ? 'var(--ov)' : 'var(--glide)', op = c.on ? 1 : 0.4;
     const hd = (p, key) => { HANDLES.push({ x: p[0], y: p[1], ci: ci, key: key }); s += '<circle cx="' + fmt(p[0]) + '" cy="' + fmt(p[1]) + '" r="' + fmt(HANDLE_R * px) + '" fill="var(--panel)" stroke="' + col + '" stroke-width="2" vector-effect="non-scaling-stroke" opacity="' + op + '"/>'; };
@@ -1994,6 +1996,12 @@ function drawOverlays(reg) {
       const pts = CELL_POLY = [o, [o[0] + a[0], o[1] + a[1]], [o[0] + a[0] + b[0], o[1] + a[1] + b[1]], [o[0] + b[0], o[1] + b[1]]];
       s += '<polygon points="' + pts.map(p => fmt(p[0]) + ',' + fmt(p[1])).join(' ') + '" fill="var(--ov)" fill-opacity=".07" stroke="var(--ov)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
       s += '<circle cx="' + fmt(o[0]) + '" cy="' + fmt(o[1]) + '" r="' + fmt(3 * px) + '" fill="var(--ov)"/>';
+      // corner handles: the one along side a sets the cell width, the other sets side b (length and slant)
+      const hs = (HANDLE_R - 1) * px;
+      [['cellA', pts[1]], ['cellB', pts[3]]].forEach(([key, q]) => {
+        HANDLES.push({ x: q[0], y: q[1], ci: -3, key: key });
+        s += '<rect x="' + fmt(q[0] - hs) + '" y="' + fmt(q[1] - hs) + '" width="' + fmt(2 * hs) + '" height="' + fmt(2 * hs) + '" fill="var(--panel)" stroke="var(--ov)" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+      });
     }
     if (show.box) {
       const sh = geo.sh, hw = sh.w / 2, hh = sh.h / 2;
@@ -2117,12 +2125,17 @@ function buildLayerControls() {
     if (L.link && idx > 0) sp.append(E('p', { class: 'hint' }, 'Spacing follows Layer 1. Untick to set it here.'));
     else {
       const mm = 'mm';
-      if (fam === 0) sp.append(numRow('Side a', P('cellW'), Q('cellW'), 2, 150, 0.1, mm), numRow('Side b', P('bLen'), Q('bLen'), 2, 150, 0.1, mm), numRow('Angle', P('angle'), Q('angle'), 10, 170, 0.5, '°'));
+      if (fam === 0) {
+        const cellAs = (ang, ratio) => { L.angle = ang; L.bLen = +(L.cellW * ratio).toFixed(2); buildLayerControls(); changed(); commit(); };
+        sp.append(line(E('label', {}, 'Cell'), E('button', { class: 'mini', onclick: () => cellAs(90, 1) }, 'Square'), E('button', { class: 'mini', onclick: () => cellAs(90, 0.6) }, 'Rectangle'), E('button', { class: 'mini', title: 'Rhombus with 60° corners: rows pack like a honeycomb', onclick: () => cellAs(60, 1) }, 'Hex 60°'), E('button', { class: 'mini', onclick: () => cellAs(70, 1) }, 'Slanted')));
+        sp.append(numRow('Side a', P('cellW'), Q('cellW'), 2, 150, 0.1, mm), numRow('Side b', P('bLen'), Q('bLen'), 2, 150, 0.1, mm), numRow('Angle', P('angle'), Q('angle'), 10, 170, 0.5, '°'));
+      }
       else if (fam === 1 || fam === 2) {
         sp.append(numRow(lay === 'grid' ? 'Column gap' : 'Width', P('cellW'), Q('cellW'), 1, 150, 0.1, mm, fam === 2 ? 'Width of the centered rectangle' : ''), numRow(lay === 'grid' ? 'Row gap' : 'Height', P('cellH'), Q('cellH'), 1, 150, 0.1, mm));
         sp.append(line(E('button', { class: 'mini', onclick: () => { L.cellH = L.cellW; buildLayerControls(); changed(); commit(); } }, 'Make square'), fam === 2 || lay === 'grid' ? E('button', { class: 'mini', title: 'Rows of a triangular / hex packing', onclick: () => { L.cellH = +(L.cellW * (lay === 'grid' ? H3 : Math.sqrt(3))).toFixed(3); if (lay === 'grid') L.lay.rowOff = 0.5; buildLayerControls(); changed(); commit(); } }, lay === 'grid' ? 'Hex packing' : 'Height = √3 × width') : ''));
       } else sp.append(numRow(fam === 4 ? 'Spacing' : 'Cell size', P('cellW'), Q('cellW'), 2, 150, 0.1, mm, fam === 4 ? 'Distance between neighbouring rotation centres' : ''));
       sp.append(numRow('Rotation', P('rot'), Q('rot'), -180, 180, 0.5, '°', 'Rotates the whole pattern'));
+      sp.append(E('p', { class: 'hint' }, 'On the canvas, drag the square handles on the cell’s corners to resize or reshape it (Shift snaps the angle to 15°), and drag inside the cell to move the pattern.'));
     }
     const tl = rectTileOf(geom(L));
     sp.append(E('p', { class: 'hint' }, (isWP ? 'Copies per cell: ' + g.order + ' · ' : '') + (tl ? 'repeats every ' + fmt(tl.w) + ' × ' + fmt(tl.h) + ' mm' : 'no rectangular repeat at this angle')));
@@ -2212,7 +2225,7 @@ function buildResponse() {
   ch('drop', 'Drop out', [line(E('label', {}, 'Mode'), sel([['threshold', 'Below a threshold'], ['dither', 'Random thinning (dither)']], () => md.drop.mode, v => { md.drop.mode = v; buildResponse(); })), md.drop.mode === 'threshold' ? nr('drop', 't', 'Threshold', 0, 1, 0.01, '') : '']);
   ch('color', 'Colour gradient', [line(E('label', {}, 'Far colour'), color(() => md.color.c2, v => { md.color.c2 = v; }), E('span', { class: 'hint' }, '→ near = fill colour'))]);
   if (!isGeom) {
-    const closed = Object.values(SHAPES).filter(s => mainLoop(s));
+    const closed = Object.values(SHAPES).filter(s => mainLoop(s) && !RETIRED_SHAPES[s.id]);
     ch('morph', 'Morph shape', [line(E('label', {}, 'Morph to'), sel(closed.map(s => [s.id, s.name]), () => md.morph.shape, v => { md.morph.shape = v; })), nr('morph', 'steps', 'Steps', 2, 24, 1, ''), getMorph(L) === null && md.morph.on ? E('p', { class: 'warn' }, 'Both shapes need a closed outline, and they must differ.') : '']);
   }
 }
@@ -2252,9 +2265,9 @@ function buildSurface() {
   sf.append(line(E('label', {}, 'Boundary'), sel([['rect', 'Rectangle'], ['rounded', 'Rounded rectangle'], ['ellipse', 'Circle / ellipse'], ['custom', 'Any shape…']], P('shape'), v => { R.shape = v; if (v === 'custom' && !SHAPES[R.shapeId]) R.shapeId = 'hex'; buildSurface(); })));
   if (R.shape === 'rounded') sf.append(numRow('Corner radius', P('radius'), Q('radius'), 0, 200, 0.5, 'mm'));
   if (R.shape === 'custom') {
-    const closed = Object.values(SHAPES).filter(s => s.polys.some(p => p.closed));
+    const closed = Object.values(SHAPES).filter(s => s.polys.some(p => p.closed) && !RETIRED_SHAPES[s.id]);
     sf.append(line(E('label', {}, 'Outline'), sel(closed.map(s => [s.id, s.name]), P('shapeId'), Q('shapeId')), sel([['contain', 'Keep proportions'], ['stretch', 'Stretch to fill']], P('fit'), Q('fit'))));
-    sf.append(E('p', { class: 'hint' }, 'Import or draw any outline under Shapes, then pick it here. Holes in the outline are kept.'));
+    sf.append(E('p', { class: 'hint' }, 'Import or draw any outline from the shape tools on the left (Your shapes), then pick it here. Holes in the outline are kept.'));
   }
   sf.append(numRow('Margin', P('margin'), Q('margin'), 0, 100, 0.5, 'mm', 'Keeps the pattern away from the edges'));
   sf.append(line(E('label', {}, 'At the edge'), sel([['clip', 'Cut pieces at the edge'], ['inside', 'Only whole pieces inside'], ['touch', 'Whole pieces, may overhang']], P('edge'), Q('edge'))));
@@ -2357,14 +2370,14 @@ function buildPresets() {
 }
 function shapeThumb(s) { const sw = 0.07 / (s.k || 1); return '<svg viewBox="-0.56 -0.56 1.12 1.12"><use href="#sh_' + s.id + '_' + (s.kind === 'raster' ? 'o' : 'm') + '" fill="currentColor" color="currentColor" stroke="none" stroke-width="' + fmt(sw) + '"/></svg>'; }
 const SHAPE_GROUPS = [
-  ['organic', 'Organic', ['comma', 'leaf', 'crescent', 'drop', 'seigaiha', 'insole']],
-  ['geo', 'Geometric', ['dot', 'ring', 'square', 'tri', 'hex', 'star', 'kite', 'wedge']],
-  ['blocks', 'Blocks', ['bar', 'plus', 'ell', 'flag']],
+  ['organic', 'Organic', ['comma', 'leaf', 'drop', 'crescent', 'seigaiha']],
+  ['geo', 'Geometric', ['dot', 'ellipse', 'pill', 'bar', 'square', 'tri', 'hex', 'star', 'ring', 'plus', 'ell']],
   ['lines', 'Lines', ['line', 'wave', 'arc', 'hook']],
   ['yours', 'Your shapes', null]
 ];
 let flyGroup = null;
-const groupShapes = gr => gr[2] ? gr[2].filter(id => SHAPES[id]) : Object.values(SHAPES).filter(sh => !sh.builtin || !SHAPE_GROUPS.some(q => q[2] && q[2].includes(sh.id))).map(sh => sh.id);
+const RETIRED_SHAPES = { flag: 1, kite: 1, wedge: 1 };
+const groupShapes = gr => gr[2] ? gr[2].filter(id => SHAPES[id]) : Object.values(SHAPES).filter(sh => !sh.builtin).map(sh => sh.id);
 function pickShape(id) { cur().shape = id; flyGroup = null; renderShapes(); buildLayerControls(); renderLayers(); requestRender(); pushHistory(); }
 function renderShapes() {
   const rail = $('#shapeRail'), cs = cur().shape; rail.innerHTML = '';
@@ -2392,6 +2405,7 @@ function renderFly() {
     });
     fly.append(grid);
   }
+  if (ids.includes(cur().shape)) fly.append(E('div', { class: 'btns' }, E('button', { class: 'mini', onclick: () => { const id = cur().shape; flyGroup = null; renderShapes(); editShape(id); } }, 'Edit ' + SHAPES[cur().shape].name + '…')));
   if (gr[0] === 'yours') {
     if (!ids.length) fly.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Nothing here yet. Bring in your own shape:'));
     fly.append(E('div', { class: 'btns' },
@@ -2939,6 +2953,19 @@ function dragModeAt(ev) {
   return 'pan';
 }
 
+/* ---------- cell corners ---------- */
+// Measures the pointer in the pattern's own (unrotated) frame, then resizes the cell. Linked layers edit Layer 1, whose cell they share.
+function dragCell(key, w, snap) {
+  const L = cur(), T = L.link && S.layers.indexOf(L) > 0 ? S.layers[0] : L, g = geom(L), fam = g.g.fam;
+  const toLocal = v => Af.lin(Af.R(-T.rot), v), q = toLocal([w[0] - L.sx, w[1] - L.sy]), ar = toLocal(g.a), br = toLocal(g.b);
+  if (key === 'cellA') { if (ar[0] > 0.01) T.cellW = +clamp(T.cellW * q[0] / ar[0], 1, 400).toFixed(2); }
+  else if (fam === 0) {
+    let ang = Math.atan2(q[1], q[0]) / D2R; if (snap) ang = Math.round(ang / 15) * 15;
+    T.angle = +clamp(ang, 10, 170).toFixed(1); T.bLen = +clamp(Math.hypot(q[0], q[1]), 1, 400).toFixed(2);
+  } else if (fam === 1 || fam === 2) { if (Math.abs(br[1]) > 0.01) T.cellH = +clamp(T.cellH * q[1] / br[1], 1, 400).toFixed(2); }
+  else { const lb = Math.hypot(br[0], br[1]); if (lb > 0.01) T.cellW = +clamp(T.cellW * Math.hypot(q[0], q[1]) / lb, 1, 400).toFixed(2); }
+}
+
 /* ---------- crop: drag the surface edges; content stays where it is on screen ---------- */
 const CROP_KEYS = ['lt', 't', 'rt', 'r', 'rb', 'b', 'lb', 'l'];
 function cropOverlay(px) {
@@ -3063,6 +3090,7 @@ stage.addEventListener('pointermove', ev => {
       if (k.includes('t')) y0 = Math.min(w[1], R.H - 1); if (k.includes('b')) y1 = Math.max(w[1], 1);
       cropTo(x0, y0, x1, y1); requestRender(); return;
     }
+    if (h.key === 'cellA' || h.key === 'cellB') { dragCell(h.key, toWorld(ev), ev.shiftKey); requestRender(); return; }
     if (h.key === 'centre') { const L = cur(); L.lay.cx = +(w[0] / S.region.W * 100).toFixed(2); L.lay.cy = +(w[1] / S.region.H * 100).toFixed(2); }
     else {
       const c = S.ctrls[h.ci]; if (!c) return;
@@ -3087,7 +3115,7 @@ stage.addEventListener('pointermove', ev => {
 const endDrag = ev => {
   touchPts.delete(ev.pointerId);
   if (pinch) { if (touchPts.size === 0) pinch = null; return; }
-  if (drag && drag.handle) { pushHistory(); if (drag.handle.key === 'centre') buildLayout(); if (drag.handle.key.startsWith('crop-')) rebuildAll(); }
+  if (drag && drag.handle) { pushHistory(); if (drag.handle.key === 'centre') buildLayout(); if (drag.handle.key.startsWith('cell')) buildLayerControls(); if (drag.handle.key.startsWith('crop-')) rebuildAll(); }
   else if (drag && drag.mode !== 'pan' && drag.moved) { buildLayerControls(); pushHistory(); }
   drag = null; stage.style.cursor = spaceDown ? 'grab' : '';
 };
@@ -3115,7 +3143,7 @@ new ResizeObserver(() => requestRender()).observe(stage);
 // Each anchor keeps absolute positions for its in-handle (ix,iy) and out-handle (ox,oy). A handle sitting on the anchor means none.
 // split = the two handles move independently (Alt/Option-drag), otherwise they stay in a straight line through the anchor.
 const pad = $('#pad'), pctx = pad.getContext('2d');
-let padPts = [], padShut = false, padSel = -1, padAct = null, padHover = null;
+let padPts = [], padShut = false, padSel = -1, padAct = null, padHover = null, padExtra = [], padEdit = null; // padExtra: other outlines of an edited shape (holes, extra parts), kept as they are
 const anchor = (x, y) => ({ x: x, y: y, ix: x, iy: y, ox: x, oy: y, split: false });
 const hasIn = a => a.ix !== a.x || a.iy !== a.y, hasOut = a => a.ox !== a.x || a.oy !== a.y;
 function padScale() { const r = pad.getBoundingClientRect(); return 600 / (r.width || 600); }
@@ -3144,10 +3172,11 @@ function padDraw() {
   pctx.strokeStyle = ln; pctx.lineWidth = 1;
   for (let q = 30; q < 600; q += 30) { pctx.beginPath(); pctx.moveTo(q, 0); pctx.lineTo(q, 600); pctx.moveTo(0, q); pctx.lineTo(600, q); pctx.stroke(); }
   if (padPts.length) {
-    const fill = padFill(), shape = padPath(padPts, fill);
-    if (shape) { const p = new Path2D(shape); if (fill) { pctx.fillStyle = ink; pctx.globalAlpha = padShut ? .85 : .35; pctx.fill(p); pctx.globalAlpha = 1; } else { pctx.strokeStyle = ink; pctx.lineWidth = 14; pctx.lineCap = 'round'; pctx.lineJoin = 'round'; pctx.globalAlpha = .85; pctx.stroke(p); pctx.globalAlpha = 1; } }
-    // the path itself
+    const fill = padFill(), shape = padPath(padPts, fill) + (padExtra.length ? ' ' + padExtra.join(' ') : '');
+    if (shape.trim()) { const p = new Path2D(shape); if (fill) { pctx.fillStyle = ink; pctx.globalAlpha = padShut ? .85 : .35; pctx.fill(p, 'evenodd'); pctx.globalAlpha = 1; } else { pctx.strokeStyle = ink; pctx.lineWidth = 14; pctx.lineCap = 'round'; pctx.lineJoin = 'round'; pctx.globalAlpha = .85; pctx.stroke(p); pctx.globalAlpha = 1; } }
+    // the path itself, and the outlines that are kept as they are
     pctx.strokeStyle = acc; pctx.lineWidth = 1.6 * k; pctx.stroke(new Path2D(padPath(padPts, padShut)));
+    if (padExtra.length) { pctx.globalAlpha = .45; pctx.setLineDash([4 * k, 3 * k]); pctx.stroke(new Path2D(padExtra.join(' '))); pctx.setLineDash([]); pctx.globalAlpha = 1; }
     // rubber band from the last anchor to the pointer while the path is open
     if (!padShut && padHover && !padAct) {
       const a = padPts[padPts.length - 1], h = padHover;
@@ -3174,7 +3203,7 @@ function padDraw() {
     const a0 = padPts[0];
     if (!padShut && padPts.length > 1 && padHover && Math.hypot(padHover[0] - a0.x, padHover[1] - a0.y) < padTol()) { pctx.beginPath(); pctx.arc(a0.x, a0.y, 11 * k, 0, TAU); pctx.strokeStyle = acc; pctx.lineWidth = 2 * k; pctx.stroke(); }
   }
-  $('#padStatus').textContent = !padPts.length ? 'Click to place the first point.' : padShut ? 'Path closed. Drag points or handles to refine it, then Add shape.' : padPts.length === 1 ? 'Click for a corner, or click and drag for a curve.' : 'Click the first point to close the path, or Add shape to finish.';
+  $('#padStatus').textContent = padEdit && padExtra.length ? 'Editing the outer outline. The dashed outlines (holes and other parts) are kept as they are.' : !padPts.length ? 'Click to place the first point.' : padShut ? 'Path closed. Drag points or handles to refine it, then Add shape.' : padPts.length === 1 ? 'Click for a corner, or click and drag for a curve.' : 'Click the first point to close the path, or Add shape to finish.';
   $('#padKind').disabled = padSel < 0; $('#padDel').disabled = !padPts.length;
 }
 let padTouch = false;
@@ -3247,15 +3276,21 @@ pad.addEventListener('dblclick', ev => { const h = padHitAnchor(padXY(ev)); if (
 ['padClosed', 'padSnap'].forEach(id => $('#' + id).addEventListener('change', padDraw));
 $('#padDel').onclick = () => padDelete(padSel);
 $('#padKind').onclick = () => { toggleKind(padSel); padDraw(); };
-$('#padClear').onclick = () => { padPts = []; padShut = false; padSel = -1; padDraw(); };
+$('#padClear').onclick = () => { padPts = []; padShut = false; padSel = -1; padExtra = []; padDraw(); };
 $('#padCancel').onclick = () => $('#drawModal').classList.remove('open');
 $('#padOk').onclick = () => {
   const closed = padFill(), need = closed && !padPts.some(a => hasIn(a) || hasOut(a)) ? 3 : 2;
   if (padPts.length < need) { toast('Add at least ' + need + ' points'); return; }
-  const d = padPath(padPts, closed);
-  const body = closed ? '<path d="' + d + '" fill="#000"/>' : '<path d="' + d + '" fill="none" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>';
-  try { addShape(processSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">' + body + '</svg>', 'Drawn ' + (shapeSeq), { inheritSW: !closed })); $('#drawModal').classList.remove('open'); }
-  catch (e) { toast(e.message, 4000); }
+  const d = padPath(padPts, closed) + (padExtra.length ? ' ' + padExtra.join(' ') : '');
+  const body = closed ? '<path d="' + d + '" fill="#000"' + (padExtra.length ? ' fill-rule="evenodd"' : '') + '/>' : '<path d="' + d + '" fill="none" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>';
+  // editing one of your shapes updates it everywhere; editing a built-in shape makes an edited copy
+  const inPlace = padEdit && !padEdit.builtin && SHAPES[padEdit.id];
+  try {
+    const rec = processSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">' + body + '</svg>', padEdit ? padEdit.name + (inPlace ? '' : ' (edited)') : 'Drawn ' + shapeSeq, { inheritSW: !closed, id: inPlace ? padEdit.id : undefined });
+    if (inPlace) Object.keys(MORPHS).forEach(k => delete MORPHS[k]);
+    const wasEdit = !!padEdit;
+    addShape(rec); $('#drawModal').classList.remove('open'); if (wasEdit) toast(inPlace ? 'Shape updated' : 'Saved as a new shape under Your shapes');
+  } catch (e) { toast(e.message, 4000); }
 };
 // While drawing: Delete/Backspace removes the selected (or last) point, Enter adds the shape, Ctrl/Cmd+Z removes the last point.
 window.addEventListener('keydown', ev => {
@@ -3264,7 +3299,95 @@ window.addEventListener('keydown', ev => {
   else if (ev.key === 'Enter') { ev.preventDefault(); ev.stopImmediatePropagation(); $('#padOk').click(); }
   else if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); ev.stopImmediatePropagation(); padDelete(); }
 }, true);
-function openDraw() { $('#drawModal').classList.add('open'); requestAnimationFrame(padDraw); }
+function openDraw() {
+  if (padEdit) { padEdit = null; padPts = []; padShut = false; padExtra = []; padSel = -1; $('#padClosed').checked = true; }
+  $('#padTitle').textContent = 'Draw a shape'; $('#padOk').textContent = 'Add shape';
+  $('#drawModal').classList.add('open'); requestAnimationFrame(padDraw);
+}
+/* ---------- edit an existing shape in the pen tool ---------- */
+// SVG arc -> cubic Béziers (at most 90° each), so arcs become ordinary editable curves.
+function arcToCubics(p0, rx, ry, rotDeg, fa, fs, p1) {
+  rx = Math.abs(rx); ry = Math.abs(ry);
+  if (!rx || !ry || (p0[0] === p1[0] && p0[1] === p1[1])) return [[p0, p1, p1]];
+  const phi = rotDeg * D2R, cs = Math.cos(phi), sn = Math.sin(phi), dx = (p0[0] - p1[0]) / 2, dy = (p0[1] - p1[1]) / 2;
+  const x1 = cs * dx + sn * dy, y1 = -sn * dx + cs * dy, lam = x1 * x1 / (rx * rx) + y1 * y1 / (ry * ry);
+  if (lam > 1) { rx *= Math.sqrt(lam); ry *= Math.sqrt(lam); }
+  const num = rx * rx * ry * ry - rx * rx * y1 * y1 - ry * ry * x1 * x1, den = rx * rx * y1 * y1 + ry * ry * x1 * x1;
+  const co = (fa === fs ? -1 : 1) * Math.sqrt(Math.max(0, num / (den || 1))), cx1 = co * rx * y1 / ry, cy1 = -co * ry * x1 / rx;
+  const cx = cs * cx1 - sn * cy1 + (p0[0] + p1[0]) / 2, cy = sn * cx1 + cs * cy1 + (p0[1] + p1[1]) / 2;
+  const ang = (ux, uy, vx, vy) => Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy);
+  const t1 = ang(1, 0, (x1 - cx1) / rx, (y1 - cy1) / ry);
+  let dt = ang((x1 - cx1) / rx, (y1 - cy1) / ry, (-x1 - cx1) / rx, (-y1 - cy1) / ry);
+  if (!fs && dt > 0) dt -= TAU; else if (fs && dt < 0) dt += TAU;
+  const n = Math.max(1, Math.ceil(Math.abs(dt) / (Math.PI / 2) - 1e-9)), d = dt / n, k = 4 / 3 * Math.tan(d / 4), out = [];
+  const pt = t => [cx + rx * Math.cos(t) * cs - ry * Math.sin(t) * sn, cy + rx * Math.cos(t) * sn + ry * Math.sin(t) * cs];
+  const dp = t => [-rx * Math.sin(t) * cs - ry * Math.cos(t) * sn, -rx * Math.sin(t) * sn + ry * Math.cos(t) * cs];
+  for (let i = 0; i < n; i++) { const a = t1 + i * d, b = a + d, A = pt(a), B = pt(b), dA = dp(a), dB = dp(b); out.push([[A[0] + k * dA[0], A[1] + k * dA[1]], [B[0] - k * dB[0], B[1] - k * dB[1]], i === n - 1 ? p1 : B]); }
+  return out;
+}
+// A shape's outlines as pen anchors in the 600 × 600 drawing area.
+function shapeContours(sh) {
+  const m = sh.inner && sh.inner.m, hd = m && /scale\(([^)\s]+)\) translate\(([^)\s]+) ([^)\s]+)\)/.exec(m); if (!hd) return [];
+  const K = +hd[1], TX = +hd[2], TY = +hd[3], out = [], re = /<path d="([^"]*)" transform="matrix\(([^)]*)\)"([^>]*)\/>/g; let mm;
+  while ((mm = re.exec(m))) {
+    const M = mm[2].trim().split(/[\s,]+/).map(Number), filled = !/fill="none"/.test(mm[3]);
+    const T = (x, y) => { const p = Af.ap(M, [x, y]); return [300 + 480 * K * (p[0] + TX), 300 + 480 * K * (p[1] + TY)]; };
+    let subs; try { subs = parsePathD(mm[1].replace(/&amp;/g, '&')); } catch (e) { continue; }
+    subs.forEach(sb => {
+      const pts = []; const add = p => { const a = anchor(p[0], p[1]); pts.push(a); return a; };
+      const curve = (a, c1, c2, p) => { a.ox = c1[0]; a.oy = c1[1]; const b = add(p); b.ix = c2[0]; b.iy = c2[1]; return b; };
+      let a = add(sb.start);
+      sb.segs.forEach(sg => {
+        if (sg.t === 'L') { if (sg.p[0] !== a.x || sg.p[1] !== a.y) a = add(sg.p); }
+        else if (sg.t === 'C') a = curve(a, sg.c1, sg.c2, sg.p);
+        else if (sg.t === 'Q') a = curve(a, [sg.p0[0] + 2 / 3 * (sg.c1[0] - sg.p0[0]), sg.p0[1] + 2 / 3 * (sg.c1[1] - sg.p0[1])], [sg.p[0] + 2 / 3 * (sg.c1[0] - sg.p[0]), sg.p[1] + 2 / 3 * (sg.c1[1] - sg.p[1])], sg.p);
+        else if (sg.t === 'A') arcToCubics(sg.p0, sg.rx, sg.ry, sg.rot, sg.fa, sg.fs, sg.p).forEach(c => { a = curve(a, c[0], c[1], c[2]); });
+      });
+      const f = pts[0], l = pts[pts.length - 1];
+      if (sb.closed && pts.length > 1 && Math.hypot(f.x - l.x, f.y - l.y) < 1e-6) { f.ix = l.ix; f.iy = l.iy; pts.pop(); }
+      pts.forEach(q => {
+        [['x', 'y'], ['ix', 'iy'], ['ox', 'oy']].forEach(([kx, ky]) => { const t = T(q[kx], q[ky]); q[kx] = t[0]; q[ky] = t[1]; });
+        // handles that stay in a straight line through the point move together; anything else is a corner
+        const li = Math.hypot(q.ix - q.x, q.iy - q.y), lo = Math.hypot(q.ox - q.x, q.oy - q.y);
+        q.split = !(li > 1e-6 && lo > 1e-6) || Math.abs((q.ix - q.x) * (q.oy - q.y) - (q.iy - q.y) * (q.ox - q.x)) / (li * lo) > 0.02 || (q.ix - q.x) * (q.ox - q.x) + (q.iy - q.y) * (q.oy - q.y) > 0;
+      });
+      if (pts.length > 1) out.push({ pts: pts.length > 12 && pts.every(q => !q.split || (q.ix === q.x && q.ox === q.x && q.iy === q.y && q.oy === q.y)) ? smoothPolyline(pts, sb.closed || filled) : pts, closed: sb.closed || filled, filled: filled });
+    });
+  }
+  return out;
+}
+// An outline made of many short straight lines (common in imported files) becomes a few smooth points:
+// thin it out, then give each remaining point curve handles, except where the outline turns sharply.
+function smoothPolyline(pts, closed) {
+  let xy = pts.map(q => [q.x, q.y]);
+  if (closed) xy.push(xy[0].slice());
+  xy = rdp(xy, 6); if (closed) xy.pop();
+  const n = xy.length; if (n < 3) return pts;
+  return xy.map((p, i) => {
+    const a = anchor(p[0], p[1]), P = xy[closed ? (i - 1 + n) % n : Math.max(0, i - 1)], N = xy[closed ? (i + 1) % n : Math.min(n - 1, i + 1)];
+    if (!closed && (i === 0 || i === n - 1)) return a;
+    const v1 = [p[0] - P[0], p[1] - P[1]], v2 = [N[0] - p[0], N[1] - p[1]], l1 = Math.hypot(...v1), l2 = Math.hypot(...v2);
+    if (!l1 || !l2 || (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2) < Math.cos(55 * D2R)) return a; // sharp turn: keep a corner
+    let tx = N[0] - P[0], ty = N[1] - P[1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+    a.ix = p[0] - tx * l1 / 3; a.iy = p[1] - ty * l1 / 3; a.ox = p[0] + tx * l2 / 3; a.oy = p[1] + ty * l2 / 3;
+    return a;
+  });
+}
+const contourArea = c => { const xs = c.pts.map(p => p.x), ys = c.pts.map(p => p.y); return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys)); };
+function editShape(id) {
+  const sh = SHAPES[id]; if (!sh) return;
+  if (sh.kind === 'raster') { toast('This is an image. Trace it to vector in the Motif tab, then edit the traced shape.', 4200); return; }
+  if (sh.kind === 'text') { toast('Live text has no outline to edit. Add it again with “Convert to outlines” ticked.', 4200); return; }
+  const cs = shapeContours(sh).sort((a, b) => contourArea(b) - contourArea(a));
+  if (!cs.length) { toast('This shape has no outline that can be edited.'); return; }
+  padPts = cs[0].pts; padShut = cs[0].closed; padExtra = cs.slice(1).map(c => padPath(c.pts, c.closed)); padSel = -1; padAct = null;
+  padEdit = { id: id, name: sh.name, builtin: sh.builtin };
+  $('#padClosed').checked = cs.some(c => c.filled);
+  $('#padTitle').textContent = 'Edit shape: ' + sh.name; $('#padOk').textContent = 'Save shape';
+  $('#drawModal').classList.add('open'); requestAnimationFrame(padDraw);
+}
+
+
 
 /* ================= Text shape ================= */
 function openText() { $('#textModal').classList.add('open'); $('#txtVal').focus(); $('#txtVal').select(); }
@@ -3325,6 +3448,7 @@ $('#newOk').onclick = () => { $('#newModal').classList.remove('open'); const kee
 $('#bDraw').onclick = openDraw;
 $('#bText').onclick = openText;
 $('#sBake').onclick = bakeCell;
+$('#sEdit').onclick = () => editShape(cur().shape);
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 document.addEventListener('keydown', ev => {
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.type !== 'range' && document.activeElement.type !== 'checkbox';
