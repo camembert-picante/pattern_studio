@@ -232,6 +232,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
       <button id="bClear">Clear everything</button>
       <button id="bOpen">Open project…</button>
       <button id="bSave">Save project</button>
+      <button id="bLink" title="A link that opens this exact pattern in any browser">Copy share link</button>
       <hr>
       <div class="mh">Add a shape</div>
       <button id="bImport" title="SVG, PNG, JPG, GIF, WebP, BMP, AVIF, DXF or a saved project (.json)">Import file…</button>
@@ -411,6 +412,15 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
     <h3 id="newTitle">Start a new pattern?</h3>
     <p class="hint" id="newText">Your current pattern is cleared. You can still bring it back with Undo.</p>
     <div class="btns"><span style="flex:1"></span><button id="newCancel">Cancel</button><button id="newOk" class="primary">Start new</button></div>
+  </div>
+</div>
+
+<div class="modal" id="linkModal">
+  <div class="card" style="max-width:520px">
+    <h3>Share link</h3>
+    <p class="hint">Anyone who opens this link sees this pattern and can edit or export it.</p>
+    <textarea id="linkText" readonly rows="4" style="width:100%;margin-top:8px;font:12px ui-monospace,monospace;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:6px;padding:6px;resize:vertical"></textarea>
+    <div class="btns"><span style="flex:1"></span><button id="linkClose">Close</button><button id="linkCopy" class="primary">Copy</button></div>
   </div>
 </div>
 
@@ -1330,12 +1340,18 @@ function projectJSON() { return JSON.stringify({ app: 'pattern-studio', v: 2, la
 let saveT = 0;
 function autosave() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('pattern-studio-v1', projectJSON()); } catch (e) { /* storage full or blocked: fine */ } }, 500); }
 function loadProject(o) {
-  if (!o || !Array.isArray(o.layers)) throw new Error('Not a Pattern Studio project.');
+  if (!o || !Array.isArray(o.layers) || !o.layers.length) throw new Error('Not a Pattern Studio project: it needs a "layers" list.');
   (o.shapes || []).forEach(s => { SHAPES[s.id] = finishShape(Object.assign({ builtin: false }, s)); });
+  // shapes written by hand or by an AI: { id, name, svg } or { id, name, d, line }
+  (o.svgShapes || []).forEach(s => {
+    const svg = s.svg || '<svg xmlns="http://www.w3.org/2000/svg"><path d="' + esc(s.d || '') + '"' + (s.line ? ' fill="none" stroke="#000" stroke-width="' + (s.strokeWidth || 6) + '" stroke-linecap="round" stroke-linejoin="round"' : ' fill="#000" fill-rule="evenodd"') + '/></svg>';
+    const rec = processSvg(svg, s.name || s.id || 'Shape', { id: s.id, inheritSW: !!s.line }); SHAPES[rec.id] = rec;
+  });
   const d = defaultState();
-  S.layers = o.layers.map(L => newLayer(L)); S.sel = Math.min(o.sel || 0, S.layers.length - 1);
   S.region = Object.assign(d.region, o.region || {}); S.exp = Object.assign(d.exp, o.exp || {});
-  S.ctrls = Array.isArray(o.ctrls) ? o.ctrls : []; S.mix = o.mix || 'max'; selCtrl = -1;
+  // a layer that gives no motif size or position gets the same tidy placement as Reset motif
+  S.layers = o.layers.map(L0 => { const L = newLayer(L0); if (L0.size == null && L0.mx == null && L0.my == null) autoPlace(L); return L; }); S.sel = clamp(o.sel || 0, 0, S.layers.length - 1);
+  S.ctrls = Array.isArray(o.ctrls) ? o.ctrls.filter(c => c && CTRL_NAMES[c.type]).map(c => Object.assign(newCtrl(c.type), c)) : []; S.mix = o.mix || 'max'; selCtrl = -1;
   S.layers.forEach(L => { if (!SHAPES[L.shape]) L.shape = 'comma'; });
   shapesDirty = true; rebuildAll(); fit(); pushHistory(true);
 }
@@ -2523,8 +2539,10 @@ function clusterSpan(geo) {
 // Inside a claude.ai page, files go through the viewer's save prompt; elsewhere a normal browser download.
 let hostSaver = null;
 function hostDownloads() { return hostSaver || (hostSaver = window.claude && window.claude.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null)); }
+let captureDl = null; // set by PatternStudio.export(): files are collected here instead of downloaded
 async function download(name, data, type) {
   let blob = data instanceof Blob ? data : new Blob([data], { type: type });
+  if (captureDl) { captureDl.push({ filename: name, blob: blob }); return; }
   const dl = await hostDownloads();
   if (dl) {
     if (!/\.(png|jpe?g|webp|svg|json|zip|txt)$/i.test(name)) { blob = makeZip([{ name: name, data: new Uint8Array(await blob.arrayBuffer()) }]); name += '.zip'; } // CAD formats travel zipped
@@ -2928,7 +2946,7 @@ async function doExport() {
     if (f === 'dxf' || f === 'dxftile') { const d = buildDXF(RR); download(baseName((isTile ? 'tile-' : '') + sz) + '.dxf', d.text, 'application/dxf'); toast('DXF saved · ' + d.count.toLocaleString() + ' outlines' + (d.skipped ? ' · ' + d.skipped + ' layer(s) without outlines skipped' : ''), 4000); return; }
     if (f === 'step') { const st = buildSTEP(R); download(st.name, st.blob); toast('STEP saved · ' + st.count.toLocaleString() + ' pieces' + (st.files > 1 ? ' in ' + st.files + ' files' : '') + (st.skipped ? ' · ' + st.skipped + ' layer(s) without closed outlines skipped' : ''), 4500); return; }
     if (f === 'stl') { const s = buildSTL(R); download(baseName(sz) + '.stl', s.blob); toast('STL saved · ' + s.tris.toLocaleString() + ' triangles' + (s.skipped ? ' · ' + s.skipped + ' layer(s) without closed outlines skipped' : ''), 4000); return; }
-  } catch (e) { console.error(e); toast(e.message || String(e), 5000); }
+  } catch (e) { if (captureDl) throw e; console.error(e); toast(e.message || String(e), 5000); }
 }
 async function copySVG() {
   const b = buildSVG(S.region, { expand: S.exp.expand });
@@ -3518,8 +3536,83 @@ buildGroupPick(); buildPresets();
 let restored = false;
 try { const s = localStorage.getItem('pattern-studio-v1'); if (s) { const o = JSON.parse(s); (o.shapes || []).forEach(sh => { SHAPES[sh.id] = finishShape(Object.assign({ builtin: false }, sh)); }); S.layers = o.layers.map(L => newLayer(L)); S.sel = Math.min(o.sel || 0, S.layers.length - 1); S.region = Object.assign(defaultState().region, o.region); S.exp = Object.assign(defaultState().exp, o.exp); S.ctrls = Array.isArray(o.ctrls) ? o.ctrls : []; S.mix = o.mix || 'max'; S.layers.forEach(L => { if (!SHAPES[L.shape]) L.shape = 'comma'; }); restored = true; } } catch (e) { S = defaultState(); }
 rebuildAll(); render(); fit(); pushHistory(true); renderThumbs();
-if (restored) toast('Restored your last session');
+if (/^#(p|pattern)=/.test(location.hash)) setTimeout(openFromHash); else if (restored) toast('Restored your last session');
 window.__PS = { buildSTEP: buildSTEP, stepSolids: stepSolids, getField: getField, layerOut: layerOut, PRESETS: PRESETS, newCtrl: newCtrl, MORPHS: MORPHS, shapeSolid: shapeSolid, S: S, GROUPS: GROUPS, SHAPES: SHAPES, geom: geom, buildSVG: buildSVG, buildDXF: buildDXF, buildSTL: buildSTL, parseDXF: parseDXF, processSvg: processSvg, commonTile: commonTile, rectTileOf: rectTileOf, instances: instances, regionInfo: regionInfo, marksFor: marksFor, traceImage: traceImage, processRaster: processRaster, addShape: addShape, importText: importText, bakeCell: bakeCell, getS: () => S, rebuildAll: rebuildAll };
+
+/* ================= Share links and scripting API ================= */
+// Links carry the whole pattern after the #:  #p=<deflate + base64url>  (made by the app)  or  #pattern=<URL-encoded JSON>  (easy to write by hand or by an AI).
+const PUBLIC_URL = 'https://camembert-picante.github.io/pattern_studio/';
+function b64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+const b64u = {
+  enc: u8 => b64(u8).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+  dec: t => { const b = atob(t.replace(/-/g, '+').replace(/_/g, '/')); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+};
+async function streamBytes(u8, stream) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(stream)).arrayBuffer()); }
+async function shareLink() {
+  const json = projectJSON();
+  // on claude.ai or a local file the address cannot carry a pattern, so links point at the public site
+  const base = location.protocol.startsWith('http') && !window.claude ? location.href.split('#')[0] : PUBLIC_URL;
+  if (typeof CompressionStream === 'undefined') return base + '#pattern=' + encodeURIComponent(json);
+  return base + '#p=' + b64u.enc(await streamBytes(new TextEncoder().encode(json), new CompressionStream('deflate-raw')));
+}
+async function readLinkHash(hash) {
+  const m = /^#(p|pattern)=(.+)$/s.exec(hash || ''); if (!m) return null;
+  if (m[1] === 'pattern') return JSON.parse(decodeURIComponent(m[2]));
+  return JSON.parse(new TextDecoder().decode(await streamBytes(b64u.dec(m[2]), new DecompressionStream('deflate-raw'))));
+}
+async function openFromHash() {
+  try { const o = await readLinkHash(location.hash); if (!o) return false; loadProject(o); toast('Pattern opened from the link'); return true; }
+  catch (e) { console.error(e); toast('This link’s pattern could not be read: ' + (e.message || e), 5000); return false; }
+}
+window.addEventListener('hashchange', openFromHash);
+$('#bLink').onclick = async () => {
+  const url = await shareLink(); $('#linkText').value = url; $('#linkModal').classList.add('open'); $('#linkText').select();
+  if (url.length > 8000) toast('This link is long because the pattern includes your own shapes. Most browsers and chat apps still handle it.', 5000);
+};
+$('#linkClose').onclick = () => $('#linkModal').classList.remove('open');
+$('#linkCopy').onclick = async () => { try { await navigator.clipboard.writeText($('#linkText').value); toast('Link copied'); } catch (e) { $('#linkText').select(); toast('Press Ctrl/Cmd+C to copy the selected link'); } };
+
+// window.PatternStudio: a small, stable API for scripts and AI agents (see making_patterns_with_ai.md).
+const EXPORT_FORMATS = ['svg', 'svgtile', 'png', 'pngtile', 'jpg', 'webp', 'disp', 'disptile', 'dxf', 'dxftile', 'step', 'stl', 'json'];
+function summary() {
+  const pb = patternBody(S.region, {}), t = commonTile();
+  return { layers: S.layers.map((L, i) => 'Layer ' + (i + 1) + ': ' + (L.empty ? 'empty' : layoutName(L) + (GEOM_LAYOUTS[L.layout] ? '' : ' · ' + (SHAPES[L.shape] || {}).name))), pieces: pb.count, limitReached: !!pb.over, openArea: pb.open > 1 ? null : +(pb.open * 100).toFixed(1), surface: { W: S.region.W, H: S.region.H, shape: S.region.shape }, seamlessTile: t ? { w: +t.w.toFixed(3), h: +t.h.toFixed(3) } : null, gradients: S.ctrls.length };
+}
+window.PatternStudio = {
+  version: 1,
+  /** Load a project (object or JSON text). Missing fields take their defaults. Returns a summary. */
+  load(project) { loadProject(typeof project === 'string' ? JSON.parse(project) : project); return summary(); },
+  /** The current pattern as a project object (what Save project writes). */
+  get() { return JSON.parse(projectJSON()); },
+  /** Pieces, open area, surface size and seamless tile of the current pattern. */
+  summary: summary,
+  /** Start again: 'clear' leaves one empty layer, 'example' loads the starter pattern. */
+  reset(kind) { const keep = S.exp; S = defaultState(); S.exp = keep; selCtrl = -1; if (kind !== 'example') S.layers[0].empty = true; rebuildAll(); fit(); pushHistory(true); return summary(); },
+  /** Names of the presets, and loading one by name. */
+  presets() { return PRESETS.map(p => p[0]); },
+  async preset(name) { const p = PRESETS.find(q => q[0].toLowerCase() === String(name).toLowerCase()); if (!p) throw new Error('No preset called ' + name); await p[1](); rebuildAll(); fit(); pushHistory(true); return summary(); },
+  /** What can be used in a project. */
+  shapes() { return Object.values(SHAPES).filter(sh => !RETIRED_SHAPES[sh.id]).map(sh => ({ id: sh.id, name: sh.name, kind: sh.kind, line: !!sh.lineArt, builtin: !!sh.builtin })); },
+  groups() { return GROUPS.map(g => ({ id: g.id, cell: ['oblique', 'rectangular', 'centered rectangular', 'square', 'hexagonal'][g.fam], description: g.d })); },
+  layouts() { return LAYOUTS.map(l => ({ id: l[0], name: l[1], description: LAYOUT_DESC[l[0]] || '' })); },
+  formats() { return EXPORT_FORMATS.slice(); },
+  /** Add a shape from SVG text; returns its id. */
+  addShape(svg, name) { const rec = processSvg(svg, name || 'Shape'); addShape(rec, false); return rec.id; },
+  /** Export without downloading. Returns [{ filename, mime, base64 }] (STEP split exports arrive as one .zip). */
+  async export(format, options) {
+    if (!EXPORT_FORMATS.includes(format)) throw new Error('Unknown format ' + format + '. Use one of: ' + EXPORT_FORMATS.join(', '));
+    const keep = Object.assign({}, S.exp); Object.assign(S.exp, options || {}, { fmt: format }); captureDl = [];
+    try {
+      await doExport();
+      if (!captureDl.length) throw new Error(format.endsWith('tile') ? 'This pattern has no seamless tile (it needs wallpaper layouts at 0 or 90° rotation, no active gradients and no feather).' : 'Nothing was exported.');
+      return Promise.all(captureDl.map(async f => ({ filename: f.filename, mime: f.blob.type || 'application/octet-stream', base64: b64(new Uint8Array(await f.blob.arrayBuffer())) })));
+    } finally { captureDl = null; S.exp = Object.assign(S.exp, keep); }
+  },
+  /** A link that opens the current pattern in any browser. */
+  link: shareLink,
+  /** Read the pattern out of a link (#p=… or #pattern=…). */
+  async fromLink(url) { const o = await readLinkHash('#' + String(url).split('#')[1]); if (!o) throw new Error('No pattern in this link'); return o; }
+};
 
 /* ================= Panel tabs, menus, phone sheet ================= */
 const TAB_KEY = 'pattern-studio-tab';

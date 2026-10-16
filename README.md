@@ -44,6 +44,12 @@ It works like Illustrator or Figma:
 
 On a phone the canvas stays at the top and the settings sit in a sheet below it, with the tabs along the bottom. Tap the open tab again, or the grab bar, to give the canvas the full screen. Drag with one finger to pan or move things, and pinch with two fingers to zoom.
 
+## Use it online, share it, or let an AI make patterns
+
+- **Website:** https://camembert-picante.github.io/pattern_studio/ (GitHub Pages; nothing to install).
+- **Share a pattern:** File → **Copy share link** gives a link that opens that exact pattern for anyone.
+- **AI:** any AI can describe a pattern as a small JSON object and turn it into a link, and an agent such as Claude Code can render it straight to SVG, PNG, DXF, STEP or STL with `tools/render.mjs`. See **[making_patterns_with_ai.md](making_patterns_with_ai.md)**.
+
 ## The idea
 
 The canvas works as the control panel. You drop **gradient controllers** on it and drag their handles. Every layer then responds to the combined gradient, and the pattern redraws live.
