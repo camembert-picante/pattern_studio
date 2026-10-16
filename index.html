@@ -157,6 +157,14 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
 .modal.open{display:flex}
 .card{background:var(--raise);border:1px solid var(--line-strong);border-radius:14px;padding:16px;max-width:min(560px,100%);width:100%;max-height:calc(100dvh - 24px);overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
 .card h3{margin:0 0 10px;font-size:15px}
+.drawCard{max-width:min(620px,100%)}
+.card h3 small{font-weight:500;color:var(--muted);font-size:12px;margin-left:6px}
+.padStatus{margin:8px 0 0;font-size:12.5px;color:var(--ink);min-height:1.4em}
+.btns label.mini{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)}
+.padHelp{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12px;color:var(--muted)}
+.padHelp summary{cursor:pointer;padding:7px 0;color:var(--ink)}
+.padHelp ul{margin:0 0 8px;padding-left:18px;display:grid;gap:4px}
+.padHelp b{color:var(--ink);font-weight:600}
 #pad{width:100%;aspect-ratio:1;background:var(--field);border:1px solid var(--line);border-radius:8px;touch-action:none;display:block;cursor:crosshair}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 15px;border-radius:10px;font-size:12.5px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30;max-width:86vw;text-align:center}
 #toast.show{opacity:.96}
@@ -347,18 +355,30 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
 </main>
 
 <div class="modal" id="drawModal">
-  <div class="card">
-    <h3>Draw a shape</h3>
+  <div class="card drawCard">
+    <h3>Draw a shape <small>Pen tool</small></h3>
     <canvas id="pad" width="600" height="600"></canvas>
-    <div class="line">
-      <label><input type="checkbox" id="padClosed" checked> Closed (filled)</label>
-      <label><input type="checkbox" id="padSmooth" checked> Smooth</label>
-      <label><input type="checkbox" id="padSnap"> Snap to grid</label>
-    </div>
-    <p class="hint">Tap or click to add points. Drag a point to move it. Double-tap or right-click a point to delete it. Open shapes become lines.</p>
+    <p class="padStatus" id="padStatus"></p>
     <div class="btns">
-      <button id="padUndo">Remove last</button>
-      <button id="padClear">Clear</button>
+      <button id="padDel" class="mini">Delete point</button>
+      <button id="padKind" class="mini" title="Switch the selected point between a sharp corner and a smooth curve (Alt/Option-click a point)">Corner ↔ smooth</button>
+      <button id="padClear" class="mini">Clear</button>
+      <span style="flex:1"></span>
+      <label class="mini"><input type="checkbox" id="padClosed" checked> Fill</label>
+      <label class="mini"><input type="checkbox" id="padSnap"> Snap to grid</label>
+    </div>
+    <details class="padHelp">
+      <summary>How the pen works</summary>
+      <ul>
+        <li><b>Click</b> to place a corner point. <b>Click and drag</b> to place a smooth point and pull out its curve handles.</li>
+        <li><b>Click the first point</b> to close the path.</li>
+        <li><b>Drag a point</b> to move it. Select a point to see its handles, then <b>drag a handle</b> to reshape the curve.</li>
+        <li><b>Alt/Option-drag a handle</b> to break the pair for a sharp turn. <b>Alt/Option-click a point</b> switches it between corner and smooth.</li>
+        <li><b>Shift</b> keeps lines and handles at 45° steps. <b>Delete</b> removes the selected point, <b>Ctrl/Cmd+Z</b> the last one, and <b>Enter</b> adds the shape.</li>
+        <li><b>Fill</b> closes the shape when you add it. Untick it to get a line instead.</li>
+      </ul>
+    </details>
+    <div class="btns">
       <span style="flex:1"></span>
       <button id="padCancel">Cancel</button>
       <button id="padOk" class="primary">Add shape</button>
@@ -3091,49 +3111,159 @@ stage.addEventListener('wheel', ev => {
 function zoomBy(f) { view.scale = clamp(view.scale * f, 0.05, 400); requestRender(); }
 new ResizeObserver(() => requestRender()).observe(stage);
 
-/* ================= Draw pad ================= */
+/* ================= Draw pad: a pen tool like Illustrator / Photoshop ================= */
+// Each anchor keeps absolute positions for its in-handle (ix,iy) and out-handle (ox,oy). A handle sitting on the anchor means none.
+// split = the two handles move independently (Alt/Option-drag), otherwise they stay in a straight line through the anchor.
 const pad = $('#pad'), pctx = pad.getContext('2d');
-let padPts = [], padDrag = -1;
+let padPts = [], padShut = false, padSel = -1, padAct = null, padHover = null;
+const anchor = (x, y) => ({ x: x, y: y, ix: x, iy: y, ox: x, oy: y, split: false });
+const hasIn = a => a.ix !== a.x || a.iy !== a.y, hasOut = a => a.ox !== a.x || a.oy !== a.y;
+function padScale() { const r = pad.getBoundingClientRect(); return 600 / (r.width || 600); }
 function padXY(ev) { const r = pad.getBoundingClientRect(); let x = (ev.clientX - r.left) / r.width * 600, y = (ev.clientY - r.top) / r.height * 600; if ($('#padSnap').checked) { x = Math.round(x / 30) * 30; y = Math.round(y / 30) * 30; } return [x, y]; }
-function padPath(pts, closed, smooth) {
+// Shift: keep the direction from `o` to `p` on a multiple of 45°, like the pen tool.
+function constrain45(o, p) { const dx = p[0] - o[0], dy = p[1] - o[1], L = Math.hypot(dx, dy), a = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * Math.PI / 4; return [o[0] + L * Math.cos(a), o[1] + L * Math.sin(a)]; }
+function padSeg(a, b) { return !hasOut(a) && !hasIn(b) ? 'L' + fmt(b.x) + ' ' + fmt(b.y) : 'C' + [a.ox, a.oy, b.ix, b.iy, b.x, b.y].map(fmt).join(' '); }
+function padPath(pts, closed) {
   if (pts.length < 2) return '';
-  if (!smooth || pts.length < 3) return 'M' + pts.map(p => fmt(p[0]) + ' ' + fmt(p[1])).join('L') + (closed ? 'Z' : '');
-  const n = pts.length, P = i => closed ? pts[(i + n) % n] : pts[clamp(i, 0, n - 1)];
-  let d = 'M' + fmt(pts[0][0]) + ' ' + fmt(pts[0][1]);
-  const segs = closed ? n : n - 1;
-  for (let i = 0; i < segs; i++) {
-    const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
-    d += 'C' + fmt(p1[0] + (p2[0] - p0[0]) / 6) + ' ' + fmt(p1[1] + (p2[1] - p0[1]) / 6) + ' ' + fmt(p2[0] - (p3[0] - p1[0]) / 6) + ' ' + fmt(p2[1] - (p3[1] - p1[1]) / 6) + ' ' + fmt(p2[0]) + ' ' + fmt(p2[1]);
-  }
-  return d + (closed ? 'Z' : '');
+  let d = 'M' + fmt(pts[0].x) + ' ' + fmt(pts[0].y);
+  for (let i = 1; i < pts.length; i++) d += padSeg(pts[i - 1], pts[i]);
+  return closed ? d + padSeg(pts[pts.length - 1], pts[0]) + 'Z' : d;
+}
+const padFill = () => padShut || $('#padClosed').checked;
+// Handles are shown (and grabbable) on the selected anchor and its neighbours, as in Illustrator.
+function shownHandles() {
+  const n = padPts.length, out = [];
+  if (padSel < 0) return out;
+  [padSel - 1, padSel, padSel + 1].forEach(i => { if (padShut) i = (i + n) % n; if (i >= 0 && i < n && !out.includes(i)) out.push(i); });
+  return out;
 }
 function padDraw() {
-  const css = getComputedStyle(document.documentElement), ink = css.getPropertyValue('--ink').trim(), acc = css.getPropertyValue('--accent').trim(), ln = css.getPropertyValue('--line').trim();
+  const css = getComputedStyle(document.documentElement), tok = k => css.getPropertyValue(k).trim();
+  const ink = tok('--ink'), acc = tok('--accent'), ln = tok('--line'), bg = tok('--field'), k = padScale();
   pctx.clearRect(0, 0, 600, 600);
   pctx.strokeStyle = ln; pctx.lineWidth = 1;
   for (let q = 30; q < 600; q += 30) { pctx.beginPath(); pctx.moveTo(q, 0); pctx.lineTo(q, 600); pctx.moveTo(0, q); pctx.lineTo(600, q); pctx.stroke(); }
-  const closed = $('#padClosed').checked, d = padPath(padPts, closed, $('#padSmooth').checked);
-  if (d) { const p = new Path2D(d); if (closed) { pctx.fillStyle = ink; pctx.globalAlpha = .85; pctx.fill(p); pctx.globalAlpha = 1; } else { pctx.strokeStyle = ink; pctx.lineWidth = 14; pctx.lineCap = 'round'; pctx.lineJoin = 'round'; pctx.stroke(p); } }
-  padPts.forEach((p, i) => { pctx.beginPath(); pctx.arc(p[0], p[1], i === 0 ? 8 : 6, 0, TAU); pctx.fillStyle = acc; pctx.fill(); pctx.strokeStyle = '#fff'; pctx.lineWidth = 2; pctx.stroke(); });
+  if (padPts.length) {
+    const fill = padFill(), shape = padPath(padPts, fill);
+    if (shape) { const p = new Path2D(shape); if (fill) { pctx.fillStyle = ink; pctx.globalAlpha = padShut ? .85 : .35; pctx.fill(p); pctx.globalAlpha = 1; } else { pctx.strokeStyle = ink; pctx.lineWidth = 14; pctx.lineCap = 'round'; pctx.lineJoin = 'round'; pctx.globalAlpha = .85; pctx.stroke(p); pctx.globalAlpha = 1; } }
+    // the path itself
+    pctx.strokeStyle = acc; pctx.lineWidth = 1.6 * k; pctx.stroke(new Path2D(padPath(padPts, padShut)));
+    // rubber band from the last anchor to the pointer while the path is open
+    if (!padShut && padHover && !padAct) {
+      const a = padPts[padPts.length - 1], h = padHover;
+      pctx.setLineDash([5 * k, 4 * k]); pctx.beginPath(); pctx.moveTo(a.x, a.y);
+      if (hasOut(a)) pctx.bezierCurveTo(a.ox, a.oy, h[0], h[1], h[0], h[1]); else pctx.lineTo(h[0], h[1]);
+      pctx.stroke(); pctx.setLineDash([]);
+    }
+    // handles
+    pctx.lineWidth = 1.2 * k;
+    shownHandles().forEach(i => {
+      const a = padPts[i];
+      [['i', a.ix, a.iy, hasIn(a)], ['o', a.ox, a.oy, hasOut(a)]].forEach(([, hx, hy, on]) => {
+        if (!on) return;
+        pctx.beginPath(); pctx.moveTo(a.x, a.y); pctx.lineTo(hx, hy); pctx.stroke();
+        pctx.beginPath(); pctx.arc(hx, hy, 4.5 * k, 0, TAU); pctx.fillStyle = acc; pctx.fill();
+      });
+    });
+    // anchors: hollow squares, the selected one filled; the start point grows a ring when clicking it would close the path
+    padPts.forEach((a, i) => {
+      const s = (i === padSel ? 5.5 : 4.5) * k;
+      pctx.fillStyle = i === padSel ? acc : bg; pctx.strokeStyle = acc; pctx.lineWidth = 1.6 * k;
+      pctx.fillRect(a.x - s, a.y - s, 2 * s, 2 * s); pctx.strokeRect(a.x - s, a.y - s, 2 * s, 2 * s);
+    });
+    const a0 = padPts[0];
+    if (!padShut && padPts.length > 1 && padHover && Math.hypot(padHover[0] - a0.x, padHover[1] - a0.y) < padTol()) { pctx.beginPath(); pctx.arc(a0.x, a0.y, 11 * k, 0, TAU); pctx.strokeStyle = acc; pctx.lineWidth = 2 * k; pctx.stroke(); }
+  }
+  $('#padStatus').textContent = !padPts.length ? 'Click to place the first point.' : padShut ? 'Path closed. Drag points or handles to refine it, then Add shape.' : padPts.length === 1 ? 'Click for a corner, or click and drag for a curve.' : 'Click the first point to close the path, or Add shape to finish.';
+  $('#padKind').disabled = padSel < 0; $('#padDel').disabled = !padPts.length;
 }
-const padHit = xy => padPts.findIndex(p => Math.hypot(p[0] - xy[0], p[1] - xy[1]) < 14);
-pad.addEventListener('pointerdown', ev => { if (ev.button === 2) return; pad.setPointerCapture(ev.pointerId); const xy = padXY(ev), h = padHit(xy); if (h >= 0) padDrag = h; else { padPts.push(xy); padDrag = padPts.length - 1; } padDraw(); });
-pad.addEventListener('pointermove', ev => { if (padDrag < 0) return; padPts[padDrag] = padXY(ev); padDraw(); });
-pad.addEventListener('pointerup', () => padDrag = -1);
-pad.addEventListener('contextmenu', ev => { ev.preventDefault(); const h = padHit(padXY(ev)); if (h >= 0) { padPts.splice(h, 1); padDraw(); } });
-pad.addEventListener('dblclick', ev => { const h = padHit(padXY(ev)); if (h >= 0) { padPts.splice(h, 1); padDraw(); } });
-['padClosed', 'padSmooth'].forEach(id => $('#' + id).addEventListener('change', padDraw));
-$('#padUndo').onclick = () => { padPts.pop(); padDraw(); };
-$('#padClear').onclick = () => { padPts = []; padDraw(); };
+let padTouch = false;
+const padTol = () => (padTouch ? 22 : 10) * padScale();
+function padHitAnchor(xy) { let best = -1, bd = padTol(); padPts.forEach((a, i) => { const d = Math.hypot(a.x - xy[0], a.y - xy[1]); if (d < bd) { bd = d; best = i; } }); return best; }
+function padHitHandle(xy) {
+  let best = null, bd = padTol();
+  shownHandles().forEach(i => { const a = padPts[i]; [['i', a.ix, a.iy, hasIn(a)], ['o', a.ox, a.oy, hasOut(a)]].forEach(([w, hx, hy, on]) => { const d = Math.hypot(hx - xy[0], hy - xy[1]); if (on && d < bd) { bd = d; best = { i: i, w: w }; } }); });
+  return best;
+}
+// Smooth <-> corner. A new smooth point gets handles along the line between its neighbours.
+function toggleKind(i) {
+  const a = padPts[i]; if (!a) return;
+  if (hasIn(a) || hasOut(a)) { a.ix = a.ox = a.x; a.iy = a.oy = a.y; a.split = false; return; }
+  const n = padPts.length, P = padPts[padShut ? (i - 1 + n) % n : Math.max(0, i - 1)], N = padPts[padShut ? (i + 1) % n : Math.min(n - 1, i + 1)];
+  let dx = N.x - P.x, dy = N.y - P.y, L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+  const li = Math.hypot(a.x - P.x, a.y - P.y) / 3 || 40, lo = Math.hypot(N.x - a.x, N.y - a.y) / 3 || 40;
+  a.ix = a.x - dx * li; a.iy = a.y - dy * li; a.ox = a.x + dx * lo; a.oy = a.y + dy * lo; a.split = false;
+}
+function setOut(a, p) { a.ox = p[0]; a.oy = p[1]; a.ix = 2 * a.x - p[0]; a.iy = 2 * a.y - p[1]; }
+pad.addEventListener('pointerdown', ev => {
+  if (ev.button === 2) return;
+  padTouch = ev.pointerType === 'touch'; pad.setPointerCapture(ev.pointerId);
+  const xy = padXY(ev), hh = padHitHandle(xy), hi = hh ? -1 : padHitAnchor(xy);
+  if (hh) { if (ev.altKey) padPts[hh.i].split = true; padAct = { type: 'handle', i: hh.i, w: hh.w }; }
+  else if (hi === 0 && !padShut && padPts.length > 1 && !ev.altKey) { padShut = true; padSel = 0; padAct = { type: 'drawHandle', i: 0, start: xy, moved: false }; }
+  else if (hi >= 0) {
+    padSel = hi;
+    if (ev.altKey) { toggleKind(hi); padAct = null; }
+    else padAct = { type: 'anchor', i: hi, start: xy, a0: Object.assign({}, padPts[hi]) };
+  } else if (!padShut) {
+    const last = padPts[padPts.length - 1], p = ev.shiftKey && last ? constrain45([last.x, last.y], xy) : xy;
+    padPts.push(anchor(p[0], p[1])); padSel = padPts.length - 1;
+    padAct = { type: 'drawHandle', i: padSel, start: p, moved: false };
+  } else { padSel = -1; padAct = null; }
+  padDraw();
+});
+pad.addEventListener('pointermove', ev => {
+  const xy = padXY(ev); padHover = xy;
+  if (!padAct) { padDraw(); return; }
+  const a = padPts[padAct.i]; if (!a) return;
+  if (padAct.type === 'drawHandle') {
+    // click-drag pulls the out-handle out of the new point; the in-handle mirrors it (a smooth point)
+    if (!padAct.moved && Math.hypot(xy[0] - padAct.start[0], xy[1] - padAct.start[1]) < 3 * padScale()) return;
+    padAct.moved = true; setOut(a, ev.shiftKey ? constrain45([a.x, a.y], xy) : xy);
+  } else if (padAct.type === 'anchor') {
+    const dx = xy[0] - padAct.start[0], dy = xy[1] - padAct.start[1], o = padAct.a0;
+    Object.assign(a, { x: o.x + dx, y: o.y + dy, ix: o.ix + dx, iy: o.iy + dy, ox: o.ox + dx, oy: o.oy + dy });
+  } else if (padAct.type === 'handle') {
+    const p = ev.shiftKey ? constrain45([a.x, a.y], xy) : xy, mine = padAct.w, other = mine === 'i' ? 'o' : 'i';
+    if (ev.altKey) a.split = true;
+    a[mine + 'x'] = p[0]; a[mine + 'y'] = p[1];
+    if (!a.split) { // keep the opposite handle in line, at its own length
+      const L = Math.hypot(a[other + 'x'] - a.x, a[other + 'y'] - a.y) || Math.hypot(p[0] - a.x, p[1] - a.y), dx = p[0] - a.x, dy = p[1] - a.y, m = Math.hypot(dx, dy) || 1;
+      a[other + 'x'] = a.x - dx / m * L; a[other + 'y'] = a.y - dy / m * L;
+    }
+  }
+  padDraw();
+});
+pad.addEventListener('pointerup', () => { padAct = null; padDraw(); });
+pad.addEventListener('pointerleave', () => { padHover = null; if (!padAct) padDraw(); });
+function padDelete(i) {
+  if (!padPts.length) return;
+  if (i == null || i < 0) i = padPts.length - 1;
+  padPts.splice(i, 1); if (padPts.length < 3) padShut = false;
+  padSel = padPts.length ? Math.min(i, padPts.length - 1) : -1; padDraw();
+}
+pad.addEventListener('contextmenu', ev => { ev.preventDefault(); const h = padHitAnchor(padXY(ev)); if (h >= 0) padDelete(h); });
+pad.addEventListener('dblclick', ev => { const h = padHitAnchor(padXY(ev)); if (h >= 0) padDelete(h); });
+['padClosed', 'padSnap'].forEach(id => $('#' + id).addEventListener('change', padDraw));
+$('#padDel').onclick = () => padDelete(padSel);
+$('#padKind').onclick = () => { toggleKind(padSel); padDraw(); };
+$('#padClear').onclick = () => { padPts = []; padShut = false; padSel = -1; padDraw(); };
 $('#padCancel').onclick = () => $('#drawModal').classList.remove('open');
 $('#padOk').onclick = () => {
-  const closed = $('#padClosed').checked;
-  if (padPts.length < (closed ? 3 : 2)) { toast('Add at least ' + (closed ? 3 : 2) + ' points'); return; }
-  const d = padPath(padPts, closed, $('#padSmooth').checked);
+  const closed = padFill(), need = closed && !padPts.some(a => hasIn(a) || hasOut(a)) ? 3 : 2;
+  if (padPts.length < need) { toast('Add at least ' + need + ' points'); return; }
+  const d = padPath(padPts, closed);
   const body = closed ? '<path d="' + d + '" fill="#000"/>' : '<path d="' + d + '" fill="none" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>';
   try { addShape(processSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">' + body + '</svg>', 'Drawn ' + (shapeSeq), { inheritSW: !closed })); $('#drawModal').classList.remove('open'); }
   catch (e) { toast(e.message, 4000); }
 };
+// While drawing: Delete/Backspace removes the selected (or last) point, Enter adds the shape, Ctrl/Cmd+Z removes the last point.
+window.addEventListener('keydown', ev => {
+  if (!$('#drawModal').classList.contains('open') || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.type !== 'checkbox') return;
+  if (ev.key === 'Backspace' || ev.key === 'Delete') { ev.preventDefault(); ev.stopImmediatePropagation(); padDelete(padSel); }
+  else if (ev.key === 'Enter') { ev.preventDefault(); ev.stopImmediatePropagation(); $('#padOk').click(); }
+  else if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); ev.stopImmediatePropagation(); padDelete(); }
+}, true);
 function openDraw() { $('#drawModal').classList.add('open'); requestAnimationFrame(padDraw); }
 
 /* ================= Text shape ================= */

@@ -100,7 +100,7 @@ These settings are per layer:
 
 - 22 built-in shapes in four families on the left tool rail, including a wave scale and an insole outline.
 - **Import:** SVG, PNG, JPG, GIF, WebP, BMP, AVIF and DXF. You can also paste SVG code or a path `d` string.
-- **Draw** your own shape.
+- **Draw** your own shape with a pen tool that works like Illustrator's: click for a corner, click and drag for a curve, click the first point to close. Drag points and handles to refine; Alt/Option-drag a handle to break it, Alt/Option-click a point to switch corner and smooth, Shift for 45° steps.
 - **Text:** converted to outlines by default.
 - **Images:** trace them to vector outlines.
 - **Bake cell → shape:** turns one cell's cluster of copies into a new shape, so a rosette can be fed into another group.
