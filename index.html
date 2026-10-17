@@ -1399,7 +1399,8 @@ function defaultState() {
 }
 let S = defaultState();
 const view = { cx: 100, cy: 75, scale: 3 };
-const show = { cell: true, marks: false, tile: false, box: true, grad: true, field: false, rulers: true, snap: true };
+const SHOW0 = { cell: true, marks: false, tile: false, box: true, grad: true, field: false, rulers: true, snap: true };
+const show = Object.assign({}, SHOW0);
 let snapGuide = null; // { x, y } guide lines drawn while something is snapped
 let cropMode = false, spaceDown = false, CELL_POLY = null, MOTIF_POLY = null, lastPtr = null;
 const cur = () => S.layers[S.sel] || S.layers[0];
@@ -2639,6 +2640,20 @@ function renderLayers() {
   });
 }
 /* ---------- presets (Explore) ---------- */
+// A preset is a clean start: nothing from the previous pattern or the editing session carries over except your
+// own shapes and export settings. Undo still brings the previous pattern back.
+async function applyPreset(p) {
+  const keepExp = S.exp;
+  if (cropMode) setCrop(false);
+  if (zoneTool) endZoneTool();
+  drag = null; snapGuide = null; selCtrl = -1; selKnot = null; selZone = -1; fxOpen.clear(); flyGroup = null;
+  Object.assign(show, SHOW0);
+  [['#oRul', 'rulers'], ['#oSnap', 'snap'], ['#oCell', 'cell'], ['#oBox', 'box'], ['#oGrad', 'grad'], ['#oMarks', 'marks'], ['#oTile', 'tile'], ['#oField', 'field']].forEach(([id, k]) => { const b = $(id); if (b) b.classList.toggle('on', show[k]); });
+  $('.canvasWrap').classList.toggle('noRulers', !show.rulers);
+  S = defaultState(); S.exp = keepExp;
+  await p[1]();
+  rebuildAll(); fit(); pushHistory(true);
+}
 function presetBase(region, ctrls, layers) {
   const d = defaultState();
   S.region = Object.assign(d.region, region || {});
@@ -2685,7 +2700,7 @@ const PRESETS = [
 ];
 function buildPresets() {
   const box = $('#presetGrid'); box.innerHTML = '';
-  PRESETS.forEach(p => box.append(E('button', { class: 'mini', onclick: async () => { try { await p[1](); } catch (e) { toast(e.message || String(e), 4000); return; } rebuildAll(); fit(); pushHistory(true); toast('Preset: ' + p[0] + '. Every value stays editable.'); } }, p[0])));
+  PRESETS.forEach(p => box.append(E('button', { class: 'mini', onclick: async () => { try { await applyPreset(p); } catch (e) { toast(e.message || String(e), 4000); return; } toast('Preset: ' + p[0] + '. Every value stays editable.'); } }, p[0])));
 }
 function shapeThumb(s) { const sw = 0.07 / (s.k || 1); return '<svg viewBox="-0.56 -0.56 1.12 1.12"><use href="#sh_' + s.id + '_' + (s.kind === 'raster' ? 'o' : 'm') + '" fill="currentColor" color="currentColor" stroke="none" stroke-width="' + fmt(sw) + '"/></svg>'; }
 const SHAPE_GROUPS = [
@@ -4214,7 +4229,7 @@ window.PatternStudio = {
   reset(kind) { const keep = S.exp; S = defaultState(); S.exp = keep; selCtrl = -1; if (kind !== 'example') S.layers[0].empty = true; rebuildAll(); fit(); pushHistory(true); return summary(); },
   /** Names of the presets, and loading one by name. */
   presets() { return PRESETS.map(p => p[0]); },
-  async preset(name) { const p = PRESETS.find(q => q[0].toLowerCase() === String(name).toLowerCase()); if (!p) throw new Error('No preset called ' + name); await p[1](); rebuildAll(); fit(); pushHistory(true); return summary(); },
+  async preset(name) { const p = PRESETS.find(q => q[0].toLowerCase() === String(name).toLowerCase()); if (!p) throw new Error('No preset called ' + name); await applyPreset(p); return summary(); },
   /** What can be used in a project. */
   shapes() { return Object.values(SHAPES).filter(sh => !RETIRED_SHAPES[sh.id]).map(sh => ({ id: sh.id, name: sh.name, kind: sh.kind, line: !!sh.lineArt, builtin: !!sh.builtin })); },
   groups() { return GROUPS.map(g => ({ id: g.id, cell: ['oblique', 'rectangular', 'centered rectangular', 'square', 'hexagonal'][g.fam], description: g.d })); },

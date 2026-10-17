@@ -131,7 +131,7 @@ The effects are:
 
 ## Presets
 
-There are 15 presets: Speaker grille, Laptop vent, Halftone dots, Sunflower, Voronoi stone, Flow waves, Moiré hatch, Shoe tread (pgg), Spiral seeds, Concentric diffuser, Seigaiha waves, Ridgeline waves, Midsole lattice, Letterform and Shape morph. Every value in a preset stays editable.
+There are 15 presets: Speaker grille, Laptop vent, Halftone dots, Sunflower, Voronoi stone, Flow waves, Moiré hatch, Shoe tread (pgg), Spiral seeds, Concentric diffuser, Seigaiha waves, Ridgeline waves, Midsole lattice, Letterform and Shape morph. Loading a preset is a clean start: layers, gradients, effects, keep-out areas, the surface, crop and the View options all come from the preset, with nothing left over from before. Your own shapes and export settings stay, and Undo brings your previous pattern back. Every value in a preset stays editable.
 
 ## Exports
 
