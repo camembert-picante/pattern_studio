@@ -45,6 +45,7 @@ It works like Illustrator or Figma:
 | Move the whole pattern | Drag the green cell box |
 | Stay on the surface | The cell box and the motif box can't leave the surface: drags stop at its edge, and if resizing, cropping or rotating would push them out, they move back in by whole cells, so the pattern itself doesn't change |
 | Move a gradient | Drag its round handles |
+| Delete a gradient | Click one of its handles and press Delete or Backspace. On a curve this removes just the clicked point (a curve keeps at least two). Esc or a click on empty canvas deselects |
 | Snap to the middle | Handles, the pattern and the motif snap to the surface's centre lines (the motif also to its cell centre), with a pink guide. Hold Alt to drag freely, or turn it off under View → Snap to middle |
 
 On a phone the canvas stays at the top and the settings sit in a sheet below it, with the tabs along the bottom. Tap the open tab again, or the grab bar, to give the canvas the full screen. Drag with one finger to pan or move things, and pinch with two fingers to zoom.

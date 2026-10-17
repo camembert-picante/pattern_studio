@@ -2108,7 +2108,7 @@ function drawCtrls(px) {
   (S.ctrls || []).forEach((c, ci) => {
     const openFx = (S.fx || []).find(e => fxOpen.has(e.id)), drives = !openFx || openFx.src === 'all' || openFx.src.includes(c.id);
     const on = ci === selCtrl, col = on ? 'var(--ov)' : 'var(--glide)', op = (c.on ? 1 : 0.4) * (drives ? 1 : 0.25);
-    const hd = (p, key) => { HANDLES.push({ x: p[0], y: p[1], ci: ci, key: key }); s += '<circle cx="' + fmt(p[0]) + '" cy="' + fmt(p[1]) + '" r="' + fmt(HANDLE_R * px) + '" fill="#fff" stroke="' + col + '" stroke-width="2" vector-effect="non-scaling-stroke" opacity="' + op + '"/>'; };
+    const hd = (p, key) => { HANDLES.push({ x: p[0], y: p[1], ci: ci, key: key }); const picked = selKnot && selKnot.ci === ci && selKnot.key === key; s += '<circle cx="' + fmt(p[0]) + '" cy="' + fmt(p[1]) + '" r="' + fmt((picked ? HANDLE_R + 1.5 : HANDLE_R) * px) + '" fill="' + (picked ? col : '#fff') + '" stroke="' + col + '" stroke-width="2" vector-effect="non-scaling-stroke" opacity="' + op + '"/>'; };
     const zone = (d, w) => { s += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-opacity="' + (0.09 * op) + '" stroke-width="' + fmt(w) + '" stroke-linecap="round" stroke-linejoin="round"/>'; };
     const ln = (d, dash) => { s += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.6" vector-effect="non-scaling-stroke" opacity="' + op + '"' + (dash ? ' stroke-dasharray="5 4"' : '') + '/>'; };
     const label = (p, t) => { s += '<text x="' + fmt(p[0] + 9 * px) + '" y="' + fmt(p[1] - 9 * px) + '" font-size="' + fmt(11 * px) + '" fill="' + col + '" opacity="' + op + '" font-family="system-ui,sans-serif" font-weight="600">' + esc(t) + '</text>'; };
@@ -2489,7 +2489,7 @@ function buildGradients() {
   box.append(numRow('Strength', P('weight'), Q('weight'), 0, 1, 0.01, ''));
   const bt = E('div', { class: 'btns' });
   if (c.type === 'curve') bt.append(E('button', { class: 'mini', onclick: () => { const a = c.pts[c.pts.length - 2], b = c.pts[c.pts.length - 1]; c.pts.push([+(b[0] + (b[0] - a[0]) * 0.5).toFixed(1), +(b[1] + (b[1] - a[1]) * 0.5).toFixed(1)]); requestRender(); pushHistory(); } }, '+ Point'), E('button', { class: 'mini', onclick: () => { if (c.pts.length > 2) { c.pts.pop(); requestRender(); pushHistory(); } } }, '− Point'));
-  bt.append(E('button', { class: 'mini', onclick: () => { const gone = S.ctrls[selCtrl].id; S.fx.forEach(e => { if (Array.isArray(e.src)) e.src = e.src.filter(id => id !== gone); }); S.ctrls.splice(selCtrl, 1); selCtrl = -1; buildGradients(); buildResponse(); buildLayout(); requestRender(); pushHistory(); } }, 'Delete controller'));
+  bt.append(E('button', { class: 'mini', title: 'Or select it on the canvas and press Delete', onclick: () => deleteCtrl(selCtrl) }, 'Delete controller'));
   box.append(bt);
 }
 let imgTarget = null;
@@ -3305,6 +3305,24 @@ function dragModeAt(ev) {
   return 'pan';
 }
 
+/* ---------- deleting gradients ---------- */
+let selKnot = null; // the handle last clicked on the selected gradient: { ci, key }
+function deleteCtrl(i) {
+  const c = S.ctrls[i]; if (!c) return;
+  S.fx.forEach(e => { if (Array.isArray(e.src)) e.src = e.src.filter(id => id !== c.id); });
+  S.ctrls.splice(i, 1); selCtrl = -1; selKnot = null;
+  buildGradients(); buildResponse(); buildLayout(); renderLayers(); requestRender(); pushHistory(true);
+  toast(CTRL_NAMES[c.type] + ' gradient deleted. Undo brings it back.');
+}
+// Delete / Backspace on the canvas: a selected bend point of a curve goes (while 2 stay), otherwise the whole gradient.
+function deleteSelection() {
+  const c = S.ctrls[selCtrl]; if (!c) return false;
+  if (c.type === 'curve' && selKnot && selKnot.ci === selCtrl && selKnot.key[0] === 'k' && c.pts.length > 2) {
+    c.pts.splice(+selKnot.key.slice(1), 1); selKnot = null; buildGradients(); requestRender(); pushHistory(true); toast('Point removed from the curve'); return true;
+  }
+  deleteCtrl(selCtrl); return true;
+}
+
 /* ---------- keep the cell and the motif on the surface ---------- */
 // The pattern repeats, so moving the cell or the motif by whole cells changes nothing on screen. That lets
 // us always show both inside the surface: drags stop at the edge, and anything else that pushes them out
@@ -3479,7 +3497,7 @@ stage.addEventListener('pointerdown', ev => {
   const mode = dragModeAt(ev), h = mode === 'pan' && (spaceDown || ev.button === 1) ? null : hitHandle(ev);
   if (h) {
     drag = { handle: h, w0: toWorld(ev) };
-    if (h.ci >= 0 && selCtrl !== h.ci) { selCtrl = h.ci; buildGradients(); }
+    if (h.ci >= 0) { selKnot = { ci: h.ci, key: h.key }; if (selCtrl !== h.ci) { selCtrl = h.ci; buildGradients(); } requestRender(); }
     stage.style.cursor = 'grabbing'; return;
   }
   const L = cur();
@@ -3542,6 +3560,7 @@ const endDrag = ev => {
   if (pinch) { if (touchPts.size === 0) pinch = null; return; }
   if (drag && drag.handle) { pushHistory(); if (drag.handle.key === 'centre') buildLayout(); if (drag.handle.key.startsWith('cell')) buildLayerControls(); if (drag.handle.key.startsWith('crop-')) rebuildAll(); }
   else if (drag && drag.mode !== 'pan' && drag.moved) { buildLayerControls(); pushHistory(); }
+  else if (drag && drag.mode === 'pan' && Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 4 && (selCtrl >= 0 || selKnot)) { selCtrl = -1; selKnot = null; buildGradients(); requestRender(); }
   drag = null; stage.style.cursor = spaceDown ? 'grab' : '';
   if (snapGuide) { snapGuide = null; requestRender(); }
 };
@@ -3899,8 +3918,9 @@ document.addEventListener('keydown', ev => {
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.type !== 'range' && document.activeElement.type !== 'checkbox';
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'z' && !typing) { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'y' && !typing) { ev.preventDefault(); redo(); return; }
-  if (ev.key === 'Escape') { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); if (cropMode) setCrop(false); if (flyGroup) { flyGroup = null; renderShapes(); } }
+  if (ev.key === 'Escape') { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); if (cropMode) setCrop(false); if (flyGroup) { flyGroup = null; renderShapes(); } if (selCtrl >= 0 && !typing) { selCtrl = -1; selKnot = null; buildGradients(); requestRender(); } }
   if (typing || document.querySelector('.modal.open')) return;
+  if ((ev.key === 'Delete' || ev.key === 'Backspace') && selCtrl >= 0 && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { ev.preventDefault(); deleteSelection(); return; }
   if (ev.key === ' ') { ev.preventDefault(); if (!spaceDown) { spaceDown = true; if (!drag) stage.style.cursor = 'grab'; } return; }
   if (ev.key === 'Enter' && cropMode) { setCrop(false); return; }
   if ((ev.metaKey || ev.ctrlKey) && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); zoomBy(1.25); return; }
