@@ -77,7 +77,30 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 372px;min-height:0}
 .toolbar{display:flex;gap:6px;padding:8px 10px;align-items:center;border-bottom:1px solid var(--line);background:var(--panel)}
 .stageWrap{--rul:20px;display:grid;grid-template-columns:var(--rul) minmax(0,1fr);grid-template-rows:var(--rul) minmax(0,1fr);min-height:0}
 .canvasWrap.noRulers .stageWrap{--rul:0px}
-.work{display:grid;grid-template-columns:auto minmax(0,1fr);min-height:0;position:relative}
+.work{display:grid;grid-template-columns:auto auto minmax(0,1fr);min-height:0;position:relative}
+.work>.rail{grid-column:1;grid-row:1}
+.work>.motifPanel{grid-column:2;grid-row:1}
+.work>.stageWrap{grid-column:3;grid-row:1}
+.motifPanel{display:none;width:280px;min-height:0;overflow:auto;background:var(--raise);border-right:1px solid var(--line);padding:10px 12px 18px;overscroll-behavior:contain}
+body.motifOpen .motifPanel{display:block}
+.motifPanel .row{grid-template-columns:72px minmax(0,1fr) 58px;gap:8px}
+.railMotif{height:auto;min-height:48px;flex-direction:column;gap:1px;padding:6px 4px}
+.railMotif svg{width:20px;height:20px}
+.railMotif span{font-size:9.5px;color:var(--muted);font-weight:600}
+.railMotif::after{display:none}
+.railMotif.open{background:var(--sel);border-color:var(--accent)}
+.railMotif.open span{color:var(--accent)}
+.dragGhost{position:fixed;z-index:50;width:44px;height:44px;margin:-22px 0 0 -22px;padding:6px;border-radius:10px;background:var(--raise);border:1px solid var(--accent);color:var(--ink);pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:.92}
+.dragGhost svg{width:100%;height:100%;display:block}
+body.draggingShape,body.draggingShape *{cursor:grabbing!important}
+body.draggingShape .stageWrap,body.draggingShape #layerList{outline:1.5px dashed var(--line-strong);outline-offset:-3px}
+.dropHot{outline:2px solid var(--accent)!important;outline-offset:-2px!important;background:var(--accent-soft)}
+.layerFx{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:-3px 0 7px 26px;padding:0 0 0 6px;border-left:1.5px solid var(--line)}
+.layerFx.sel{border-left-color:var(--accent)}
+.fxTag{font-size:11px;font-style:italic;font-weight:700;color:var(--accent);margin-right:2px}
+.fxChip{min-height:24px;padding:0 7px 0 5px;gap:4px;font-size:11px;border-radius:6px;background:var(--field);color:var(--ink)}
+.fxChip svg.i{width:13px;height:13px;color:var(--accent)}
+.fxChip.off{opacity:.45;text-decoration:line-through}
 /* shape tools on the left, Illustrator style: each button is a family; click to open its flyout */
 .rail{display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;scrollbar-width:none}
 .rail::-webkit-scrollbar{display:none}
@@ -170,7 +193,6 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
 .pillsT{width:100%;font-weight:600;font-size:12px}
 .pill{min-height:28px;padding:0 10px;border-radius:999px;font-size:12px;background:transparent;color:var(--muted)}
 .pill.on{background:var(--sel);border-color:var(--accent);color:var(--ink)}
-.fxBadge{min-height:22px;padding:0 6px;font-size:11px;font-style:italic;font-weight:650;border-radius:6px;background:var(--accent-soft);border-color:transparent;color:var(--accent)}
 .fxList{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .fx{border:1px solid var(--line);border-radius:8px;background:var(--field)}
 .fx.open{border-color:var(--line-strong)}
@@ -225,6 +247,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
   .rail{padding:4px;gap:3px}
   .railBtn{width:38px;height:38px;padding:6px}
   .flyout{left:50px;max-width:calc(100% - 56px)}
+  .work>.motifPanel{position:absolute;left:50px;top:6px;z-index:11;width:min(300px,calc(100% - 58px));max-height:calc(100% - 12px);border:1px solid var(--line-strong);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.45)}
   .status{padding:5px 10px;font-size:11.5px}
   aside.panel{border-left:0;border-top:1px solid var(--line-strong);grid-template-rows:auto minmax(0,1fr) auto;border-radius:16px 16px 0 0;position:relative;z-index:3;box-shadow:0 -10px 30px rgba(0,0,0,.35)}
   .sheetGrip{display:flex;width:100%;min-height:26px;background:transparent;border:0;border-radius:16px 16px 0 0;padding:0;align-items:center;justify-content:center}
@@ -300,6 +323,14 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
     <div class="work">
     <nav class="rail" id="shapeRail" aria-label="Shapes"></nav>
     <div class="flyout" id="shapeFly" hidden></div>
+    <aside class="motifPanel" id="motifPanel" aria-label="Motif">
+      <div class="flyHead"><span>Motif</span><button class="icon ghost" id="motifClose" aria-label="Close motif panel">✕</button></div>
+      <div id="traceBox"></div>
+      <div id="detMotif"><div id="secMotif"></div>
+        <div class="btns"><button id="sEdit" class="mini" title="Open the current shape in the pen tool">Edit shape outline</button><button id="sBake" class="mini" title="Turn this layer's copies around one point into a new shape, so you can feed it into another group">Bake cell → new shape</button></div>
+      </div>
+      <p class="hint" id="motifNone">Line and Voronoi layouts draw their own geometry, so there is no motif to set. Their settings are under Layout.</p>
+    </aside>
     <div class="stageWrap">
       <div class="rCorner">mm</div><canvas id="rulerX"></canvas><canvas id="rulerY"></canvas>
       <svg id="stage" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -320,7 +351,6 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
     <button class="sheetGrip" id="sheetGrip" aria-label="Show or hide settings"></button>
     <nav class="tabs" role="tablist" aria-label="Settings">
       <button data-tab="layout" class="on" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="12" cy="12" r="2"/></svg>Layout</button>
-      <button data-tab="shape" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3c4 4 7 6.5 7 10.5A7 7 0 0 1 5 13.5C5 9.5 8 7 12 3z"/></svg>Motif</button>
       <button data-tab="grad" role="tab"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="6" stroke-dasharray="2 2.4"/><circle cx="12" cy="12" r="9.5" stroke-dasharray="1.5 3"/></svg>Effects</button>
       <button data-tab="style" role="tab"><svg class="i" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.4-1.3-1.6-1.3-3 0-1 .8-1.6 1.8-1.6H17a4 4 0 0 0 4-4C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg>Style</button>
       <button data-tab="presets" role="tab"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Presets</button>
@@ -352,13 +382,6 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
         </details>
         <details open id="detSpacing"><summary>Spacing</summary><div class="sec" id="secSpacing"></div></details>
         <details id="detPlace"><summary>Pattern placement</summary><div class="sec" id="secPlace"></div></details>
-      </div>
-
-      <div class="pane" data-pane="shape">
-        <div id="traceBox"></div>
-        <details open id="detMotif"><summary>Motif</summary><div class="sec" id="secMotif"></div>
-          <div class="sec"><div class="btns"><button id="sEdit" class="mini" title="Open the current shape in the pen tool">Edit shape outline</button><button id="sBake" class="mini" title="Turn this layer's copies around one point into a new shape, so you can feed it into another group">Bake cell → new shape</button></div></div>
-        </details>
       </div>
 
       <div class="pane" data-pane="grad">
@@ -1317,7 +1340,7 @@ const BUILTINS = [
 
 /* ================= State ================= */
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
-const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none' });
+const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none' });
 const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
 function newLayer(over) {
   over = over || {};
@@ -1845,11 +1868,33 @@ function voronoiStones(L, idx, reg, F, R, mode) {
     let cx = 0, cy = 0; poly.forEach(v => { cx += v[0]; cy += v[1]; }); cx /= poly.length; cy /= poly.length;
     const r = respond(L, F, R, reg, [cx, cy], [i, 0, idx]); if (!r) return;
     if (r.s !== 1) poly = poly.map(v => [cx + (v[0] - cx) * r.s, cy + (v[1] - cy) * r.s]);
+    if (lay.corner > 0) poly = filletPoly(poly, lay.corner * r.s);
     for (let it = 0; it < (lay.round | 0); it++) { const q2 = []; for (let k = 0; k < poly.length; k++) { const A = poly[k], B = poly[(k + 1) % poly.length]; q2.push([0.75 * A[0] + 0.25 * B[0], 0.75 * A[1] + 0.25 * B[1]], [0.25 * A[0] + 0.75 * B[0], 0.25 * A[1] + 0.75 * B[1]]); } poly = q2; }
     if (mode === 'inside') { if (!poly.every(v => reg.contains(v))) return; }
     else { let rad = 0; poly.forEach(v => { rad = Math.max(rad, Math.hypot(v[0] - cx, v[1] - cy)); }); if (!reg.contains([cx, cy], rad)) return; }
     out.push({ pts: poly, j: i, col: r.col, op: r.op });
   });
+  return out;
+}
+
+// Round every corner of a convex polygon with an arc of radius r. Where edges are too short for r, the
+// arc grows as large as fits, so a big radius turns each stone into a smooth pebble.
+function filletPoly(poly, r) {
+  const n = poly.length, out = [];
+  for (let k = 0; k < n; k++) {
+    const V = poly[k], P = poly[(k - 1 + n) % n], N = poly[(k + 1) % n];
+    const a = [P[0] - V[0], P[1] - V[1]], b = [N[0] - V[0], N[1] - V[1]], la = Math.hypot(a[0], a[1]), lb = Math.hypot(b[0], b[1]);
+    if (la < 1e-9 || lb < 1e-9) { out.push(V); continue; }
+    const u1 = [a[0] / la, a[1] / la], u2 = [b[0] / lb, b[1] / lb], th = Math.acos(clamp(u1[0] * u2[0] + u1[1] * u2[1], -1, 1));
+    if (th < 1e-3 || th > Math.PI - 1e-3) { out.push(V); continue; }
+    const t = Math.min(r / Math.tan(th / 2), la * 0.5, lb * 0.5), rr = t * Math.tan(th / 2);
+    const bis = [u1[0] + u2[0], u1[1] + u2[1]], bl = Math.hypot(bis[0], bis[1]), dc = rr / Math.sin(th / 2);
+    const C = [V[0] + bis[0] / bl * dc, V[1] + bis[1] / bl * dc], T1 = [V[0] + u1[0] * t, V[1] + u1[1] * t], T2 = [V[0] + u2[0] * t, V[1] + u2[1] * t];
+    let a1 = Math.atan2(T1[1] - C[1], T1[0] - C[0]), a2 = Math.atan2(T2[1] - C[1], T2[0] - C[0]), d = a2 - a1;
+    while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU;
+    const steps = Math.max(2, Math.ceil(Math.abs(d) / (Math.PI / 14)));
+    for (let q = 0; q <= steps; q++) { const an = a1 + d * q / steps; out.push([C[0] + rr * Math.cos(an), C[1] + rr * Math.sin(an)]); }
+  }
   return out;
 }
 
@@ -2236,7 +2281,7 @@ function buildLayerControls() {
   const fam = lay === 'grid' ? 1 : g.fam;
   const P = (k) => () => L[k], Q = (k) => (v) => { L[k] = v; };
   buildLayout();
-  showSec('#detGroup', isWP); showSec('#detSpacing', isLat); showSec('#detMotif', !isGeom); showSec('#detPlace', isLat);
+  showSec('#detGroup', isWP); showSec('#detSpacing', isLat); showSec('#detMotif', !isGeom); showSec('#motifNone', isGeom); showSec('#detPlace', isLat);
   const sp = $('#secSpacing'); sp.innerHTML = '';
   if (isLat) {
     if (idx > 0) sp.append(line(chk('Use Layer 1 spacing & rotation', P('link'), v => { L.link = v; buildLayerControls(); }, 'Keeps layers on the same grid so combined patterns stay seamless')));
@@ -2318,7 +2363,7 @@ function buildLayout() {
     }
     case 'hatch': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Angle', P('angle'), Q('angle'), -180, 180, 0.5, '°'), line(chk('Crosshatch', P('cross'), v => { lay.cross = v; buildLayout(); })), lay.cross ? numRow('Cross angle', P('crossAngle'), Q('crossAngle'), 5, 175, 0.5, '°') : ''); box.append(E('p', { class: 'hint' }, 'Turn on Size in Gradient response to thicken lines near controllers, and Spacing to bend them like a lens.')); break;
     case 'flow': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Direction', P('angle'), Q('angle'), -180, 180, 0.5, '°'), numRow('Bend', P('bend'), Q('bend'), -180, 180, 1, '°', 'How far gradients turn the lines'), numRow('Wave', P('wave'), Q('wave'), 0, 80, 0.5, '°'), numRow('Wavelength', P('waveLen'), Q('waveLen'), 2, 300, 1, 'mm'), numRow('Wave skew', P('waveSkew'), Q('waveSkew'), -2, 2, 0.01, '×', 'Tilts the wave fronts for moiré ripples')); break;
-    case 'voronoi': box.append(spacing('Stone size'), numRow('Crack width', P('gap'), Q('gap'), 0, 20, 0.05, 'mm'), numRow('Round corners', P('round'), Q('round'), 0, 4, 1, 'steps'), seed()); break;
+    case 'voronoi': box.append(spacing('Stone size'), numRow('Crack width', P('gap'), Q('gap'), 0, 20, 0.05, 'mm'), numRow('Corner radius', P('corner'), Q('corner'), 0, Math.max(10, Math.round(lay.spacing)), 0.1, 'mm', 'Rounds every corner. Turn it up for smooth pebbles'), numRow('Extra smoothing', P('round'), Q('round'), 0, 4, 1, 'steps'), seed()); break;
   }
 }
 // The Effects panel: a stack of effects, each driven by some or all gradients and applied to some or all layers.
@@ -2482,12 +2527,18 @@ function renderLayers() {
   const box = $('#layerList'); box.innerHTML = '';
   S.layers.slice().reverse().forEach(L => {
     const i = S.layers.indexOf(L), sh = SHAPES[L.shape] || SHAPES.comma, geomL = GEOM_LAYOUTS[L.layout];
-    const row = E('div', { class: 'layer' + (i === S.sel ? ' sel' : ''), onclick: () => { S.sel = i; renderLayers(); buildLayerControls(); renderShapes(); requestRender(); } },
+    const row = E('div', { class: 'layer' + (i === S.sel ? ' sel' : ''), 'data-layer': L.id, onclick: () => { S.sel = i; renderLayers(); buildLayerControls(); renderShapes(); requestRender(); } },
       E('span', { class: 'sw', style: 'background:' + L.fill }),
       E('span', { class: 'nm' }, 'Layer ' + (i + 1) + ' · ' + (L.empty ? 'empty' : layoutName(L) + (geomL ? '' : ' · ' + sh.name))),
-      (() => { const n = (S.fx || []).filter(e => e.on && fxTargets(e, L)).length; return n ? E('button', { class: 'fxBadge', title: n + ' effect' + (n > 1 ? 's' : '') + ' on this layer', onclick: ev => { ev.stopPropagation(); showTab('grad'); } }, 'fx ' + n) : null; })(),
       eyeBtn(L.visible, L.visible ? 'Hide this layer' : 'Show this layer', ev => { ev.stopPropagation(); L.visible = !L.visible; renderLayers(); requestRender(); pushHistory(); }));
     box.append(row);
+    // like Photoshop: the effects acting on this layer, listed under it; click one to open it
+    const fxs = (S.fx || []).filter(e => fxTargets(e, L));
+    if (fxs.length) {
+      const tl = E('div', { class: 'layerFx' + (i === S.sel ? ' sel' : '') }, E('span', { class: 'fxTag' }, 'fx'));
+      fxs.forEach(e => { const c = E('button', { class: 'fxChip' + (e.on ? '' : ' off'), title: FX_KINDS[e.kind].label + (e.on ? '' : ' (hidden)') + ': ' + fxWhat(e) + '. Click to open', onclick: ev => { ev.stopPropagation(); fxOpen.add(e.id); showTab('grad'); buildResponse(); requestRender(); } }); c.innerHTML = fxIcon(e.kind) + '<span>' + FX_KINDS[e.kind].label + '</span>'; tl.append(c); });
+      box.append(tl);
+    }
   });
 }
 /* ---------- presets (Explore) ---------- */
@@ -2549,17 +2600,66 @@ const SHAPE_GROUPS = [
 let flyGroup = null;
 const RETIRED_SHAPES = { flag: 1, kite: 1, wedge: 1 };
 const groupShapes = gr => gr[2] ? gr[2].filter(id => SHAPES[id]) : Object.values(SHAPES).filter(sh => !sh.builtin).map(sh => sh.id);
+const PEN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="M2 2l7.6 7.6"/><circle cx="11" cy="11" r="2"/></svg>';
+// Press and drag a shape (from the rail or a flyout): drop it on the canvas for the selected layer, on a layer
+// to give that layer the shape, or on empty space in the layer list for a new layer. A press without a drag is a click.
+let shapeDragOn = null;
+function shapeDrag(el, id, onClick) {
+  el.style.touchAction = 'none';
+  el.addEventListener('click', e => { if (e.detail === 0) onClick(); }); // keyboard (Enter / Space)
+  el.addEventListener('pointerdown', ev => {
+    if (ev.button !== 0) return; ev.stopPropagation();
+    const x0 = ev.clientX, y0 = ev.clientY; let ghost = null, hot = null;
+    el.setPointerCapture(ev.pointerId);
+    const targetAt = (x, y) => {
+      const t = document.elementFromPoint(x, y); if (!t) return null;
+      const row = t.closest('.layer[data-layer]'); if (row) return { el: row, layer: row.getAttribute('data-layer') };
+      if (t.closest('#stage') || t.closest('.stageWrap')) return { el: $('.stageWrap'), layer: cur().id };
+      if (t.closest('#layerList') || t.closest('#lAdd')) return { el: $('#layerList'), layer: null };
+      return null;
+    };
+    const move = e => {
+      if (!id) return;
+      if (!ghost && Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return;
+      if (!ghost) { ghost = E('div', { class: 'dragGhost' }); ghost.innerHTML = shapeThumb(SHAPES[id]); document.body.append(ghost); document.body.classList.add('draggingShape'); shapeDragOn = id; if (flyGroup) { flyGroup = null; renderFly(); } }
+      ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px';
+      const t = targetAt(e.clientX, e.clientY), nh = t && t.el;
+      if (hot !== nh) { if (hot) hot.classList.remove('dropHot'); hot = nh; if (hot) hot.classList.add('dropHot'); }
+    };
+    const up = e => {
+      el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+      if (hot) hot.classList.remove('dropHot');
+      if (!ghost) { if (e.type === 'pointerup') onClick(); return; }
+      ghost.remove(); document.body.classList.remove('draggingShape'); shapeDragOn = null;
+      const t = targetAt(e.clientX, e.clientY); if (!t || e.type !== 'pointerup') return;
+      if (t.layer) { const i = S.layers.findIndex(L => L.id === t.layer); if (i >= 0) { S.sel = i; pickShape(id); toast(SHAPES[id].name + ' on Layer ' + (i + 1)); } }
+      else { $('#lAdd').click(); pickShape(id); toast('New layer with ' + SHAPES[id].name); }
+    };
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  });
+}
 function pickShape(id) { cur().shape = id; cur().empty = false; flyGroup = null; renderShapes(); buildLayerControls(); renderLayers(); requestRender(); pushHistory(); }
 function renderShapes() {
   const rail = $('#shapeRail'), cs = cur().empty ? null : cur().shape; rail.innerHTML = '';
   SHAPE_GROUPS.forEach((gr, gi) => {
-    const ids = groupShapes(gr), has = ids.includes(cs), show = has ? cs : ids[0];
+    const ids = groupShapes(gr), has = ids.includes(cs), show = has ? cs : gr[0] === 'yours' ? null : ids[0];
     if (gr[0] === 'yours') rail.append(E('div', { class: 'railSep' }));
-    const b = E('button', { class: 'railBtn' + (has ? ' on' : '') + (flyGroup === gr[0] ? ' open' : ''), 'data-g': gr[0], title: gr[1] + (has ? ': ' + SHAPES[cs].name : ''), 'aria-label': gr[1], onclick: ev => { ev.stopPropagation(); flyGroup = flyGroup === gr[0] ? null : gr[0]; renderShapes(); } });
-    b.innerHTML = show ? shapeThumb(SHAPES[show]) : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>';
+    const b = E('button', { class: 'railBtn' + (has ? ' on' : '') + (flyGroup === gr[0] ? ' open' : ''), 'data-g': gr[0], title: gr[1] + (has ? ': ' + SHAPES[cs].name : '') + (show ? '. Drag onto the canvas or a layer' : ': draw, type or import your own'), 'aria-label': gr[1] });
+    b.innerHTML = show ? shapeThumb(SHAPES[show]) : PEN_ICON;
+    shapeDrag(b, show, () => { flyGroup = flyGroup === gr[0] ? null : gr[0]; renderShapes(); });
     rail.append(b);
   });
+  rail.append(E('div', { class: 'railSep' }));
+  const mb = E('button', { class: 'railBtn railMotif' + (document.body.classList.contains('motifOpen') ? ' open' : ''), title: 'Motif: size, turn, stretch and position', 'aria-label': 'Motif settings', onclick: ev => { ev.stopPropagation(); setMotifPanel(!document.body.classList.contains('motifOpen')); } });
+  mb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>Motif</span>';
+  rail.append(mb);
   renderFly();
+}
+const MOTIF_KEY = 'pattern-studio-motif';
+function setMotifPanel(on) {
+  document.body.classList.toggle('motifOpen', on);
+  try { localStorage.setItem(MOTIF_KEY, on ? '1' : '0'); } catch (e) { }
+  renderShapes(); requestAnimationFrame(() => requestRender());
 }
 function renderFly() {
   const fly = $('#shapeFly'), gr = SHAPE_GROUPS.find(q => q[0] === flyGroup);
@@ -2569,7 +2669,8 @@ function renderFly() {
   if (ids.length) {
     const grid = E('div', { class: 'shapes' });
     ids.forEach(id => {
-      const sh = SHAPES[id], it = E('div', { class: 'shape' + (cur().shape === id ? ' sel' : ''), title: sh.name + (sh.kind !== 'vector' ? ' (' + sh.kind + ')' : ''), onclick: () => pickShape(id) });
+      const sh = SHAPES[id], it = E('div', { class: 'shape' + (cur().shape === id ? ' sel' : ''), title: sh.name + (sh.kind !== 'vector' ? ' (' + sh.kind + ')' : '') + '. Click to use, or drag onto the canvas or a layer' });
+      shapeDrag(it, id, () => pickShape(id));
       it.innerHTML = shapeThumb(sh);
       if (!sh.builtin) it.append(E('span', { class: 'x', title: 'Delete shape', onclick: ev => { ev.stopPropagation(); delete SHAPES[id]; S.layers.forEach(L => { if (L.shape === id) L.shape = 'comma'; }); shapesDirty = true; rebuildAll(); pushHistory(); } }, '✕'));
       grid.append(it);
@@ -2588,7 +2689,7 @@ function renderFly() {
   const btn = $('#shapeRail [data-g="' + gr[0] + '"]'), room = fly.parentElement.clientHeight;
   fly.style.top = Math.max(6, Math.min(btn ? btn.offsetTop : 6, room - fly.offsetHeight - 6)) + 'px';
 }
-document.addEventListener('click', ev => { if (flyGroup && !ev.target.closest('#shapeFly') && !ev.target.closest('#shapeRail')) { flyGroup = null; renderShapes(); } });
+document.addEventListener('click', ev => { if (flyGroup && document.contains(ev.target) && !ev.target.closest('#shapeFly') && !ev.target.closest('#shapeRail')) { flyGroup = null; renderShapes(); } });
 function buildTraceBox() {
   const box = $('#traceBox'); box.innerHTML = '';
   const s = SHAPES[cur().shape];
@@ -3638,6 +3739,9 @@ $('#bDraw').onclick = openDraw;
 $('#bText').onclick = openText;
 $('#sBake').onclick = bakeCell;
 $('#sEdit').onclick = () => editShape(cur().shape);
+$('#motifClose').onclick = () => setMotifPanel(false);
+// the motif panel starts open on wide screens (and as last left), closed on phones
+try { const m = localStorage.getItem(MOTIF_KEY); setMotifPanel(m == null ? innerWidth > 860 : m === '1'); } catch (e) { setMotifPanel(innerWidth > 860); }
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 document.addEventListener('keydown', ev => {
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.type !== 'range' && document.activeElement.type !== 'checkbox';

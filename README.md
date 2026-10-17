@@ -27,9 +27,11 @@ Your work autosaves in the browser. Use **Save project** to keep a `.json` file 
   * **Shuffle** tries a random symmetry group and motif placement. Undo brings the last one back.
   * **Clear everything** leaves one empty layer with no gradients or effects.
   * **Fit** shows the whole surface, and **View** turns guides on or off: rulers, cell, motif box, gradient handles, symmetry marks, seamless tile and heat map.
-* **Shape tools** run down the left edge of the canvas, like Illustrator's toolbar. Each button is a family (Organic, Geometric, Lines, Your shapes) and shows the shape in use; click it to open the family and pick a shape. **Your shapes** holds imported, drawn and text shapes, with Import, Draw and Text buttons.
+* **Shape tools** run down the left edge of the canvas, like Illustrator's toolbar. Each button is a family (Organic, Geometric, Lines) and shows the shape in use; click it to open the family and pick a shape. The pen button holds **Your shapes**: imported, drawn and text shapes, with Import, Draw and Text.
+* **Drag and drop shapes** from the rail or a family: drop on the canvas to use it on the selected layer, on a layer in the Layers list to give that layer the shape, or on empty space in the list for a new layer.
+* **Motif** (bottom of the rail) opens the motif panel next to the shape tools: position, size, turn, stretch, flip, Edit shape outline and Bake cell. It stays open on wide screens and floats over the canvas on phones.
 * **Rulers** along the top and left of the canvas are in millimetres, with 0 at the surface's top left corner.
-* **Settings panel**, with one tab per job: **Layout** (layers and how copies are arranged), **Motif** (size, turn, position, bake), **Effects** (gradients and what they do), **Style** (colour, surface), **Presets** and **Export**. The app opens on Layout with a plain pattern and no gradients; presets are optional and sit in their own tab.
+* **Settings panel**, with one tab per job: **Layout** (layers and how copies are arranged), **Effects** (gradients and what they do), **Style** (colour, surface), **Presets** and **Export**. The app opens on Layout with a plain pattern and no gradients; presets are optional and sit in their own tab.
 
 ### Moving around and moving things
 
@@ -67,7 +69,7 @@ Every layout uses the same boundary, shapes and gradients, so switching between 
 | Concentric | Rings around a centre, or rings that follow the surface outline |
 | Fibonacci | Sunflower packing using the golden angle |
 | Crosshatch lines | Continuous lines whose width follows the gradient. A second direction gives moiré effects. |
-| Voronoi stone cracks | Stones separated by cracks of a set width |
+| Voronoi stone cracks | Stones separated by cracks of a set width. **Corner radius** rounds the stones, up to smooth pebbles |
 | Flow lines | Each line bends with the gradient and can wave, giving ripples and contour map looks |
 
 ## Gradients and attractors
@@ -90,7 +92,7 @@ Each controller has a reach, a falloff curve (linear, smooth, ease, step), inver
 Effects work like layer effects in Photoshop. Add them with **+ Add effect** in the **Effects** tab; the menu says what each one does. Each effect is a card you can expand, hide with its eye, move up or delete. If there is no gradient yet, the first effect adds a point gradient you can drag.
 
 * **Driven by:** all gradients, or only the ones you pick. While a card is open, gradients that don't drive it are dimmed on the canvas.
-* **Applies to:** all layers, or only the ones you pick. Layers with effects show an **fx** badge in the layer list.
+* **Applies to:** all layers, or only the ones you pick. Each layer in the Layers list shows the effects acting on it, like Photoshop; click one to open it.
 * **Stacking:** several effects can stack, even of the same kind, for example size from a point on one layer and colour from a ramp on all of them.
 
 The effects are:

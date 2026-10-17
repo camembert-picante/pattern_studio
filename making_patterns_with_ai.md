@@ -128,7 +128,7 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `fibonacci` | Sunflower packing | `spacing`, `cx`, `cy`, `align` (point copies outward), `jitter` |
 | `hatch` | Continuous lines; their width follows gradients | `spacing`, `width`, `angle`, `cross` (second direction), `crossAngle` |
 | `flow` | Lines that bend with gradients and can wave | `spacing`, `width`, `angle`, `bend`, `bendCentre`, `wave`, `waveLen`, `waveSkew` |
-| `voronoi` | Stones separated by cracks | `spacing` (stone size), `gap` (crack width), `round` (0 to 4), `seed` |
+| `voronoi` | Stones separated by cracks | `spacing` (stone size), `gap` (crack width), `corner` (corner radius in mm; large values give pebbles), `round` (extra smoothing, 0 to 4), `seed` |
 
 `hatch`, `flow` and `voronoi` draw their own geometry and ignore `shape`.
 
