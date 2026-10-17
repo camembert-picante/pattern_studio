@@ -43,6 +43,7 @@ It works like Illustrator or Figma:
 | Zoom | Ctrl/Cmd or Alt + scroll, pinch on a trackpad, or Ctrl/Cmd + `+` / `-` (Ctrl/Cmd + 0 fits) |
 | Move the motif | Drag the dashed motif box (or Shift drag anywhere) |
 | Move the whole pattern | Drag the green cell box |
+| Stay on the surface | The cell box and the motif box can't leave the surface: drags stop at its edge, and if resizing, cropping or rotating would push them out, they move back in by whole cells, so the pattern itself doesn't change |
 | Move a gradient | Drag its round handles |
 | Snap to the middle | Handles, the pattern and the motif snap to the surface's centre lines (the motif also to its cell centre), with a pink guide. Hold Alt to drag freely, or turn it off under View → Snap to middle |
 

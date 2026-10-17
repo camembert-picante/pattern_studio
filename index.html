@@ -1391,6 +1391,7 @@ const snap = () => JSON.stringify({ layers: S.layers, sel: S.sel, region: S.regi
 function pushHistory(now) {
   clearTimeout(hT);
   const go = () => {
+    if (!drag && keepInside()) { buildLayerControls(); buildLayout(); requestRender(); }
     const s = snap(); if (hist[hIdx] === s) return;
     hist = hist.slice(0, hIdx + 1); hist.push(s); if (hist.length > 120) hist.shift(); hIdx = hist.length - 1; updUndo(); autosave();
   };
@@ -3304,6 +3305,51 @@ function dragModeAt(ev) {
   return 'pan';
 }
 
+/* ---------- keep the cell and the motif on the surface ---------- */
+// The pattern repeats, so moving the cell or the motif by whole cells changes nothing on screen. That lets
+// us always show both inside the surface: drags stop at the edge, and anything else that pushes them out
+// (resizing the cell, cropping, rotating, loading) moves them back in by whole cells.
+const latticeLayer = L => !L.layout || L.layout === 'wallpaper' || L.layout === 'grid';
+const bboxOf = pts => [Math.min(...pts.map(q => q[0])), Math.min(...pts.map(q => q[1])), Math.max(...pts.map(q => q[0])), Math.max(...pts.map(q => q[1]))];
+// Clamp point p so that p + offsets stays inside the surface (if it can't fit, keep p itself inside).
+function clampInside(p, offs) {
+  const R = S.region, b = bboxOf(offs), e = 1e-6;
+  const cx = (lo, hi, v, lim) => lo <= hi ? clamp(v, lo, hi) : clamp(v, 0, lim);
+  return [cx(-b[0] + e, R.W - b[2] - e, p[0], R.W), cx(-b[1] + e, R.H - b[3] - e, p[1], R.H)];
+}
+const cellOffs = g => [[0, 0], g.a, [g.a[0] + g.b[0], g.a[1] + g.b[1]], g.b];
+function motifOffs(g) { const sh = g.sh, hw = sh.w / 2, hh = sh.h / 2, c = Af.ap(g.M, [0, 0]); return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(q => { const w = Af.ap(g.M, q); return [w[0] - c[0], w[1] - c[1]]; }); }
+const insideBox = (p, offs) => { const R = S.region, b = bboxOf(offs); return p[0] + b[0] >= -1e-6 && p[1] + b[1] >= -1e-6 && p[0] + b[2] <= R.W + 1e-6 && p[1] + b[3] <= R.H + 1e-6; };
+// The shift by whole cells (u·a + v·b) that brings point p inside with its offsets, nearest to where it is now.
+function latticeShift(p, offs, a, b) {
+  if (insideBox(p, offs)) return null;
+  const R = S.region, la = Math.max(0.5, Math.hypot(a[0], a[1])), lb = Math.max(0.5, Math.hypot(b[0], b[1]));
+  const n = Math.min(80, Math.ceil((Math.hypot(R.W, R.H) + Math.hypot(p[0] - R.W / 2, p[1] - R.H / 2)) / Math.min(la, lb)) + 2);
+  let best = null, bd = Infinity, fall = null, fd = Infinity;
+  for (let u = -n; u <= n; u++) for (let v = -n; v <= n; v++) {
+    const q = [p[0] + u * a[0] + v * b[0], p[1] + u * a[1] + v * b[1]], d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (insideBox(q, offs)) { if (d < bd) { bd = d; best = q; } }
+    else if (q[0] >= 0 && q[1] >= 0 && q[0] <= R.W && q[1] <= R.H && d < fd) { fd = d; fall = q; }
+  }
+  const q = best || fall; return q ? [q[0] - p[0], q[1] - p[1]] : null;
+}
+function keepInside() {
+  let changed = false;
+  S.layers.forEach(L => {
+    if (latticeLayer(L)) {
+      let g = geom(L);
+      const sc = latticeShift([L.sx, L.sy], cellOffs(g), g.a, g.b);
+      if (sc) { L.sx += sc[0]; L.sy += sc[1]; g = geom(L); changed = true; }
+      const sm = latticeShift(Af.ap(g.M, [0, 0]), motifOffs(g), g.a, g.b);
+      if (sm) { const d = Af.lin(Af.R(-eff(L).rot), sm); L.mx += d[0]; L.my += d[1]; changed = true; }
+    } else if (L.lay && (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci')) {
+      const cx = clamp(L.lay.cx, 0, 100), cy = clamp(L.lay.cy, 0, 100);
+      if (cx !== L.lay.cx || cy !== L.lay.cy) { L.lay.cx = cx; L.lay.cy = cy; changed = true; }
+    }
+  });
+  return changed;
+}
+
 /* ---------- snapping ---------- */
 // While dragging, a point within a few screen pixels of the surface's middle lines (or of an extra target,
 // like the cell centre for the motif) snaps onto it and a guide line shows. Alt skips snapping for that drag.
@@ -3466,7 +3512,7 @@ stage.addEventListener('pointermove', ev => {
     }
     if (h.key === 'cellA' || h.key === 'cellB') { dragCell(h.key, toWorld(ev), ev.shiftKey); requestRender(); return; }
     const sw = snapPoint(w, ev); w[0] = +sw[0].toFixed(2); w[1] = +sw[1].toFixed(2);
-    if (h.key === 'centre') { const L = cur(); L.lay.cx = +(w[0] / S.region.W * 100).toFixed(2); L.lay.cy = +(w[1] / S.region.H * 100).toFixed(2); }
+    if (h.key === 'centre') { const L = cur(); L.lay.cx = +clamp(w[0] / S.region.W * 100, 0, 100).toFixed(2); L.lay.cy = +clamp(w[1] / S.region.H * 100, 0, 100).toFixed(2); }
     else {
       const c = S.ctrls[h.ci]; if (!c) return;
       if (h.key === 'c') { c.x = w[0]; c.y = w[1]; }
@@ -3482,11 +3528,11 @@ stage.addEventListener('pointermove', ev => {
   if (drag.mode === 'motif') {
     const p = eff(L);
     if (!drag.m0) { const g = geom(L); drag.m0 = Af.ap(g.M, [0, 0]); drag.cc = [L.sx + (g.a[0] + g.b[0]) / 2, L.sy + (g.a[1] + g.b[1]) / 2]; }
-    const tgt = snapPoint([drag.m0[0] + w[0] - drag.w0[0], drag.m0[1] + w[1] - drag.w0[1]], ev, drag.cc);
+    const tgt = clampInside(snapPoint([drag.m0[0] + w[0] - drag.w0[0], drag.m0[1] + w[1] - drag.w0[1]], ev, drag.cc), motifOffs(geom(L)));
     const d = Af.lin(Af.R(-p.rot), [tgt[0] - drag.m0[0], tgt[1] - drag.m0[1]]);
     L.mx = +(drag.mx + d[0]).toFixed(2); L.my = +(drag.my + d[1]).toFixed(2);
   } else if (drag.mode === 'pattern') {
-    const o = snapPoint([drag.sx + w[0] - drag.w0[0], drag.sy + w[1] - drag.w0[1]], ev);
+    const o = clampInside(snapPoint([drag.sx + w[0] - drag.w0[0], drag.sy + w[1] - drag.w0[1]], ev), cellOffs(geom(L)));
     L.sx = +o[0].toFixed(2); L.sy = +o[1].toFixed(2);
   } else { view.cx = drag.cx - (ev.clientX - drag.x) / view.scale; view.cy = drag.cy - (ev.clientY - drag.y) / view.scale; }
   requestRender();
