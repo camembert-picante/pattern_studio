@@ -47,8 +47,8 @@ It works like Illustrator or Figma:
 | Stay on the surface | The cell box and the motif box can't leave the surface: drags stop at its edge, and if resizing, cropping or rotating would push them out, they move back in by whole cells, so the pattern itself doesn't change |
 | Move a gradient | Drag its round handles |
 | Duplicate | Ctrl/Cmd+D, or the duplicate buttons, makes an exact copy: of the selected keep-out area, of the open effect when you're on the Effects tab, otherwise of the selected layer (its effects follow the copy) |
-| Delete a gradient | Click one of its handles and press Delete or Backspace. On a curve this removes just the clicked point (a curve keeps at least two). Esc or a click on empty canvas deselects |
-| Snap to the middle | Handles, the pattern and the motif snap to the surface's centre lines (the motif also to its cell centre), with a pink guide. Hold Alt to drag freely, or turn it off under View → Snap to middle |
+| Delete a gradient | Click one of its handles and press Delete or Backspace. On a curve this removes just the clicked point (a curve keeps at least two), or pulls back the clicked curve handle. Esc or a click on empty canvas deselects |
+| Snap | The **Snap** button on the canvas toolbar turns snapping on and off. While it is on, dragged points, the pattern and the motif line up with the middle and edges of the surface and with every other point: gradient points, curve points, keep-out corners and points, cell corners and points already placed with the pen. A pink guide shows the line and a small × marks the point it lines up with. Hold Alt to drag freely |
 
 On a phone the canvas stays at the top and the settings sit in a sheet below it, with the tabs along the bottom. Tap the open tab again, or the grab bar, to give the canvas the full screen. Drag with one finger to pan or move things, and pinch with two fingers to zoom.
 
@@ -85,12 +85,12 @@ These are the sources: each gives a value from 0 to 1 across the surface. On the
 |---|---|
 | Point | Radial attractor with a set reach |
 | Line | Attractor along a segment |
-| Curve | Attractor along an editable spline |
+| Curve | Attractor along a pen path: drag its points and curve handles on the canvas, Alt/Option click a point to switch corner and curve, Alt/Option drag a handle to bend it on its own, or **Draw with pen** to draw it again (click for a corner, click and drag for a curve, Enter or a click on the last point to finish) |
 | Linear ramp | A gradient from 0 to 1 between two handles |
 | Image map | Halftone: an image's brightness drives the pattern, and dark areas give bigger pieces |
 | Noise | Organic variation |
 
-Each controller has a reach, a falloff curve (linear, smooth, ease, step), invert and strength. You can combine several controllers by taking the strongest value, adding, multiplying or taking the weakest.
+Each controller has a reach, a falloff curve (linear, smooth, ease, step), invert and strength. On crosshatch and flow lines, opacity and colour effects fade smoothly along each line. You can combine several controllers by taking the strongest value, adding, multiplying or taking the weakest.
 
 ## Effects
 

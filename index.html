@@ -346,13 +346,13 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
       <button id="tRand" class="lblBtn" title="Shuffle: try a random symmetry group and motif placement (Undo brings back the last one)"><svg class="i" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>Shuffle</button>
       <button id="tClear" class="lblBtn" title="Clear everything: one empty layer, no gradients or effects (Undo brings it back)"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>Clear everything</button>
       <span class="sp"></span>
+      <button id="tSnap" class="lblBtn on" title="Snapping: dragged points, the pattern and the motif line up with the middle and edges of the surface and with other points (hold Alt to skip)"><svg class="i" viewBox="0 0 24 24"><path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 7h4M14 7h4"/></svg>Snap</button>
       <button id="tFit" title="Fit the surface to the screen (F or Ctrl/Cmd+0)">Fit</button>
       <details class="menu" id="viewMenu">
         <summary title="Choose which guides to show on the canvas">View</summary>
         <div class="menuList">
           <div class="mh">Show on canvas</div>
           <button id="oRul" class="tg on">Rulers</button>
-          <button id="oSnap" class="tg on" title="Dragged handles, the pattern and the motif snap to the middle of the surface (hold Alt to skip)">Snap to middle</button>
           <button id="oCell" class="tg on">Cell <small>drag to move the pattern</small></button>
           <button id="oBox" class="tg on">Motif box <small>drag to move the motif</small></button>
           <button id="oGrad" class="tg on" title="Show gradient controllers and their handles">Gradient handles</button>
@@ -1482,6 +1482,36 @@ function newCtrl(type) {
   if (type === 'image') { c.data = null; c.contrast = 1.2; c.curve = 'linear'; }
   return c;
 }
+// A Curve gradient is a pen path through its points: hs[k] is 0 for a corner or [inX, inY, outX, outY]. Curves
+// saved before handles existed have no hs and keep their smooth shape: crHandles gives the handles that draw
+// exactly that same Catmull Rom curve.
+function crHandles(pts) {
+  const n = pts.length, P = i => pts[clamp(i, 0, n - 1)];
+  return pts.map((p, i) => { const a = P(i - 1), b = P(i + 1), tx = (b[0] - a[0]) / 6, ty = (b[1] - a[1]) / 6; return [p[0] - tx, p[1] - ty, p[0] + tx, p[1] + ty]; });
+}
+const curveHs = c => c.hs && c.hs.length === c.pts.length ? c.hs : crHandles(c.pts);
+function ensureHs(c) { if (!(c.hs && c.hs.length === c.pts.length)) c.hs = crHandles(c.pts).map(h => h.map(v => +v.toFixed(2))); return c.hs; }
+// Points along an open pen path, 20 per curved segment.
+function curvePts(c) {
+  const P = c.pts, H = curveHs(c), n = P.length; if (n < 2) return P.slice();
+  const out = [];
+  for (let i = 0; i < n - 1; i++) {
+    const a = P[i], b = P[i + 1]; out.push(a.slice());
+    if (!penCurved(P, H, i, i + 1)) continue;
+    const o = penOut(P, H, i), m = penIn(P, H, i + 1);
+    for (let k = 1; k < 20; k++) { const t = k / 20, u = 1 - t, A = u * u * u, B = 3 * u * u * t, C = 3 * u * t * t, D = t * t * t; out.push([A * a[0] + B * o[0] + C * m[0] + D * b[0], A * a[1] + B * o[1] + C * m[1] + D * b[1]]); }
+  }
+  out.push(P[n - 1].slice());
+  return out;
+}
+// Corner <-> smooth on an open path, like Alt clicking a point with the pen tool.
+function curveToggle(c, k) {
+  const H = ensureHs(c), P = c.pts, n = P.length, a = P[k];
+  if (H[k]) { H[k] = 0; return; }
+  const pr = P[Math.max(0, k - 1)], nx = P[Math.min(n - 1, k + 1)]; let dx = nx[0] - pr[0], dy = nx[1] - pr[1]; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+  const li = Math.hypot(a[0] - pr[0], a[1] - pr[1]) / 3, lo = Math.hypot(nx[0] - a[0], nx[1] - a[1]) / 3;
+  H[k] = [a[0] - dx * li, a[1] - dy * li, a[0] + dx * lo, a[1] + dy * lo].map(v => +v.toFixed(2));
+}
 function splinePts(pts) {
   if (!pts || pts.length < 2) return (pts || []).slice();
   const out = [], n = pts.length, P = i => pts[clamp(i, 0, n - 1)];
@@ -1542,7 +1572,7 @@ function buildField(only) {
     const R = Math.max(0.1, c.radius || 1);
     if (c.type === 'point') { raw = p => 1 - Math.hypot(p[0] - c.x, p[1] - c.y) / R; near = () => [c.x, c.y]; }
     else if (c.type === 'line') { const a = [c.x1, c.y1], b = [c.x2, c.y2]; raw = p => 1 - segDist(p, a, b).d / R; near = p => segDist(p, a, b).q; }
-    else if (c.type === 'curve') { const pl = splinePts(c.pts); raw = p => 1 - polyDist(p, pl, false).d / R; near = p => polyDist(p, pl, false).q; }
+    else if (c.type === 'curve') { const pl = curvePts(c); raw = p => 1 - polyDist(p, pl, false).d / R; near = p => polyDist(p, pl, false).q; }
     else if (c.type === 'ramp') { const dx = c.x2 - c.x1, dy = c.y2 - c.y1, L2 = dx * dx + dy * dy || 1; raw = p => ((p[0] - c.x1) * dx + (p[1] - c.y1) * dy) / L2; }
     else if (c.type === 'noise') { const sd = c.seed || 1; raw = p => { const x = p[0] / R, y = p[1] / R; return (0.62 * vnoise(x, y, sd) + 0.38 * vnoise(x * 2.1 + 17.3, y * 2.1 + 5.1, sd + 9) - 0.12) / 0.76; }; }
     else if (c.type === 'image') {
@@ -1776,7 +1806,7 @@ const POINT_LAYOUTS = { scatter: 1, path: 1, spiral: 1, concentric: 1, fibonacci
 function layoutName(L) { if (L.layout === 'wallpaper' || !L.layout) return eff(L).group; return (LAYOUTS.find(x => x[0] === L.layout) || [0, L.layout])[1]; }
 function pathPolyline(L) {
   const c = (S.ctrls || []).find(q => q.id === L.lay.pathId && (q.type === 'curve' || q.type === 'line' || q.type === 'ramp'));
-  if (c) return c.type === 'curve' ? splinePts(c.pts) : [[c.x1, c.y1], [c.x2, c.y2]];
+  if (c) return c.type === 'curve' ? curvePts(c) : [[c.x1, c.y1], [c.x2, c.y2]];
   const W = S.region.W, H = S.region.H;
   return splinePts([[W * 0.05, H * 0.7], [W * 0.35, H * 0.3], [W * 0.65, H * 0.7], [W * 0.95, H * 0.3]]);
 }
@@ -1898,6 +1928,35 @@ function ribbon(run, capA, capB) {
   poly.strip = { L: Lp, R: Rp, cA: cA, cB: cB };
   return poly;
 }
+// One ribbon for the whole run, cut at the given points, so neighbouring pieces share their edges exactly.
+let GRAD_SEQ = 0; // gradient ids stay unique across every render on the page
+function ribbonCuts(run, cuts) {
+  const st = ribbon(run, true, true).strip, out = [];
+  for (let c = 0; c < cuts.length - 1; c++) {
+    const s = cuts[c], e = cuts[c + 1], L = st.L.slice(s, e + 1), R = st.R.slice(s, e + 1), cA = s === 0 ? st.cA : [], cB = e === run.length - 1 ? st.cB : [];
+    const poly = L.concat(cB, R.slice().reverse(), cA); poly.strip = { L: L, R: R, cA: cA, cB: cB }; out.push({ poly: poly, s: s });
+  }
+  return out;
+}
+// Leaves out points that sit on the straight line between their neighbours (the extra ones densify adds).
+function dropStraight(P) {
+  const out = [];
+  for (let i = 0; i < P.length; i++) {
+    const a = out.length ? out[out.length - 1] : P[P.length - 1], b = P[i], c = P[(i + 1) % P.length], dx = c[0] - a[0], dy = c[1] - a[1], l = Math.hypot(dx, dy);
+    if (i && i < P.length - 1 && l > 1e-9 && Math.abs((b[0] - a[0]) * dy - (b[1] - a[1]) * dx) / l < 0.002) continue;
+    out.push(b);
+  }
+  return out;
+}
+// Extra points so no two are further apart than d.
+function densify(pts, d) {
+  const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    if (i) { const a = pts[i - 1], b = pts[i], n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / d); for (let k = 1; k < n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]); }
+    out.push(pts[i]);
+  }
+  return out;
+}
 function hatchLines(L, reg) {
   const lay = L.lay, sp = Math.max(0.3, lay.spacing), dirs = [lay.angle];
   if (lay.cross) dirs.push(lay.angle + lay.crossAngle);
@@ -1939,9 +1998,9 @@ function flowLines(L, reg, F) {
 function strokesToPolys(L, idx, lines, F, R, reg, mode) {
   const warps = fxKind(L, 'spacing').length > 0, base = Math.max(0.02, L.lay.width), out = [];
   const varies = fxOf(L).some(e => e.kind === 'color' || e.kind === 'opacity') || (R.featherOn && /fade/.test(R.featherMode));
-  const CH = 8;
   lines.forEach((ln, li) => {
-    const pts = warps ? ln.pts.map(p => fxWarp(L, p)) : ln.pts;
+    // a fade or colour change follows the line closely: points at most 0.75 mm apart
+    const src = varies ? densify(ln.pts, 0.75) : ln.pts, pts = warps ? src.map(p => fxWarp(L, p)) : src;
     const ws = new Float32Array(pts.length), cols = new Array(pts.length), ops = new Float32Array(pts.length);
     for (let q = 0; q < pts.length; q++) {
       const p = pts[q];
@@ -1957,9 +2016,24 @@ function strokesToPolys(L, idx, lines, F, R, reg, mode) {
       if (e > q) {
         const run = []; for (let k = q; k <= e; k++) run.push([pts[k], ws[k]]);
         if (!varies) out.push({ pts: ribbon(run, true, true), j: ln.j, col: cols[(q + e) >> 1], op: 1 });
-        else for (let s = 0; s < run.length - 1; s += CH) {
-          const piece = run.slice(s, Math.min(run.length, s + CH + 1)), mid = q + s + (piece.length >> 1);
-          out.push({ pts: ribbon(piece, s === 0, s + CH >= run.length - 1), j: ln.j, col: cols[mid], op: ops[mid] || 1 });
+        else {
+          // Each straight stretch is one piece filled with a gradient along it, so fades and colour changes are
+          // smooth. A curving line is cut where it turns more than 12° from the stretch so far.
+          const cuts = [0]; let A = 0;
+          for (let k = 2; k < run.length; k++) {
+            const a = run[A][0], b = run[k][0], m = run[k - 1][0], dx = b[0] - a[0], dy = b[1] - a[1], tx = b[0] - m[0], ty = b[1] - m[1];
+            if ((dx * tx + dy * ty) / ((Math.hypot(dx, dy) * Math.hypot(tx, ty)) || 1) < Math.cos(12 * D2R)) { cuts.push(k - 1); A = k - 1; }
+          }
+          cuts.push(run.length - 1);
+          ribbonCuts(run, cuts).forEach((pc, ci) => {
+            const s0 = pc.s, e0 = cuts[ci + 1], a = run[s0][0], b = run[e0][0], vx = b[0] - a[0], vy = b[1] - a[1], vv = vx * vx + vy * vy || 1, stops = [];
+            for (let k = s0; k <= e0; k++) {
+              const t = clamp(((run[k][0][0] - a[0]) * vx + (run[k][0][1] - a[1]) * vy) / vv, 0, 1), col = cols[q + k], op = ops[q + k] || 1, last = stops[stops.length - 1];
+              if (!last || k === e0 || col !== last[1] || Math.abs(op - last[2]) > 0.01) stops.push([last ? Math.max(t, last[0]) : t, col, op]);
+            }
+            const flat = stops.every(st => st[1] === stops[0][1] && Math.abs(st[2] - stops[0][2]) <= 0.01), poly = dropStraight(pc.poly); poly.strip = pc.poly.strip;
+            out.push(flat ? { pts: poly, j: ln.j, col: stops[0][1], op: stops[0][2] } : { pts: poly, j: ln.j, col: stops[0][1], op: 1, grad: { a: a, b: b, stops: stops } });
+          });
         }
       }
       q = e + 1;
@@ -2109,14 +2183,19 @@ function layerSVG(lo, L, idx, o) {
   };
   if (lo.kind === 'geom') {
     const at = ' fill="' + esc(fill) + '" stroke="' + (L.strokeOn ? esc(stroke) : 'none') + '" stroke-width="' + fmt(L.sw || 0) + '"' + common;
-    const groups = new Map();
+    const groups = new Map(); let grads = '', defs = '';
     lo.polys.forEach(pg => {
+      if (pg.grad) {
+        const id = 'lg' + (++GRAD_SEQ), G = pg.grad, base = disp ? fill : (pickPal(pg.j, pg.j, 0, false) || fill);
+        defs += '<linearGradient id="' + id + '" gradientUnits="userSpaceOnUse" x1="' + fmt(G.a[0]) + '" y1="' + fmt(G.a[1]) + '" x2="' + fmt(G.b[0]) + '" y2="' + fmt(G.b[1]) + '">' + G.stops.map(st => '<stop offset="' + (+st[0].toFixed(4)) + '" stop-color="' + esc(disp ? fill : (st[1] || base)) + '"' + (st[2] < 0.995 ? ' stop-opacity="' + (+st[2].toFixed(3)) + '"' : '') + '/>').join('') + '</linearGradient>';
+        grads += '<path d="' + loopsD([pg.pts]) + '" fill="url(#' + id + ')"/>'; return;
+      }
       const c = disp ? '' : (pg.col || pickPal(pg.j, pg.j, 0, false) || ''), op = pg.op < 0.995 ? fmt(Math.round(pg.op * 40) / 40) : '';
       const key = c + '|' + op; let g = groups.get(key); if (!g) groups.set(key, g = []); g.push(pg.pts);
     });
     let body = '';
     groups.forEach((list, key) => { const kk = key.split('|'); body += '<path d="' + loopsD(list) + '"' + (kk[0] ? ' fill="' + kk[0] + '"' : '') + (kk[1] ? ' opacity="' + kk[1] + '"' : '') + '/>'; });
-    return '<g data-layer="' + idx + '"' + at + '>' + body + '</g>';
+    return '<g data-layer="' + idx + '"' + at + '>' + (defs ? '<defs>' + defs + '</defs>' : '') + body + grads + '</g>';
   }
   const sh = lo.sh, size = Math.max(1e-6, eff(L).size);
   const mono = disp || !L.useOrig || sh.kind === 'raster', v = sh.kind === 'raster' ? 'o' : (mono ? 'm' : 'o');
@@ -2231,7 +2310,12 @@ function drawCtrls(px) {
     const nm = (ci + 1) + ' ' + CTRL_NAMES[c.type];
     if (c.type === 'point') { s += '<circle cx="' + fmt(c.x) + '" cy="' + fmt(c.y) + '" r="' + fmt(c.radius) + '" fill="' + col + '" fill-opacity="' + (0.06 * op) + '" stroke="' + col + '" stroke-dasharray="5 4" stroke-width="1.2" vector-effect="non-scaling-stroke" opacity="' + op + '"/>'; hd([c.x, c.y], 'c'); label([c.x, c.y], nm); }
     else if (c.type === 'line') { const d = 'M' + fmt(c.x1) + ' ' + fmt(c.y1) + 'L' + fmt(c.x2) + ' ' + fmt(c.y2); zone(d, 2 * c.radius); ln(d); hd([c.x1, c.y1], 'p1'); hd([c.x2, c.y2], 'p2'); label([c.x1, c.y1], nm); }
-    else if (c.type === 'curve') { const pl = splinePts(c.pts), d = 'M' + pl.map(p => fmt(p[0]) + ' ' + fmt(p[1])).join('L'); zone(d, 2 * c.radius); ln(d); ln('M' + c.pts.map(p => fmt(p[0]) + ' ' + fmt(p[1])).join('L'), true); c.pts.forEach((p, k) => hd(p, 'k' + k)); label(c.pts[0], nm); }
+    else if (c.type === 'curve') {
+      const pl = curvePts(c), d = 'M' + pl.map(p => fmt(p[0]) + ' ' + fmt(p[1])).join('L'); zone(d, 2 * c.radius); ln(d);
+      // the selected curve shows its handles, like the pen tool
+      if (on) curveHs(c).forEach((h, k) => { if (h) s += penHandles(c.pts[k], h, px, (x, y, w) => HANDLES.push({ x: x, y: y, ci: ci, key: (w === 'zi' ? 'hi' : 'ho') + k }), col, op); });
+      c.pts.forEach((p, k) => hd(p, 'k' + k)); label(c.pts[0], nm);
+    }
     else if (c.type === 'ramp') {
       const dx = c.x2 - c.x1, dy = c.y2 - c.y1, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, big = Math.max(S.region.W, S.region.H);
       ln('M' + fmt(c.x1) + ' ' + fmt(c.y1) + 'L' + fmt(c.x2) + ' ' + fmt(c.y2));
@@ -2608,7 +2692,12 @@ function buildGradients() {
   box.append(line(E('label', {}, 'Falloff'), sel([['linear', 'Linear'], ['smooth', 'Smooth'], ['in', 'Ease in'], ['out', 'Ease out'], ['step', 'Hard step']], P('curve'), Q('curve')), chk('Invert', P('invert'), v => { c.invert = v; buildGradients(); })));
   box.append(numRow('Strength', P('weight'), Q('weight'), 0, 1, 0.01, ''));
   const bt = E('div', { class: 'btns' });
-  if (c.type === 'curve') bt.append(E('button', { class: 'mini', onclick: () => { const a = c.pts[c.pts.length - 2], b = c.pts[c.pts.length - 1]; c.pts.push([+(b[0] + (b[0] - a[0]) * 0.5).toFixed(1), +(b[1] + (b[1] - a[1]) * 0.5).toFixed(1)]); requestRender(); pushHistory(); } }, '+ Point'), E('button', { class: 'mini', onclick: () => { if (c.pts.length > 2) { c.pts.pop(); requestRender(); pushHistory(); } } }, '− Point'));
+  if (c.type === 'curve') {
+    bt.append(E('button', { class: 'mini', title: 'Draw this curve again with the pen tool, on the canvas', onclick: () => startZoneTool('curve') }, 'Draw with pen'),
+      E('button', { class: 'mini', onclick: () => { const H = ensureHs(c), a = c.pts[c.pts.length - 2], b = c.pts[c.pts.length - 1]; c.pts.push([+(b[0] + (b[0] - a[0]) * 0.5).toFixed(1), +(b[1] + (b[1] - a[1]) * 0.5).toFixed(1)]); H.push(0); curveToggle(c, c.pts.length - 1); requestRender(); pushHistory(); } }, '+ Point'),
+      E('button', { class: 'mini', onclick: () => { if (c.pts.length > 2) { ensureHs(c).pop(); c.pts.pop(); requestRender(); pushHistory(); } } }, '− Point'));
+    box.append(E('p', { class: 'hint' }, 'Works like the pen tool: drag points and their handles on the canvas, Alt/Option click a point to switch corner and curve, Alt/Option drag a handle to bend it on its own. Select a point or handle and press Delete to remove it.'));
+  }
   bt.append(E('button', { class: 'mini', title: 'Or select it on the canvas and press Delete', onclick: () => deleteCtrl(selCtrl) }, 'Delete controller'));
   box.append(bt);
 }
@@ -2701,7 +2790,7 @@ async function applyPreset(p) {
   if (zoneTool) endZoneTool();
   drag = null; snapGuide = null; selCtrl = -1; selKnot = null; selZone = -1; fxOpen.clear(); flyGroup = null;
   Object.assign(show, SHOW0);
-  [['#oRul', 'rulers'], ['#oSnap', 'snap'], ['#oCell', 'cell'], ['#oBox', 'box'], ['#oGrad', 'grad'], ['#oMarks', 'marks'], ['#oTile', 'tile'], ['#oField', 'field']].forEach(([id, k]) => { const b = $(id); if (b) b.classList.toggle('on', show[k]); });
+  [['#oRul', 'rulers'], ['#tSnap', 'snap'], ['#oCell', 'cell'], ['#oBox', 'box'], ['#oGrad', 'grad'], ['#oMarks', 'marks'], ['#oTile', 'tile'], ['#oField', 'field']].forEach(([id, k]) => { const b = $(id); if (b) b.classList.toggle('on', show[k]); });
   $('.canvasWrap').classList.toggle('noRulers', !show.rulers);
   S = defaultState(); S.exp = keepExp;
   await p[1]();
@@ -3527,30 +3616,30 @@ function zonesOverlay(px) {
     if (sel) {
       const hs = (HANDLE_R - 1) * px, hd = (x, y, key) => { HANDLES.push({ x: x, y: y, ci: -4, key: key }); s += '<rect x="' + fmt(x - hs) + '" y="' + fmt(y - hs) + '" width="' + fmt(2 * hs) + '" height="' + fmt(2 * hs) + '" fill="#fff" stroke="' + ZONE_RED + '" stroke-width="2" vector-effect="non-scaling-stroke"/>'; };
       if (z.type === 'poly') {
-        (z.hs || []).forEach((h, k) => { if (h) s += penHandles(z.pts[k], h, px, k); });
+        (z.hs || []).forEach((h, k) => { if (h) s += penHandles(z.pts[k], h, px, (x, y, w) => HANDLES.push({ x: x, y: y, ci: -4, key: w + k })); });
         z.pts.forEach((q, k) => hd(q[0], q[1], 'zv' + k));
       } else hd(z.x + z.w, z.y + z.h, 'zs');
     }
   });
   const D = zoneDraft;
   if (D && D.pts.length) {
-    const P = D.pts, n = P.length, last = P[n - 1], h = D.hover, a0 = P[0];
-    s += '<path d="' + penD(P, D.hs, false) + '" fill="' + ZONE_RED + '" fill-opacity=".12" stroke="' + ZONE_RED + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
-    if (h && !drag) { const o = penOut(P, D.hs, n - 1); s += '<path d="M' + fmt(last[0]) + ' ' + fmt(last[1]) + 'C' + [o[0], o[1], h[0], h[1], h[0], h[1]].map(fmt).join(' ') + '" fill="none" stroke="' + ZONE_RED + '" stroke-width="1.3" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>'; }
-    if (D.hs[n - 1]) s += penHandles(last, D.hs[n - 1], px);
-    if (D.hs[0] && n > 1) s += penHandles(a0, D.hs[0], px);
-    P.forEach((q, k) => { const r = (k === n - 1 ? 4.5 : 3.5) * px; s += '<rect x="' + fmt(q[0] - r) + '" y="' + fmt(q[1] - r) + '" width="' + fmt(2 * r) + '" height="' + fmt(2 * r) + '" fill="' + (k === n - 1 ? ZONE_RED : '#fff') + '" stroke="' + ZONE_RED + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'; });
-    if (h && n > 1 && Math.hypot(h[0] - a0[0], h[1] - a0[1]) < 10 * px) s += '<circle cx="' + fmt(a0[0]) + '" cy="' + fmt(a0[1]) + '" r="' + fmt(10 * px) + '" fill="none" stroke="' + ZONE_RED + '" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+    const P = D.pts, n = P.length, last = P[n - 1], h = D.hover, a0 = P[0], dc = D.ci != null ? 'var(--ov)' : ZONE_RED;
+    s += '<path d="' + penD(P, D.hs, false) + '" fill="' + (D.ci != null ? 'none' : ZONE_RED) + '" fill-opacity=".12" stroke="' + dc + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+    if (h && !drag) { const o = penOut(P, D.hs, n - 1); s += '<path d="M' + fmt(last[0]) + ' ' + fmt(last[1]) + 'C' + [o[0], o[1], h[0], h[1], h[0], h[1]].map(fmt).join(' ') + '" fill="none" stroke="' + dc + '" stroke-width="1.3" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>'; }
+    if (D.hs[n - 1]) s += penHandles(last, D.hs[n - 1], px, null, dc);
+    if (D.hs[0] && n > 1 && D.ci == null) s += penHandles(a0, D.hs[0], px, null, dc);
+    P.forEach((q, k) => { const r = (k === n - 1 ? 4.5 : 3.5) * px; s += '<rect x="' + fmt(q[0] - r) + '" y="' + fmt(q[1] - r) + '" width="' + fmt(2 * r) + '" height="' + fmt(2 * r) + '" fill="' + (k === n - 1 ? dc : '#fff') + '" stroke="' + dc + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'; });
+    if (h && n > 1 && D.ci == null && Math.hypot(h[0] - a0[0], h[1] - a0[1]) < 10 * px) s += '<circle cx="' + fmt(a0[0]) + '" cy="' + fmt(a0[1]) + '" r="' + fmt(10 * px) + '" fill="none" stroke="' + dc + '" stroke-width="2" vector-effect="non-scaling-stroke"/>';
   }
   return s;
 }
-// The two handle lines and dots of a curved anchor. With k given they can be dragged (keys zi k and zo k).
-function penHandles(a, h, px, k) {
-  let s = '';
+// The two handle lines and dots of a curved anchor. With grab given they can be dragged: grab(x, y, 'zi' | 'zo').
+function penHandles(a, h, px, grab, col, op) {
+  let s = ''; col = col || ZONE_RED;
   [[h[0], h[1], 'zi'], [h[2], h[3], 'zo']].forEach(([x, y, w]) => {
     if (x === a[0] && y === a[1]) return;
-    s += '<path d="M' + fmt(a[0]) + ' ' + fmt(a[1]) + 'L' + fmt(x) + ' ' + fmt(y) + '" stroke="' + ZONE_RED + '" stroke-width="1" vector-effect="non-scaling-stroke"/><circle cx="' + fmt(x) + '" cy="' + fmt(y) + '" r="' + fmt(3.5 * px) + '" fill="' + ZONE_RED + '"/>';
-    if (k != null) HANDLES.push({ x: x, y: y, ci: -4, key: w + k });
+    s += '<g opacity="' + (op == null ? 1 : op) + '"><path d="M' + fmt(a[0]) + ' ' + fmt(a[1]) + 'L' + fmt(x) + ' ' + fmt(y) + '" stroke="' + col + '" stroke-width="1" vector-effect="non-scaling-stroke"/><circle cx="' + fmt(x) + '" cy="' + fmt(y) + '" r="' + fmt(3.5 * px) + '" fill="' + col + '"/></g>';
+    if (grab) grab(x, y, w);
   });
   return s;
 }
@@ -3559,12 +3648,18 @@ function selectZone(i) { selZone = i; if (i >= 0) { selCtrl = -1; selKnot = null
 function addZone(z, quiet) { S.excl.push(Object.assign({ id: 'z' + Math.random().toString(36).slice(2, 7), on: true, margin: 0, mode: 'touch', layers: 'all' }, z)); selectZone(S.excl.length - 1); if (!quiet) pushHistory(true); }
 function deleteZone(i) { if (!S.excl[i]) return; S.excl.splice(i, 1); selZone = -1; if (flyGroup === 'keepout') renderFly(); requestRender(); pushHistory(true); toast('Keep-out area deleted. Undo brings it back.'); }
 function startZoneTool(t) {
-  zoneTool = t; zoneDraft = t === 'poly' ? { pts: [], hs: [], hover: null } : null; flyGroup = null; renderShapes(); stage.style.cursor = 'crosshair';
-  toast(t === 'poly' ? 'Pen tool: click for a corner, click and drag for a curve, Shift for 45°. Click the first point or press Enter to finish. Backspace removes the last point, Esc cancels.' : 'Drag on the canvas to draw the ' + ZONE_NAMES[t].toLowerCase() + '. Shift keeps it even.', 5200);
+  zoneTool = t; zoneDraft = t === 'poly' || t === 'curve' ? { pts: [], hs: [], hover: null, ci: t === 'curve' ? selCtrl : null } : null; flyGroup = null; renderShapes(); stage.style.cursor = 'crosshair';
+  toast(t === 'curve' ? 'Pen tool: click for a corner, click and drag for a curve, Shift for 45°. Click the last point, double click or press Enter to finish. Backspace removes the last point, Esc cancels.' : t === 'poly' ? 'Pen tool: click for a corner, click and drag for a curve, Shift for 45°. Click the first point or press Enter to finish. Backspace removes the last point, Esc cancels.' : 'Drag on the canvas to draw the ' + ZONE_NAMES[t].toLowerCase() + '. Shift keeps it even.', 5200);
 }
-function endZoneTool() { zoneTool = null; zoneDraft = null; stage.style.cursor = ''; requestRender(); }
+function endZoneTool() { zoneTool = null; zoneDraft = null; snapGuide = null; stage.style.cursor = ''; requestRender(); }
 function finishPoly() {
   const D = zoneDraft;
+  if (D && D.ci != null) {
+    const c = S.ctrls[D.ci], r = v => +v.toFixed(2);
+    if (c && D.pts.length >= 2) { c.pts = D.pts.map(q => q.map(r)); c.hs = D.hs.map(h => h ? h.map(r) : 0); selCtrl = D.ci; selKnot = null; endZoneTool(); buildGradients(); pushHistory(true); toast('Curve drawn. Drag its points and handles to refine it; Alt click a point for corner or curve.', 4200); }
+    else { endZoneTool(); if (D.pts.length) toast('A curve needs at least two points'); }
+    return;
+  }
   if (D && D.pts.length >= 2 && penOutline(D.pts, D.hs).length >= 3) {
     const r = v => +v.toFixed(2), z = { type: 'poly', pts: D.pts.map(q => q.map(r)) };
     if (D.hs.some(Boolean)) z.hs = D.hs.map(h => h ? h.map(r) : 0);
@@ -3614,8 +3709,12 @@ function deleteCtrl(i) {
 // Delete / Backspace on the canvas: a selected bend point of a curve goes (while 2 stay), otherwise the whole gradient.
 function deleteSelection() {
   const c = S.ctrls[selCtrl]; if (!c) return false;
+  if (c.type === 'curve' && selKnot && selKnot.ci === selCtrl && selKnot.key[0] === 'h') {
+    const i = +selKnot.key.slice(2), H = ensureHs(c), a = c.pts[i]; if (H[i]) { if (selKnot.key[1] === 'o') { H[i][2] = a[0]; H[i][3] = a[1]; } else { H[i][0] = a[0]; H[i][1] = a[1]; } if (H[i][0] === a[0] && H[i][1] === a[1] && H[i][2] === a[0] && H[i][3] === a[1]) H[i] = 0; }
+    selKnot = null; requestRender(); pushHistory(true); toast('Handle removed'); return true;
+  }
   if (c.type === 'curve' && selKnot && selKnot.ci === selCtrl && selKnot.key[0] === 'k' && c.pts.length > 2) {
-    c.pts.splice(+selKnot.key.slice(1), 1); selKnot = null; buildGradients(); requestRender(); pushHistory(true); toast('Point removed from the curve'); return true;
+    const i = +selKnot.key.slice(1); ensureHs(c).splice(i, 1); c.pts.splice(i, 1); selKnot = null; buildGradients(); requestRender(); pushHistory(true); toast('Point removed from the curve'); return true;
   }
   deleteCtrl(selCtrl); return true;
 }
@@ -3668,24 +3767,53 @@ function keepInside() {
 /* ---------- snapping ---------- */
 // While dragging, a point within a few screen pixels of the surface's middle lines (or of an extra target,
 // like the cell centre for the motif) snaps onto it and a guide line shows. Alt skips snapping for that drag.
+// What a moving point can line up with: the middle and edges of the surface and every other point on the canvas
+// (gradient points, curve points, keep-out corners and points, cell corners, points already placed with the pen).
+// The point being dragged, and anything that moves along with it, is left out.
+function snapTargets(extra) {
+  const R = S.region, out = [[R.W / 2, R.H / 2], [0, 0], [R.W, R.H]], d = drag, dh = d && d.handle;
+  if (extra) out.push(extra);
+  const idx = k => k.replace(/^[a-z]+/, '');
+  const moving = h => {
+    if (d && (d.mode === 'motif' || d.mode === 'pattern')) return h.ci === -3;
+    if (!dh) return false;
+    if (h.ci !== dh.ci) return dh.ci === -3 && h.ci === -3;
+    if (h.key === dh.key) return true;
+    const pen = /^(k|hi|ho|zv|zi|zo)\d/; return pen.test(h.key) && pen.test(dh.key) && idx(h.key) === idx(dh.key);
+  };
+  HANDLES.forEach(h => { if (!/^crop-/.test(h.key) && !moving(h)) out.push([h.x, h.y]); });
+  (S.excl || []).forEach((z, i) => {
+    if ((dh && dh.ci === -4 || d && d.zoneNew) && i === selZone) return;
+    if (z.type === 'poly') z.pts.forEach(q => out.push(q));
+    else out.push([z.x, z.y], [z.x + z.w, z.y + z.h], [z.x + z.w / 2, z.y + z.h / 2]);
+  });
+  if (zoneDraft) zoneDraft.pts.forEach((q, k) => { if (!(d && d.zonePen === k)) out.push(q); });
+  return out;
+}
 function snapPoint(w, ev, extra) {
   snapGuide = null;
   if (!show.snap || (ev && ev.altKey)) return w;
-  const tol = 8 / view.scale, xs = [S.region.W / 2], ys = [S.region.H / 2];
-  if (extra) { xs.push(extra[0]); ys.push(extra[1]); }
-  let x = w[0], y = w[1], gx = null, gy = null;
-  xs.forEach(t => { if (Math.abs(w[0] - t) < tol && (gx == null || Math.abs(w[0] - t) < Math.abs(w[0] - gx))) gx = t; });
-  ys.forEach(t => { if (Math.abs(w[1] - t) < tol && (gy == null || Math.abs(w[1] - t) < Math.abs(w[1] - gy))) gy = t; });
-  if (gx != null) x = gx; if (gy != null) y = gy;
-  if (gx != null || gy != null) snapGuide = { x: gx, y: gy };
-  return [x, y];
+  const tol = 8 / view.scale;
+  let gx = null, gy = null;
+  snapTargets(extra).forEach(t => {
+    const dx = Math.abs(w[0] - t[0]), dy = Math.abs(w[1] - t[1]);
+    if (dx < tol && (!gx || dx < Math.abs(w[0] - gx[0]))) gx = t;
+    if (dy < tol && (!gy || dy < Math.abs(w[1] - gy[1]))) gy = t;
+  });
+  if (!gx && !gy) return w;
+  const p = [gx ? gx[0] : w[0], gy ? gy[1] : w[1]];
+  snapGuide = { x: gx ? gx[0] : null, y: gy ? gy[1] : null, at: p, tx: gx, ty: gy };
+  return p;
 }
 function snapGuideSvg(px) {
   if (!snapGuide) return '';
   const R = S.region, ext = 20000 * px; let s = '';
   if (snapGuide.x != null) s += '<line x1="' + fmt(snapGuide.x) + '" y1="' + fmt(-ext) + '" x2="' + fmt(snapGuide.x) + '" y2="' + fmt(R.H + ext) + '"/>';
   if (snapGuide.y != null) s += '<line x1="' + fmt(-ext) + '" y1="' + fmt(snapGuide.y) + '" x2="' + fmt(R.W + ext) + '" y2="' + fmt(snapGuide.y) + '"/>';
-  return '<g stroke="#ff3fa4" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="5 3">' + s + '</g>';
+  // small marks on the points it lines up with
+  let m = '';
+  [snapGuide.tx, snapGuide.ty].forEach(t => { if (t) m += '<path d="M' + fmt(t[0] - 4 * px) + ' ' + fmt(t[1] - 4 * px) + 'l' + fmt(8 * px) + ' ' + fmt(8 * px) + 'm0 ' + fmt(-8 * px) + 'l' + fmt(-8 * px) + ' ' + fmt(8 * px) + '"/>'; });
+  return '<g stroke="#ff3fa4" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="5 3">' + s + '</g><g stroke="#ff3fa4" stroke-width="1.6" vector-effect="non-scaling-stroke" fill="none">' + m + '</g>';
 }
 
 /* ---------- cell corners ---------- */
@@ -3794,15 +3922,17 @@ stage.addEventListener('pointerdown', ev => {
   }
   if (zoneTool && !spaceDown && ev.button === 0) {
     const w = snapPoint(toWorld(ev), ev);
-    if (zoneTool === 'poly') {
-      const D = zoneDraft, f = D.pts[0], last = D.pts[D.pts.length - 1];
-      if (f && D.pts.length >= 2 && Math.hypot(w[0] - f[0], w[1] - f[1]) < 10 / view.scale) { drag = { zonePen: 0, close: true, x: ev.clientX, y: ev.clientY }; return; }
+    if (zoneTool === 'poly' || zoneTool === 'curve') {
+      const D = zoneDraft, f = D.pts[0], last = D.pts[D.pts.length - 1], tol = 10 / view.scale;
+      if (zoneTool === 'poly' && f && D.pts.length >= 2 && Math.hypot(w[0] - f[0], w[1] - f[1]) < tol) { drag = { zonePen: 0, close: true, x: ev.clientX, y: ev.clientY }; return; }
+      if (zoneTool === 'curve' && last && D.pts.length >= 2 && Math.hypot(w[0] - last[0], w[1] - last[1]) < tol) { finishPoly(); return; }
       const p = ev.shiftKey && last ? constrain45(last, w) : w;
       D.pts.push(p); D.hs.push(0); drag = { zonePen: D.pts.length - 1, x: ev.clientX, y: ev.clientY }; requestRender(); return;
     }
     drag = { zoneNew: true, w0: w }; addZone({ type: zoneTool, x: w[0], y: w[1], w: 0, h: 0 }, true); return;
   }
   const mode = dragModeAt(ev), h = mode === 'pan' && (spaceDown || ev.button === 1) ? null : hitHandle(ev);
+  if (h && h.ci >= 0 && ev.altKey && h.key[0] === 'k' && S.ctrls[h.ci] && S.ctrls[h.ci].type === 'curve') { curveToggle(S.ctrls[h.ci], +h.key.slice(1)); selCtrl = h.ci; requestRender(); pushHistory(true); return; }
   if (h && h.ci === -4 && ev.altKey && h.key.startsWith('zv')) { penToggle(S.excl[selZone], +h.key.slice(2)); requestRender(); pushHistory(true); return; }
   if (h && h.ci === -4) { drag = { handle: h, w0: toWorld(ev), z0: JSON.parse(JSON.stringify(S.excl[selZone])) }; stage.style.cursor = 'grabbing'; return; }
   if (!h && mode !== 'motif' && !(spaceDown || ev.button === 1)) {
@@ -3887,7 +4017,17 @@ stage.addEventListener('pointermove', ev => {
       if (h.key === 'c') { c.x = w[0]; c.y = w[1]; }
       else if (h.key === 'p1') { c.x1 = w[0]; c.y1 = w[1]; }
       else if (h.key === 'p2') { c.x2 = w[0]; c.y2 = w[1]; }
-      else if (h.key[0] === 'k') c.pts[+h.key.slice(1)] = w;
+      else if (h.key[0] === 'k') {
+        // a point carries its handles along
+        const i = +h.key.slice(1), o = c.pts[i], H = ensureHs(c), dx = w[0] - o[0], dy = w[1] - o[1];
+        c.pts[i] = w; if (H[i]) H[i] = H[i].map((v, j) => +(v + (j % 2 ? dy : dx)).toFixed(2));
+      } else if (h.key[0] === 'h') {
+        // a handle keeps the opposite one in line (Alt lets it bend)
+        const i = +h.key.slice(2), a = c.pts[i], H = ensureHs(c), h0 = H[i]; if (!h0) return;
+        const isOut = h.key[1] === 'o', opp = isOut ? [h0[0], h0[1]] : [h0[2], h0[3]], len = Math.hypot(opp[0] - a[0], opp[1] - a[1]), raw = toWorld(ev), dl = Math.hypot(raw[0] - a[0], raw[1] - a[1]) || 1;
+        const mir = ev.altKey ? opp : [a[0] - (raw[0] - a[0]) / dl * len, a[1] - (raw[1] - a[1]) / dl * len];
+        H[i] = (isOut ? [mir[0], mir[1], raw[0], raw[1]] : [raw[0], raw[1], mir[0], mir[1]]).map(v => +v.toFixed(2));
+      }
     }
     h.x = w[0]; h.y = w[1];
     requestRender(); return;
@@ -3920,7 +4060,7 @@ const endDrag = ev => {
 };
 stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
 // a double click places two points on the same spot: drop the extra one and finish
-stage.addEventListener('dblclick', () => { if (zoneTool !== 'poly' || !zoneDraft) return; const P = zoneDraft.pts, n = P.length; if (n > 2 && Math.hypot(P[n - 1][0] - P[n - 2][0], P[n - 1][1] - P[n - 2][1]) < 4 / view.scale) penUndoPoint(); finishPoly(); });
+stage.addEventListener('dblclick', () => { if (zoneTool !== 'poly' && zoneTool !== 'curve' || !zoneDraft) return; const P = zoneDraft.pts, n = P.length; if (n > 2 && Math.hypot(P[n - 1][0] - P[n - 2][0], P[n - 1][1] - P[n - 2][1]) < 4 / view.scale) penUndoPoint(); finishPoly(); });
 stage.addEventListener('pointerleave', () => { if (!drag) { lastPtr = null; drawRulers(); } });
 // Like Illustrator/Figma: the wheel or two finger trackpad scroll pans; Ctrl/Cmd/Alt + wheel or a trackpad pinch zooms.
 stage.addEventListener('wheel', ev => {
@@ -4213,7 +4353,8 @@ $('#tFit').onclick = fit;
 $('#tCrop').onclick = () => setCrop(!cropMode);
 $('#tCenter').onclick = centerPattern;
 $('#oRul').onclick = () => { show.rulers = !show.rulers; $('#oRul').classList.toggle('on', show.rulers); $('.canvasWrap').classList.toggle('noRulers', !show.rulers); requestRender(); };
-toggle('#oSnap', 'snap'); toggle('#oCell', 'cell'); toggle('#oMarks', 'marks'); toggle('#oTile', 'tile'); toggle('#oBox', 'box'); toggle('#oGrad', 'grad'); toggle('#oField', 'field');
+toggle('#tSnap', 'snap'); $('#tSnap').addEventListener('click', () => toast(show.snap ? 'Snapping on: points line up with the middle, the edges and each other' : 'Snapping off'));
+toggle('#oCell', 'cell'); toggle('#oMarks', 'marks'); toggle('#oTile', 'tile'); toggle('#oBox', 'box'); toggle('#oGrad', 'grad'); toggle('#oField', 'field');
 $('#imgIn').onchange = async ev => {
   const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
   const data = await readFile(f, 'url');
@@ -4276,8 +4417,8 @@ document.addEventListener('keydown', ev => {
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'y' && !typing) { ev.preventDefault(); redo(); return; }
   if (ev.key === 'Escape') { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); if (cropMode) setCrop(false); if (flyGroup) { flyGroup = null; renderShapes(); } if (zoneTool) endZoneTool(); if (selZone >= 0 && !typing) selectZone(-1); if (selCtrl >= 0 && !typing) { selCtrl = -1; selKnot = null; buildGradients(); requestRender(); } }
   if (typing || document.querySelector('.modal.open')) return;
-  if (zoneTool === 'poly' && ev.key === 'Enter') { ev.preventDefault(); finishPoly(); return; }
-  if (zoneTool === 'poly' && (ev.key === 'Backspace' || ev.key === 'Delete')) { ev.preventDefault(); penUndoPoint(); return; }
+  if ((zoneTool === 'poly' || zoneTool === 'curve') && ev.key === 'Enter') { ev.preventDefault(); finishPoly(); return; }
+  if ((zoneTool === 'poly' || zoneTool === 'curve') && (ev.key === 'Backspace' || ev.key === 'Delete')) { ev.preventDefault(); penUndoPoint(); return; }
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'd') { ev.preventDefault(); duplicateSelection(); return; }
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selZone >= 0 && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { ev.preventDefault(); deleteZone(selZone); return; }
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selCtrl >= 0 && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { ev.preventDefault(); deleteSelection(); return; }

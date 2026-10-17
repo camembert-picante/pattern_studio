@@ -211,7 +211,7 @@ Gradients are sources: each gives a value from 0 to 1 everywhere on the surface,
 |---|---|
 | `point` | `x`, `y`, `radius` (reach) |
 | `line` | `x1`, `y1`, `x2`, `y2`, `radius` |
-| `curve` | `pts`: `[[x, y], …]` through which a smooth spline runs, `radius` |
+| `curve` | `pts`: `[[x, y], …]` the points of a pen path, `radius`. Optional `hs`: one entry per point, `0` for a corner or `[inX, inY, outX, outY]` handles in mm. Without `hs` a smooth curve runs through the points |
 | `ramp` | `x1`, `y1` (value 0) to `x2`, `y2` (value 1) |
 | `noise` | `radius` (feature size), `seed` |
 | `image` | `data` (an image data URL; dark = 1), `contrast` |
