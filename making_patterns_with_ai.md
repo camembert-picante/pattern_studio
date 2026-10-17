@@ -227,6 +227,7 @@ Red areas where pieces are removed (screw holes, logos, clear bands). Coordinate
   { "type": "ellipse", "x": 85, "y": 60, "w": 30, "h": 30, "margin": 2 },
   { "type": "rect", "x": 0, "y": 0, "w": 200, "h": 12, "mode": "centre" },
   { "type": "poly", "pts": [[20, 100], [60, 90], [70, 140], [15, 135]] },
+  { "type": "poly", "pts": [[120, 90], [160, 90], [140, 130]], "hs": [0, [150, 75, 170, 105], 0] },
   { "type": "shape", "shapeId": "star", "x": 140, "y": 20, "w": 40, "h": 40, "layers": ["L2"] }
 ]
 ```
@@ -234,6 +235,7 @@ Red areas where pieces are removed (screw holes, logos, clear bands). Coordinate
 | Field | Meaning | Default |
 |---|---|---|
 | `type` | `rect`, `ellipse` (box `x`, `y`, `w`, `h`), `poly` (`pts`), `shape` (a shape id stretched to the box) | |
+| `hs` | `poly` only: curve handles, one entry per point, `0` for a corner or `[inX, inY, outX, outY]` in mm for a curved point | all corners |
 | `margin` | Extra clear space around the area, mm | 0 |
 | `mode` | `touch` removes pieces that touch the area; `centre` only those centred in it | `touch` |
 | `layers` | `"all"` or a list of layer `id`s | `"all"` |
@@ -243,7 +245,7 @@ Red areas where pieces are removed (screw holes, logos, clear bands). Coordinate
 
 Built in ids:
 * **Organic:** `comma` `leaf` `drop` `crescent` `seigaiha` (wave scale)
-* **Geometric:** `dot` `ellipse` `pill` `bar` `square` `tri` `hex` `star` `ring` `plus` `ell`
+* **Geometric:** `dot` `ellipse` `pill` `square` `tri` `hex` `star` `ring` `plus` `ell` (`bar` is retired: it still loads, but use `pill` with `aspect` instead)
 * **Lines:** `line` `wave` `arc` `hook`. These are drawn as strokes; their thickness is `sw`.
 * **Surface outlines:** `insole`
 
@@ -260,6 +262,7 @@ Define your own with `svgShapes`, then use the id like any other:
 * **Coordinates:** any units work; shapes are scaled to fit.
 * **Holes:** a path with several closed parts uses even odd filling, so inner parts become holes.
 * **Line shapes:** add `"line": true` to draw the path as a stroke instead of a fill.
+* **Replacing a built in shape:** give an `svgShapes` entry a built in id (for example `"id": "hex"`) and it replaces that shape everywhere in the pattern, like editing it in the app. `shapes()` in the API marks such shapes `edited: true`.
 
 ### Export settings: `exp`
 

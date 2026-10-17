@@ -90,6 +90,10 @@ body.motifOpen .motifPanel{display:block}
 .railMotif::after{display:none}
 .railMotif.open{background:var(--sel);border-color:var(--accent)}
 .railMotif.open span{color:var(--accent)}
+.railBtn.railShapes{height:auto;min-height:56px;flex-direction:column;gap:2px;padding:6px 4px}
+.railBtn.railShapes svg{width:28px;height:28px;flex:none}
+.railShapes span{font-size:9.5px;color:var(--muted);font-weight:600}
+.railShapes.on span{color:var(--accent)}
 .railKeep{height:auto;min-height:48px;flex-direction:column;gap:1px;padding:6px 4px;color:#ff6b70}
 .railKeep svg{width:20px;height:20px}
 .railKeep span{font-size:9.5px;font-weight:600}
@@ -140,11 +144,15 @@ body.draggingShape #layerList::after{content:'+ Drop here for a new layer';displ
 .railBtn.on{background:var(--sel);border-color:var(--accent)}
 .railBtn.open{background:var(--chip-hover);border-color:var(--line-strong)}
 .railSep{height:1px;background:var(--line);margin:2px 4px}
-.flyout{position:absolute;left:58px;top:6px;z-index:12;width:252px;max-width:calc(100% - 66px);max-height:calc(100% - 12px);overflow:auto;background:var(--raise);border:1px solid var(--line-strong);border-radius:12px;padding:10px;box-shadow:0 14px 40px rgba(0,0,0,.45)}
+.flyout{position:absolute;left:58px;top:6px;z-index:12;width:284px;max-width:calc(100% - 66px);max-height:calc(100% - 12px);overflow:auto;background:var(--raise);border:1px solid var(--line-strong);border-radius:12px;padding:10px;box-shadow:0 14px 40px rgba(0,0,0,.45)}
 .flyout[hidden]{display:none}
 .flyHead{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px;font-weight:650}
 .flyHead button{min-height:28px;width:28px}
-.flyout .shapes{grid-template-columns:repeat(4,minmax(0,1fr))}
+.flyout .shapes{grid-template-columns:repeat(5,minmax(0,1fr))}
+.flySec{font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:12px 0 6px;padding-top:10px;border-top:1px solid var(--line)}
+.flyHead+.flySec{border-top:0;padding-top:0;margin-top:0}
+.curShape{align-items:center;margin:0 0 4px}
+.curName{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rCorner{background:var(--panel);border-right:1px solid var(--line);border-bottom:1px solid var(--line);font-size:9px;color:var(--muted);display:grid;place-items:center;overflow:hidden}
 #rulerX{grid-column:2;grid-row:1}#rulerY{grid-column:1;grid-row:2}
 #rulerX,#rulerY{display:block;width:100%;height:100%;min-width:0;min-height:0}
@@ -195,8 +203,11 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
 .shape{position:relative;border:1px solid var(--line);border-radius:8px;background:var(--field);cursor:pointer;aspect-ratio:1;padding:7px;min-height:0;color:var(--ink)}
 .shape svg{width:100%;height:100%;display:block}
 .shape.sel{outline:2px solid var(--accent);outline-offset:-1px;background:var(--sel)}
-.shape .x{position:absolute;top:2px;right:4px;font-size:12px;color:var(--muted);display:none;line-height:1}
-.shape:hover .x{display:block}
+.shape .x,.shape .ed{position:absolute;top:1px;right:2px;font-size:12px;color:var(--muted);display:none;line-height:1;background:none;border:0;padding:2px;cursor:pointer;min-height:0}
+.shape .ed{right:auto;left:2px}
+.shape .x:hover,.shape .ed:hover{color:var(--ink)}
+.shape:hover .x,.shape:hover .ed,.shape:focus-within .x,.shape:focus-within .ed{display:block}
+.shape .edDot{position:absolute;bottom:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
 #presetGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:0}
 #presetGrid button{justify-content:flex-start;min-height:36px;font-size:12.5px;background:var(--field)}
 .layer{display:flex;align-items:center;gap:8px;padding:6px 8px;min-height:40px;border:1px solid var(--line);border-radius:8px;margin:0 0 6px;cursor:pointer;background:var(--field)}
@@ -260,7 +271,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
   input[type=checkbox]{width:20px;height:20px}
   input[type=color]{width:40px;height:34px}
   button.mini{min-height:36px}
-  .shape .x{display:block;font-size:14px;padding:2px}
+  .shape.sel .x,.shape.sel .ed{display:block;font-size:14px;padding:3px}
 }
 
 /* ---------- phones & narrow windows: canvas on top, settings sheet below, tabs at the bottom ---------- */
@@ -1407,7 +1418,11 @@ const cur = () => S.layers[S.sel] || S.layers[0];
 
 /* ---------- History & autosave ---------- */
 let hist = [], hIdx = -1, hT = 0;
-const snap = () => JSON.stringify({ layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, fx: S.fx, excl: S.excl });
+// Each undo step also records which version of every shape was in the library, so deleting, editing or
+// importing a shape can be undone. Versions are kept in memory only.
+const SHAPE_VERS = new Map(); let shapeVer = 0;
+function libSnap() { const o = {}; Object.values(SHAPES).forEach(sh => { if (!sh._v) { sh._v = ++shapeVer; SHAPE_VERS.set(sh._v, sh); } o[sh.id] = sh._v; }); return o; }
+const snap = () => JSON.stringify({ layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, fx: S.fx, excl: S.excl, lib: libSnap(), hid: Object.keys(HIDDEN).sort() });
 function pushHistory(now) {
   clearTimeout(hT);
   const go = () => {
@@ -1417,11 +1432,19 @@ function pushHistory(now) {
   };
   if (now) go(); else hT = setTimeout(go, 250);
 }
-function restore(s) { const o = JSON.parse(s); S.layers = o.layers; S.sel = Math.min(o.sel, o.layers.length - 1); S.region = o.region; S.exp = o.exp; S.ctrls = o.ctrls || []; S.mix = o.mix || 'max'; S.fx = o.fx || []; S.excl = o.excl || []; if (selCtrl >= S.ctrls.length) selCtrl = -1; selZone = -1; rebuildAll(); }
+function restore(s) { const o = JSON.parse(s); S.layers = o.layers; S.sel = Math.min(o.sel, o.layers.length - 1); S.region = o.region; S.exp = o.exp; S.ctrls = o.ctrls || []; S.mix = o.mix || 'max'; S.fx = o.fx || []; S.excl = o.excl || []; if (selCtrl >= S.ctrls.length) selCtrl = -1; selZone = -1;
+  if (o.lib) {
+    let changed = false;
+    Object.keys(SHAPES).forEach(id => { if (!o.lib[id]) { delete SHAPES[id]; changed = true; } });
+    Object.entries(o.lib).forEach(([id, v]) => { const r = SHAPE_VERS.get(v); if (r && SHAPES[id] !== r) { SHAPES[id] = r; changed = true; } });
+    if (changed) { shapesDirty = true; Object.keys(MORPHS).forEach(k => delete MORPHS[k]); }
+    Object.keys(HIDDEN).forEach(k => delete HIDDEN[k]); (o.hid || []).forEach(k => HIDDEN[k] = 1); saveHidden();
+  }
+  rebuildAll(); }
 function undo() { if (hIdx > 0) { hIdx--; restore(hist[hIdx]); updUndo(); autosave(); } }
 function redo() { if (hIdx < hist.length - 1) { hIdx++; restore(hist[hIdx]); updUndo(); autosave(); } }
 function updUndo() { $('#bUndo').disabled = hIdx <= 0; $('#bRedo').disabled = hIdx >= hist.length - 1; }
-function customShapes() { return Object.values(SHAPES).filter(s => !s.builtin).map(s => ({ id: s.id, name: s.name, kind: s.kind, inner: s.inner, w: s.w, h: s.h, k: s.k, polys: s.polys, lineArt: s.lineArt, data: s.data || null })); }
+function customShapes() { return Object.values(SHAPES).filter(s => !s.builtin && !HIDDEN[s.id]).map(s => ({ id: s.id, name: s.name, kind: s.kind, inner: s.inner, w: s.w, h: s.h, k: s.k, polys: s.polys, lineArt: s.lineArt, data: s.data || null })); }
 function projectJSON() { return JSON.stringify({ app: 'pattern-studio', v: 3, layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, fx: S.fx, excl: S.excl, shapes: customShapes() }); }
 let saveT = 0;
 function autosave() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('pattern-studio-v1', projectJSON()); } catch (e) { /* storage full or blocked: fine */ } }, 500); }
@@ -1578,11 +1601,41 @@ const ZONE_NAMES = { rect: 'Rectangle', ellipse: 'Ellipse', poly: 'Drawn area', 
 function normZones(list) {
   return (Array.isArray(list) ? list : []).filter(z => z && ZONE_NAMES[z.type]).map(z => Object.assign({ id: 'z' + Math.random().toString(36).slice(2, 7), on: true, margin: 0, mode: 'touch', layers: 'all', x: 0, y: 0, w: 20, h: 20 }, z));
 }
+// A drawn area is a pen path: pts are its anchors and hs[k] (optional, 0 for a corner) the in and out handles of
+// anchor k as [ix, iy, ox, oy]. penD gives the path for drawing, penOutline the closed outline as points.
+const penIn = (P, H, k) => H && H[k] ? [H[k][0], H[k][1]] : P[k], penOut = (P, H, k) => H && H[k] ? [H[k][2], H[k][3]] : P[k];
+const penCurved = (P, H, i, j) => { const o = penOut(P, H, i), n = penIn(P, H, j); return o[0] !== P[i][0] || o[1] !== P[i][1] || n[0] !== P[j][0] || n[1] !== P[j][1]; };
+function penD(P, H, closed) {
+  if (!P.length) return '';
+  const seg = (i, j) => penCurved(P, H, i, j) ? 'C' + penOut(P, H, i).concat(penIn(P, H, j), P[j]).map(fmt).join(' ') : 'L' + fmt(P[j][0]) + ' ' + fmt(P[j][1]);
+  let d = 'M' + fmt(P[0][0]) + ' ' + fmt(P[0][1]);
+  for (let i = 1; i < P.length; i++) d += seg(i - 1, i);
+  return closed && P.length > 1 ? d + seg(P.length - 1, 0) + 'Z' : d;
+}
+function penOutline(P, H) {
+  if (!H || !H.some(Boolean)) return P;
+  const out = [], n = P.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, a = P[i], b = P[j]; out.push(a);
+    if (!penCurved(P, H, i, j)) continue;
+    const o = penOut(P, H, i), c = penIn(P, H, j);
+    for (let k = 1; k < 16; k++) { const t = k / 16, u = 1 - t, A = u * u * u, B = 3 * u * u * t, C = 3 * u * t * t, D = t * t * t; out.push([A * a[0] + B * o[0] + C * c[0] + D * b[0], A * a[1] + B * o[1] + C * c[1] + D * b[1]]); }
+  }
+  return out;
+}
+// Corner <-> smooth, like Alt clicking a point with the pen tool. A new smooth point gets handles along the line between its neighbours.
+function penToggle(z, k) {
+  const P = z.pts, n = P.length; z.hs = z.hs && z.hs.length === n ? z.hs : P.map(() => 0);
+  if (z.hs[k]) { z.hs[k] = 0; if (!z.hs.some(Boolean)) delete z.hs; return; }
+  const a = P[k], pr = P[(k - 1 + n) % n], nx = P[(k + 1) % n]; let dx = nx[0] - pr[0], dy = nx[1] - pr[1]; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+  const li = Math.hypot(a[0] - pr[0], a[1] - pr[1]) / 3, lo = Math.hypot(nx[0] - a[0], nx[1] - a[1]) / 3;
+  z.hs[k] = [a[0] - dx * li, a[1] - dy * li, a[0] + dx * lo, a[1] + dy * lo].map(v => +v.toFixed(2));
+}
 // The zone's outline in surface millimetres.
 function zonePoly(z) {
   if (z.type === 'rect') return [[z.x, z.y], [z.x + z.w, z.y], [z.x + z.w, z.y + z.h], [z.x, z.y + z.h]];
   if (z.type === 'ellipse') { const out = [], cx = z.x + z.w / 2, cy = z.y + z.h / 2; for (let i = 0; i < 48; i++) { const t = i / 48 * TAU; out.push([cx + Math.cos(t) * z.w / 2, cy + Math.sin(t) * z.h / 2]); } return out; }
-  if (z.type === 'poly') return z.pts || [];
+  if (z.type === 'poly') return penOutline(z.pts || [], z.hs);
   if (z.type === 'shape') {
     const sh = SHAPES[z.shapeId], loop = sh && mainLoop(sh); if (!loop) return [];
     const b = bboxOf(loop), bw = b[2] - b[0] || 1, bh = b[3] - b[1] || 1;
@@ -2515,7 +2568,7 @@ function buildResponse() {
       if (e.kind === 'drop') { body.append(line(E('label', {}, 'Mode'), sel([['threshold', 'Below a threshold'], ['dither', 'Random thinning (dither)']], P('mode'), v => { e.p.mode = v; buildResponse(); }))); if (e.p.mode === 'threshold') body.append(numRow('Threshold', P('t'), Q('t'), 0, 1, 0.01, '')); }
       if (e.kind === 'color') body.append(line(E('label', {}, 'Far colour'), color(P('c2'), Q('c2')), E('span', { class: 'hint' }, '→ near = each layer’s fill colour')));
       if (e.kind === 'morph') {
-        const closed = Object.values(SHAPES).filter(sh => mainLoop(sh) && !RETIRED_SHAPES[sh.id]);
+        const closed = Object.values(SHAPES).filter(sh => mainLoop(sh) && usable(sh));
         body.append(line(E('label', {}, 'Morph to'), sel(closed.map(sh => [sh.id, sh.name]), P('shape'), Q('shape'))), numRow('Steps', P('steps'), Q('steps'), 2, 24, 1, ''));
       }
       if (K.shapes) {
@@ -2567,7 +2620,7 @@ function buildSurface() {
   sf.append(line(E('label', {}, 'Boundary'), sel([['rect', 'Rectangle'], ['rounded', 'Rounded rectangle'], ['ellipse', 'Circle / ellipse'], ['custom', 'Any shape…']], P('shape'), v => { R.shape = v; if (v === 'custom' && !SHAPES[R.shapeId]) R.shapeId = 'hex'; buildSurface(); })));
   if (R.shape === 'rounded') sf.append(numRow('Corner radius', P('radius'), Q('radius'), 0, 200, 0.5, 'mm'));
   if (R.shape === 'custom') {
-    const closed = Object.values(SHAPES).filter(s => s.polys.some(p => p.closed) && !RETIRED_SHAPES[s.id]);
+    const closed = Object.values(SHAPES).filter(s => s.polys.some(p => p.closed) && usable(s));
     sf.append(line(E('label', {}, 'Outline'), sel(closed.map(s => [s.id, s.name]), P('shapeId'), Q('shapeId')), sel([['contain', 'Keep proportions'], ['stretch', 'Stretch to fill']], P('fit'), Q('fit'))));
     sf.append(E('p', { class: 'hint' }, 'Import or draw any outline from the shape tools on the left (Your shapes), then pick it here. Holes in the outline are kept.'));
   }
@@ -2667,7 +2720,7 @@ const PRESETS = [
   ['Speaker grille', () => presetBase({ W: 120, H: 120, shape: 'ellipse', edge: 'inside', featherOn: true, featherW: 10, featherMode: 'size', featherMin: 0.3, bg: '#d9d6cf' }, [{ type: 'point', x: 60, y: 60, radius: 62 }],
     [{ layout: 'grid', shape: 'dot', cellW: 4.2, cellH: +(4.2 * H3).toFixed(3), lay: { rowOff: 0.5 }, mx: 0, my: 0, sx: 0, sy: 0, size: 3.2, fill: '#1c1e22', mod: { size: { on: true, min: 0.45, max: 1 } } }])],
   ['Laptop vent', () => presetBase({ W: 220, H: 70, shape: 'rounded', radius: 14, edge: 'inside', featherOn: true, featherW: 8, featherMode: 'size', featherMin: 0.2, bg: '#c9ccd1' }, [{ type: 'ramp', x1: 10, y1: 35, x2: 210, y2: 35 }],
-    [{ layout: 'grid', shape: 'bar', cellW: 10, cellH: 5, lay: { rowOff: 0.5 }, mx: 0, my: 0, sx: 0, sy: 0, size: 8, fill: '#26282d', mod: { size: { on: true, min: 0.35, max: 1 } } }])],
+    [{ layout: 'grid', shape: 'pill', cellW: 10, cellH: 5, lay: { rowOff: 0.5 }, mx: 0, my: 0, sx: 0, sy: 0, size: 3.8, aspect: 2.1, fill: '#26282d', mod: { size: { on: true, min: 0.35, max: 1 } } }])],
   ['Halftone dots', () => presetBase({ W: 200, H: 150, edge: 'clip', bg: '#f4f1ea' }, [{ type: 'noise', radius: 38, seed: 3 }],
     [{ layout: 'grid', shape: 'dot', cellW: 4, cellH: +(4 * H3).toFixed(3), lay: { rowOff: 0.5 }, mx: 0, my: 0, sx: 0, sy: 0, size: 4.3, fill: '#1f2a44', mod: { size: { on: true, min: 0.05, max: 1 }, drop: { on: true, mode: 'threshold', t: 0.06 } } }])],
   ['Sunflower', () => presetBase({ W: 160, H: 160, shape: 'ellipse', edge: 'inside', bg: '#f7f3ea' }, [{ type: 'point', x: 80, y: 80, radius: 85 }],
@@ -2679,7 +2732,7 @@ const PRESETS = [
   ['Moiré hatch', () => presetBase({ W: 200, H: 150, edge: 'clip', bg: '#f7f3ea' }, [{ type: 'curve', radius: 40 }],
     [{ layout: 'hatch', lay: { spacing: 3, width: 0.9, angle: 30, cross: true, crossAngle: 60 }, fill: '#1c1e22', mod: { size: { on: true, min: 0.5, max: 1.6 }, spacing: { on: true, amt: 0.6 } } }])],
   ['Shoe tread (pgg)', () => presetBase({ W: 120, H: 200, shape: 'rounded', radius: 50, edge: 'inside', bg: '#2a2b2f' }, [{ type: 'ramp', x1: 60, y1: 10, x2: 60, y2: 190 }],
-    [{ layout: 'wallpaper', group: 'pgg', shape: 'bar', cellW: 16, cellH: 11, size: 9, mx: 3.5, my: 1.8, sx: 0, sy: 0, fill: '#d8d3c7', mod: { size: { on: true, min: 0.55, max: 1.05 } } }])],
+    [{ layout: 'wallpaper', group: 'pgg', shape: 'pill', cellW: 16, cellH: 11, size: 4.3, aspect: 2.1, mx: 3.5, my: 1.8, sx: 0, sy: 0, fill: '#d8d3c7', mod: { size: { on: true, min: 0.55, max: 1.05 } } }])],
   ['Spiral seeds', () => presetBase({ W: 160, H: 160, shape: 'ellipse', edge: 'inside', featherOn: true, featherW: 12, featherMode: 'size', bg: '#f7f3ea' }, [{ type: 'point', x: 80, y: 80, radius: 80 }],
     [{ layout: 'spiral', shape: 'leaf', lay: { spacing: 5.2, pitch: 6.5, arms: 1, cx: 50, cy: 50, align: true }, size: 4.6, fill: '#3d8b6e', mod: { size: { on: true, min: 1, max: 0.35 } } }])],
   ['Concentric diffuser', () => presetBase({ W: 180, H: 180, shape: 'rounded', radius: 40, edge: 'inside', featherOn: true, featherW: 14, featherMode: 'size', bg: '#e6e2da' }, [{ type: 'point', x: 90, y: 90, radius: 95 }],
@@ -2705,13 +2758,39 @@ function buildPresets() {
 function shapeThumb(s) { const sw = 0.07 / (s.k || 1); return '<svg viewBox="-0.56 -0.56 1.12 1.12"><use href="#sh_' + s.id + '_' + (s.kind === 'raster' ? 'o' : 'm') + '" fill="currentColor" color="currentColor" stroke="none" stroke-width="' + fmt(sw) + '"/></svg>'; }
 const SHAPE_GROUPS = [
   ['organic', 'Organic', ['comma', 'leaf', 'drop', 'crescent', 'seigaiha']],
-  ['geo', 'Geometric', ['dot', 'ellipse', 'pill', 'bar', 'square', 'tri', 'hex', 'star', 'ring', 'plus', 'ell']],
+  ['geo', 'Geometric', ['dot', 'ellipse', 'pill', 'square', 'tri', 'hex', 'star', 'ring', 'plus', 'ell']],
   ['lines', 'Lines', ['line', 'wave', 'arc', 'hook']],
   ['yours', 'Your shapes', null]
 ];
 let flyGroup = null;
-const RETIRED_SHAPES = { flag: 1, kite: 1, wedge: 1 };
-const groupShapes = gr => gr[2] ? gr[2].filter(id => SHAPES[id]) : Object.values(SHAPES).filter(sh => !sh.builtin).map(sh => sh.id);
+const RETIRED_SHAPES = { flag: 1, kite: 1, wedge: 1, bar: 1 };
+// Every shape can be edited and deleted. Built in shapes keep their original (ORIG) so an edit can be reset and a
+// delete only hides them (HIDDEN, remembered in this browser) because presets and saved patterns may still use them.
+const ORIG = {}, HIDDEN = {}, HIDDEN_KEY = 'pattern-studio-hidden-shapes';
+const LISTED = {}; SHAPE_GROUPS.forEach(gr => (gr[2] || []).forEach(id => LISTED[id] = 1));
+function saveHidden() { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(Object.keys(HIDDEN))); } catch (e) { } }
+const usable = sh => !RETIRED_SHAPES[sh.id] && !HIDDEN[sh.id];
+const groupShapes = gr => gr[2] ? gr[2].filter(id => SHAPES[id] && !HIDDEN[id]) : Object.values(SHAPES).filter(sh => !ORIG[sh.id] && !LISTED[sh.id] && !HIDDEN[sh.id]).map(sh => sh.id);
+const isEdited = id => ORIG[id] && SHAPES[id] !== ORIG[id];
+const canEdit = sh => sh.kind !== 'raster' && sh.kind !== 'text';
+function fallbackShape(not) {
+  if (not !== 'comma' && !HIDDEN.comma) return 'comma';
+  const all = SHAPE_GROUPS.flatMap(groupShapes).filter(id => id !== not);
+  return all[0] || 'comma';
+}
+function shapeChanged() { shapesDirty = true; Object.keys(MORPHS).forEach(k => delete MORPHS[k]); }
+function deleteShape(id) {
+  const sh = SHAPES[id]; if (!sh) return;
+  const fb = fallbackShape(id), closedFb = mainLoop(SHAPES[fb]) ? fb : 'hex';
+  if (ORIG[id]) { HIDDEN[id] = 1; saveHidden(); } else delete SHAPES[id];
+  S.layers.forEach(L => { if (L.shape === id) L.shape = fb; });
+  S.fx.forEach(e => { if (e.p && e.p.shape === id) e.p.shape = fb; });
+  if (!ORIG[id]) { if (S.region.shapeId === id) S.region.shapeId = closedFb; (S.excl || []).forEach(z => { if (z.shapeId === id) z.shapeId = closedFb; }); }
+  shapeChanged(); rebuildAll(); pushHistory(true);
+  toast('Deleted ' + sh.name + '. Undo brings it back' + (ORIG[id] ? ', or Restore in Shapes.' : '.'), 4000);
+}
+function resetShape(id) { if (!ORIG[id]) return; SHAPES[id] = ORIG[id]; shapeChanged(); rebuildAll(); pushHistory(true); toast(ORIG[id].name + ' is back to the original'); }
+function restoreHidden(ids) { ids.forEach(id => delete HIDDEN[id]); saveHidden(); rebuildAll(); pushHistory(true); toast(ids.length === 1 ? SHAPES[ids[0]].name + ' is back' : ids.length + ' shapes are back'); }
 const PEN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="M2 2l7.6 7.6"/><circle cx="11" cy="11" r="2"/></svg>';
 // Press and drag a shape (from the rail or a flyout): drop it on the canvas for the selected layer, on a layer
 // to give that layer the shape, or on empty space in the layer list for a new layer. A press without a drag is a click.
@@ -2800,14 +2879,13 @@ function addShapeLayer(id) {
 }
 function renderShapes() {
   const rail = $('#shapeRail'), cs = cur().empty ? null : cur().shape; rail.innerHTML = '';
-  SHAPE_GROUPS.forEach((gr, gi) => {
-    const ids = groupShapes(gr), has = ids.includes(cs), show = has ? cs : gr[0] === 'yours' ? null : ids[0];
-    if (gr[0] === 'yours') rail.append(E('div', { class: 'railSep' }));
-    const b = E('button', { class: 'railBtn' + (has ? ' on' : '') + (flyGroup === gr[0] ? ' open' : ''), 'data-g': gr[0], title: gr[1] + (has ? ': ' + SHAPES[cs].name : '') + (show ? '. Drag onto the canvas or a layer' : ': draw, type or import your own'), 'aria-label': gr[1] });
-    b.innerHTML = show ? shapeThumb(SHAPES[show]) : PEN_ICON;
-    shapeDrag(b, show, () => { flyGroup = flyGroup === gr[0] ? null : gr[0]; renderShapes(); });
-    rail.append(b);
-  });
+  // one button for every shape: it shows the current shape (drag it onto the canvas or a layer) and opens them all, by group
+  const all = SHAPE_GROUPS.flatMap(groupShapes), has = all.includes(cs), show = has ? cs : all[0];
+  const b = E('button', { class: 'railBtn railShapes' + (has ? ' on' : '') + (flyGroup === 'shapes' ? ' open' : ''), 'data-g': 'shapes', title: 'Shapes' + (has ? ': ' + SHAPES[cs].name : '') + '. Click for every shape; drag onto the canvas or a layer', 'aria-label': 'Shapes' });
+  b.innerHTML = (show ? shapeThumb(SHAPES[show]) : PEN_ICON) + '<span>Shapes</span>';
+  shapeDrag(b, show, () => { flyGroup = flyGroup === 'shapes' ? null : 'shapes'; renderShapes(); });
+  rail.append(b);
+  rail.append(E('div', { class: 'railSep' }));
   const kb = E('button', { class: 'railBtn railKeep' + (flyGroup === 'keepout' ? ' open' : '') + ((S.excl || []).length ? ' has' : ''), 'data-g': 'keepout', title: 'Keep-out areas: red areas where no pieces go', 'aria-label': 'Keep-out areas', onclick: ev => { ev.stopPropagation(); flyGroup = flyGroup === 'keepout' ? null : 'keepout'; renderShapes(); } });
   kb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/></svg><span>Keep out</span>';
   rail.append(kb);
@@ -2830,7 +2908,7 @@ function renderKeepout(fly) {
   fly.append(E('div', { class: 'btns', style: 'margin-top:0' }, tool('rect', 'Rectangle', '<rect x="4" y="6" width="16" height="12" rx="1"/>'), tool('ellipse', 'Ellipse', '<ellipse cx="12" cy="12" rx="8" ry="6"/>'), tool('poly', 'Draw', '<path d="M5 18 8 6l6 4 5-3-2 11z"/>')));
   const pick = E('details', { class: 'keepShapes' }, E('summary', {}, 'From a shape…'));
   const grid = E('div', { class: 'shapes' });
-  Object.values(SHAPES).filter(sh => !RETIRED_SHAPES[sh.id] && mainLoop(sh)).forEach(sh => { const it = E('div', { class: 'shape', title: sh.name, onclick: () => zoneFromShape(sh.id) }); it.innerHTML = shapeThumb(sh); grid.append(it); });
+  Object.values(SHAPES).filter(sh => usable(sh) && mainLoop(sh)).forEach(sh => { const it = E('div', { class: 'shape', title: sh.name, onclick: () => zoneFromShape(sh.id) }); it.innerHTML = shapeThumb(sh); grid.append(it); });
   pick.append(grid); fly.append(pick);
   if (!(S.excl || []).length) return;
   const list = E('div', { class: 'keepList' });
@@ -2852,37 +2930,52 @@ function renderKeepout(fly) {
   fly.append(list);
 }
 function renderFly() {
-  const fly = $('#shapeFly'), gr = SHAPE_GROUPS.find(q => q[0] === flyGroup);
+  const fly = $('#shapeFly');
   if (flyGroup === 'keepout') {
     fly.hidden = false; fly.innerHTML = ''; renderKeepout(fly);
     const btn = $('#shapeRail [data-g="keepout"]'), room = fly.parentElement.clientHeight;
     fly.style.top = Math.max(6, Math.min(btn ? btn.offsetTop : 6, room - fly.offsetHeight - 6)) + 'px'; return;
   }
-  if (!gr) { fly.hidden = true; return; }
-  const ids = groupShapes(gr); fly.hidden = false; fly.innerHTML = '';
-  fly.append(E('div', { class: 'flyHead' }, E('span', {}, gr[1]), E('button', { class: 'icon ghost', 'aria-label': 'Close', onclick: () => { flyGroup = null; renderShapes(); } }, '✕')));
-  if (ids.length) {
-    const grid = E('div', { class: 'shapes' });
-    ids.forEach(id => {
-      const sh = SHAPES[id], it = E('div', { class: 'shape' + (cur().shape === id ? ' sel' : ''), title: sh.name + (sh.kind !== 'vector' ? ' (' + sh.kind + ')' : '') + '. Click to use, or drag onto the canvas or a layer' });
-      shapeDrag(it, id, () => pickShape(id));
-      it.innerHTML = shapeThumb(sh);
-      if (!sh.builtin) it.append(E('span', { class: 'x', title: 'Delete shape', onclick: ev => { ev.stopPropagation(); delete SHAPES[id]; S.layers.forEach(L => { if (L.shape === id) L.shape = 'comma'; }); shapesDirty = true; rebuildAll(); pushHistory(); } }, '✕'));
-      grid.append(it);
-    });
-    fly.append(grid);
+  if (flyGroup !== 'shapes') { fly.hidden = true; return; }
+  fly.hidden = false; fly.innerHTML = '';
+  fly.append(E('div', { class: 'flyHead' }, E('span', {}, 'Shapes'), E('button', { class: 'icon ghost', 'aria-label': 'Close', onclick: () => { flyGroup = null; renderShapes(); } }, '✕')));
+  const cs = cur().empty ? null : cur().shape;
+  if (cs && SHAPES[cs] && !HIDDEN[cs]) {
+    const row = E('div', { class: 'btns curShape' }, E('span', { class: 'curName' }, SHAPES[cs].name + (isEdited(cs) ? ' (edited)' : '')));
+    row.append(E('button', { class: 'mini', onclick: () => { flyGroup = null; renderShapes(); editShape(cs); } }, 'Edit…'));
+    if (isEdited(cs)) row.append(E('button', { class: 'mini', title: 'Back to the shape that came with the app', onclick: () => resetShape(cs) }, 'Reset'));
+    row.append(E('button', { class: 'mini', onclick: () => deleteShape(cs) }, 'Delete'));
+    fly.append(row);
   }
-  if (ids.includes(cur().shape)) fly.append(E('div', { class: 'btns' }, E('button', { class: 'mini', onclick: () => { const id = cur().shape; flyGroup = null; renderShapes(); editShape(id); } }, 'Edit ' + SHAPES[cur().shape].name + '…')));
-  if (gr[0] === 'yours') {
-    if (!ids.length) fly.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Nothing here yet. Bring in your own shape:'));
-    fly.append(E('div', { class: 'btns' },
-      E('button', { class: 'mini', onclick: () => { flyGroup = null; renderShapes(); $('#fileIn').click(); } }, 'Import…'),
-      E('button', { class: 'mini', onclick: () => { flyGroup = null; renderShapes(); openDraw(); } }, 'Draw'),
-      E('button', { class: 'mini', onclick: () => { flyGroup = null; renderShapes(); openText(); } }, 'Text')));
-    fly.append(E('p', { class: 'hint' }, 'SVG, PNG, JPG, GIF, WebP, BMP, AVIF or DXF. You can also drop or paste files, SVG code or a path d string anywhere.'));
-  }
-  const btn = $('#shapeRail [data-g="' + gr[0] + '"]'), room = fly.parentElement.clientHeight;
-  fly.style.top = Math.max(6, Math.min(btn ? btn.offsetTop : 6, room - fly.offsetHeight - 6)) + 'px';
+  // the small buttons stop the press so it doesn't start a drag or pick the shape
+  const act = (cls, label, f, txt) => { const b = E('button', { class: cls, title: label, 'aria-label': label }, txt); b.addEventListener('pointerdown', ev => ev.stopPropagation()); b.onclick = ev => { ev.stopPropagation(); f(); }; return b; };
+  SHAPE_GROUPS.forEach(gr => {
+    const ids = groupShapes(gr), gone = gr[2] ? gr[2].filter(id => HIDDEN[id] && SHAPES[id]) : [];
+    fly.append(E('div', { class: 'flySec' }, gr[1]));
+    if (ids.length) {
+      const grid = E('div', { class: 'shapes' });
+      ids.forEach(id => {
+        const sh = SHAPES[id], it = E('div', { class: 'shape' + (cs === id ? ' sel' : ''), title: sh.name + (isEdited(id) ? ' (edited)' : '') + (sh.kind !== 'vector' ? ' (' + sh.kind + ')' : '') + '. Click to use, or drag onto the canvas or a layer' });
+        shapeDrag(it, id, () => pickShape(id));
+        it.innerHTML = shapeThumb(sh);
+        if (canEdit(sh)) it.append(act('ed', 'Edit ' + sh.name, () => { flyGroup = null; renderShapes(); editShape(id); }, '✎'));
+        it.append(act('x', 'Delete ' + sh.name, () => deleteShape(id), '✕'));
+        if (isEdited(id)) it.append(E('span', { class: 'edDot', title: 'Edited' }));
+        grid.append(it);
+      });
+      fly.append(grid);
+    }
+    if (gone.length) fly.append(E('p', { class: 'hint' }, (ids.length ? '' : 'All deleted. ') + (ids.length ? gone.length + ' deleted. ' : ''), E('a', { href: '#', onclick: ev => { ev.preventDefault(); restoreHidden(gone); } }, 'Restore ' + (gone.length === 1 ? SHAPES[gone[0]].name : 'them'))));
+    if (gr[0] === 'yours') {
+      if (!ids.length) fly.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Nothing here yet. Bring in your own shape:'));
+      fly.append(E('div', { class: 'btns' },
+        E('button', { class: 'mini', onclick: () => { flyGroup = null; renderShapes(); $('#fileIn').click(); } }, 'Import…'),
+        E('button', { class: 'mini', onclick: () => { flyGroup = null; renderShapes(); openDraw(); } }, 'Draw'),
+        E('button', { class: 'mini', onclick: () => { flyGroup = null; renderShapes(); openText(); } }, 'Text')));
+      fly.append(E('p', { class: 'hint' }, 'SVG, PNG, JPG, GIF, WebP, BMP, AVIF or DXF. You can also drop or paste files, SVG code or a path d string anywhere.'));
+    }
+  });
+  fly.style.top = '6px';
 }
 document.addEventListener('click', ev => { if (flyGroup && document.contains(ev.target) && !ev.target.closest('#shapeFly') && !ev.target.closest('#shapeRail') && !(flyGroup === 'keepout' && ev.target.closest('#stage'))) { flyGroup = null; renderShapes(); } });
 function buildTraceBox() {
@@ -3433,14 +3526,32 @@ function zonesOverlay(px) {
     if (z.margin > 0) s += '<path d="' + d + '" fill="none" stroke="' + ZONE_RED + '" stroke-opacity=".55" stroke-width="' + fmt(2 * z.margin) + '" stroke-linejoin="round"/>';
     if (sel) {
       const hs = (HANDLE_R - 1) * px, hd = (x, y, key) => { HANDLES.push({ x: x, y: y, ci: -4, key: key }); s += '<rect x="' + fmt(x - hs) + '" y="' + fmt(y - hs) + '" width="' + fmt(2 * hs) + '" height="' + fmt(2 * hs) + '" fill="#fff" stroke="' + ZONE_RED + '" stroke-width="2" vector-effect="non-scaling-stroke"/>'; };
-      if (z.type === 'poly') z.pts.forEach((q, k) => hd(q[0], q[1], 'zv' + k)); else hd(z.x + z.w, z.y + z.h, 'zs');
+      if (z.type === 'poly') {
+        (z.hs || []).forEach((h, k) => { if (h) s += penHandles(z.pts[k], h, px, k); });
+        z.pts.forEach((q, k) => hd(q[0], q[1], 'zv' + k));
+      } else hd(z.x + z.w, z.y + z.h, 'zs');
     }
   });
-  if (zoneDraft && zoneDraft.pts.length) {
-    const P = zoneDraft.pts.concat(zoneDraft.hover ? [zoneDraft.hover] : []);
-    s += '<path d="M' + P.map(q => fmt(q[0]) + ' ' + fmt(q[1])).join('L') + '" fill="' + ZONE_RED + '" fill-opacity=".12" stroke="' + ZONE_RED + '" stroke-width="1.6" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>';
-    zoneDraft.pts.forEach((q, k) => { s += '<circle cx="' + fmt(q[0]) + '" cy="' + fmt(q[1]) + '" r="' + fmt((k === 0 ? 5 : 3.5) * px) + '" fill="#fff" stroke="' + ZONE_RED + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'; });
+  const D = zoneDraft;
+  if (D && D.pts.length) {
+    const P = D.pts, n = P.length, last = P[n - 1], h = D.hover, a0 = P[0];
+    s += '<path d="' + penD(P, D.hs, false) + '" fill="' + ZONE_RED + '" fill-opacity=".12" stroke="' + ZONE_RED + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+    if (h && !drag) { const o = penOut(P, D.hs, n - 1); s += '<path d="M' + fmt(last[0]) + ' ' + fmt(last[1]) + 'C' + [o[0], o[1], h[0], h[1], h[0], h[1]].map(fmt).join(' ') + '" fill="none" stroke="' + ZONE_RED + '" stroke-width="1.3" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>'; }
+    if (D.hs[n - 1]) s += penHandles(last, D.hs[n - 1], px);
+    if (D.hs[0] && n > 1) s += penHandles(a0, D.hs[0], px);
+    P.forEach((q, k) => { const r = (k === n - 1 ? 4.5 : 3.5) * px; s += '<rect x="' + fmt(q[0] - r) + '" y="' + fmt(q[1] - r) + '" width="' + fmt(2 * r) + '" height="' + fmt(2 * r) + '" fill="' + (k === n - 1 ? ZONE_RED : '#fff') + '" stroke="' + ZONE_RED + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'; });
+    if (h && n > 1 && Math.hypot(h[0] - a0[0], h[1] - a0[1]) < 10 * px) s += '<circle cx="' + fmt(a0[0]) + '" cy="' + fmt(a0[1]) + '" r="' + fmt(10 * px) + '" fill="none" stroke="' + ZONE_RED + '" stroke-width="2" vector-effect="non-scaling-stroke"/>';
   }
+  return s;
+}
+// The two handle lines and dots of a curved anchor. With k given they can be dragged (keys zi k and zo k).
+function penHandles(a, h, px, k) {
+  let s = '';
+  [[h[0], h[1], 'zi'], [h[2], h[3], 'zo']].forEach(([x, y, w]) => {
+    if (x === a[0] && y === a[1]) return;
+    s += '<path d="M' + fmt(a[0]) + ' ' + fmt(a[1]) + 'L' + fmt(x) + ' ' + fmt(y) + '" stroke="' + ZONE_RED + '" stroke-width="1" vector-effect="non-scaling-stroke"/><circle cx="' + fmt(x) + '" cy="' + fmt(y) + '" r="' + fmt(3.5 * px) + '" fill="' + ZONE_RED + '"/>';
+    if (k != null) HANDLES.push({ x: x, y: y, ci: -4, key: w + k });
+  });
   return s;
 }
 const zoneAt = w => { for (let i = (S.excl || []).length - 1; i >= 0; i--) if (inPoly(zonePoly(S.excl[i]), w)) return i; return -1; };
@@ -3448,11 +3559,20 @@ function selectZone(i) { selZone = i; if (i >= 0) { selCtrl = -1; selKnot = null
 function addZone(z, quiet) { S.excl.push(Object.assign({ id: 'z' + Math.random().toString(36).slice(2, 7), on: true, margin: 0, mode: 'touch', layers: 'all' }, z)); selectZone(S.excl.length - 1); if (!quiet) pushHistory(true); }
 function deleteZone(i) { if (!S.excl[i]) return; S.excl.splice(i, 1); selZone = -1; if (flyGroup === 'keepout') renderFly(); requestRender(); pushHistory(true); toast('Keep-out area deleted. Undo brings it back.'); }
 function startZoneTool(t) {
-  zoneTool = t; zoneDraft = t === 'poly' ? { pts: [], hover: null } : null; flyGroup = null; renderShapes(); stage.style.cursor = 'crosshair';
-  toast(t === 'poly' ? 'Click to place points. Click the first point, double click or press Enter to finish; Esc cancels.' : 'Drag on the canvas to draw the ' + ZONE_NAMES[t].toLowerCase() + '. Shift keeps it even.', 4200);
+  zoneTool = t; zoneDraft = t === 'poly' ? { pts: [], hs: [], hover: null } : null; flyGroup = null; renderShapes(); stage.style.cursor = 'crosshair';
+  toast(t === 'poly' ? 'Pen tool: click for a corner, click and drag for a curve, Shift for 45°. Click the first point or press Enter to finish. Backspace removes the last point, Esc cancels.' : 'Drag on the canvas to draw the ' + ZONE_NAMES[t].toLowerCase() + '. Shift keeps it even.', 5200);
 }
 function endZoneTool() { zoneTool = null; zoneDraft = null; stage.style.cursor = ''; requestRender(); }
-function finishPoly() { if (zoneDraft && zoneDraft.pts.length >= 3) addZone({ type: 'poly', pts: zoneDraft.pts.map(q => [+q[0].toFixed(2), +q[1].toFixed(2)]) }); endZoneTool(); }
+function finishPoly() {
+  const D = zoneDraft;
+  if (D && D.pts.length >= 2 && penOutline(D.pts, D.hs).length >= 3) {
+    const r = v => +v.toFixed(2), z = { type: 'poly', pts: D.pts.map(q => q.map(r)) };
+    if (D.hs.some(Boolean)) z.hs = D.hs.map(h => h ? h.map(r) : 0);
+    addZone(z); toast('Keep-out area added. Drag its points or handles to refine it; Alt click a point for corner or curve.', 4200);
+  } else if (D && D.pts.length) toast('Add at least three points, or drag out a curve');
+  endZoneTool();
+}
+function penUndoPoint() { const D = zoneDraft; if (!D || !D.pts.length) return; D.pts.pop(); D.hs.pop(); requestRender(); }
 function zoneFromShape(id) { const R = S.region, m = Math.min(R.W, R.H) / 3, sh = SHAPES[id], ar = sh ? sh.w / (sh.h || 1) : 1; const w = ar >= 1 ? m : m * ar, h = ar >= 1 ? m / ar : m; addZone({ type: 'shape', shapeId: id, x: +(R.W / 2 - w / 2).toFixed(2), y: +(R.H / 2 - h / 2).toFixed(2), w: +w.toFixed(2), h: +h.toFixed(2) }); toast(sh.name + ' keep-out area added. Drag to move it, the corner to resize it.'); }
 
 /* ---------- duplicating ---------- */
@@ -3471,7 +3591,7 @@ function duplicateFx(i) {
 function duplicateZone(i) {
   const z = S.excl[i]; if (!z) return;
   const c = Object.assign(JSON.parse(JSON.stringify(z)), { id: 'z' + Math.random().toString(36).slice(2, 7) });
-  if (c.type === 'poly') c.pts = c.pts.map(q => [q[0] + 5, q[1] + 5]); else { c.x += 5; c.y += 5; }
+  if (c.type === 'poly') { c.pts = c.pts.map(q => [q[0] + 5, q[1] + 5]); if (c.hs) c.hs = c.hs.map(h => h ? h.map(v => v + 5) : 0); } else { c.x += 5; c.y += 5; }
   S.excl.splice(i + 1, 0, c); selectZone(i + 1); pushHistory(true); toast('Keep-out area duplicated');
 }
 // Ctrl/Cmd+D duplicates what you're working on: a selected keep-out area, else the open effect on the Effects tab, else the layer.
@@ -3675,13 +3795,15 @@ stage.addEventListener('pointerdown', ev => {
   if (zoneTool && !spaceDown && ev.button === 0) {
     const w = snapPoint(toWorld(ev), ev);
     if (zoneTool === 'poly') {
-      const f = zoneDraft.pts[0];
-      if (f && zoneDraft.pts.length >= 3 && Math.hypot(w[0] - f[0], w[1] - f[1]) < 10 / view.scale) { finishPoly(); return; }
-      zoneDraft.pts.push(w); requestRender(); return;
+      const D = zoneDraft, f = D.pts[0], last = D.pts[D.pts.length - 1];
+      if (f && D.pts.length >= 2 && Math.hypot(w[0] - f[0], w[1] - f[1]) < 10 / view.scale) { drag = { zonePen: 0, close: true, x: ev.clientX, y: ev.clientY }; return; }
+      const p = ev.shiftKey && last ? constrain45(last, w) : w;
+      D.pts.push(p); D.hs.push(0); drag = { zonePen: D.pts.length - 1, x: ev.clientX, y: ev.clientY }; requestRender(); return;
     }
     drag = { zoneNew: true, w0: w }; addZone({ type: zoneTool, x: w[0], y: w[1], w: 0, h: 0 }, true); return;
   }
   const mode = dragModeAt(ev), h = mode === 'pan' && (spaceDown || ev.button === 1) ? null : hitHandle(ev);
+  if (h && h.ci === -4 && ev.altKey && h.key.startsWith('zv')) { penToggle(S.excl[selZone], +h.key.slice(2)); requestRender(); pushHistory(true); return; }
   if (h && h.ci === -4) { drag = { handle: h, w0: toWorld(ev), z0: JSON.parse(JSON.stringify(S.excl[selZone])) }; stage.style.cursor = 'grabbing'; return; }
   if (!h && mode !== 'motif' && !(spaceDown || ev.button === 1)) {
     const zi = zoneAt(toWorld(ev));
@@ -3714,6 +3836,14 @@ stage.addEventListener('pointermove', ev => {
     stage.style.cursor = h ? (h.key.startsWith('crop-') ? (h.key.length === 6 ? (h.key === 'crop-t' || h.key === 'crop-b' ? 'ns-resize' : 'ew-resize') : (h.key === 'crop-lt' || h.key === 'crop-rb' ? 'nwse-resize' : 'nesw-resize')) : 'pointer') : m === 'pan' ? '' : 'move';
     return;
   }
+  if (drag.zonePen != null) {
+    // dragging after a click pulls out the curve handles, mirrored through the anchor; Alt moves only the out handle
+    if (Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 4 && !drag.pulled) return;
+    drag.pulled = true;
+    const D = zoneDraft, i = drag.zonePen, a = D.pts[i], w = toWorld(ev), h0 = D.hs[i];
+    D.hs[i] = drag.close ? [w[0], w[1], 2 * a[0] - w[0], 2 * a[1] - w[1]] : ev.altKey && h0 ? [h0[0], h0[1], w[0], w[1]] : [2 * a[0] - w[0], 2 * a[1] - w[1], w[0], w[1]];
+    requestRender(); return;
+  }
   if (drag.zoneNew) {
     const z = S.excl[selZone], w = snapPoint(toWorld(ev), ev); let dx = w[0] - drag.w0[0], dy = w[1] - drag.w0[1];
     if (ev.shiftKey) { const m = Math.max(Math.abs(dx), Math.abs(dy)); dx = Math.sign(dx || 1) * m; dy = Math.sign(dy || 1) * m; }
@@ -3723,13 +3853,22 @@ stage.addEventListener('pointermove', ev => {
   if (drag.zoneMove != null) {
     const z = S.excl[drag.zoneMove], w = toWorld(ev), dx = w[0] - drag.w0[0], dy = w[1] - drag.w0[1], o = drag.z0;
     drag.moved = drag.moved || Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) > 3;
-    if (z.type === 'poly') z.pts = o.pts.map(q => [+(q[0] + dx).toFixed(2), +(q[1] + dy).toFixed(2)]); else { z.x = +(o.x + dx).toFixed(2); z.y = +(o.y + dy).toFixed(2); }
+    if (z.type === 'poly') { z.pts = o.pts.map(q => [+(q[0] + dx).toFixed(2), +(q[1] + dy).toFixed(2)]); if (o.hs) z.hs = o.hs.map(h => h ? h.map((v, j) => +(v + (j % 2 ? dy : dx)).toFixed(2)) : 0); } else { z.x = +(o.x + dx).toFixed(2); z.y = +(o.y + dy).toFixed(2); }
     requestRender(); return;
   }
   if (drag.handle && drag.handle.ci === -4) {
     const z = S.excl[selZone], k = drag.handle.key, w = snapPoint(toWorld(ev), ev);
     if (k === 'zs') { let nw = Math.max(1, w[0] - z.x), nh = Math.max(1, w[1] - z.y); if (ev.shiftKey && drag.z0.w && drag.z0.h) { const r = drag.z0.w / drag.z0.h; if (nw / nh > r) nh = nw / r; else nw = nh * r; } z.w = +nw.toFixed(2); z.h = +nh.toFixed(2); }
-    else z.pts[+k.slice(2)] = [+w[0].toFixed(2), +w[1].toFixed(2)];
+    else {
+      // an anchor carries its handles along; a handle keeps the opposite one in line (Alt lets it bend)
+      const i = +k.slice(2), r = v => +v.toFixed(2), a = drag.z0.pts[i], h0 = drag.z0.hs && drag.z0.hs[i];
+      if (k.startsWith('zv')) { const dx = w[0] - a[0], dy = w[1] - a[1]; z.pts[i] = [r(w[0]), r(w[1])]; if (h0) z.hs[i] = h0.map((v, j) => r(v + (j % 2 ? dy : dx))); }
+      else if (h0) {
+        const isOut = k.startsWith('zo'), op = isOut ? [h0[0], h0[1]] : [h0[2], h0[3]], len = Math.hypot(op[0] - a[0], op[1] - a[1]), dl = Math.hypot(w[0] - a[0], w[1] - a[1]) || 1;
+        const mir = ev.altKey ? op : [a[0] - (w[0] - a[0]) / dl * len, a[1] - (w[1] - a[1]) / dl * len];
+        z.hs[i] = (isOut ? [mir[0], mir[1], w[0], w[1]] : [w[0], w[1], mir[0], mir[1]]).map(r);
+      }
+    }
     requestRender(); return;
   }
   if (drag.handle) {
@@ -3770,6 +3909,7 @@ stage.addEventListener('pointermove', ev => {
 const endDrag = ev => {
   touchPts.delete(ev.pointerId);
   if (pinch) { if (touchPts.size === 0) pinch = null; return; }
+  if (drag && drag.zonePen != null) { const close = drag.close; drag = null; if (close) finishPoly(); else requestRender(); return; }
   if (drag && drag.zoneNew) { const z = S.excl[selZone]; if (!z || z.w < 1 || z.h < 1) { S.excl.splice(selZone, 1); selZone = -1; toast('Too small: drag a bigger area'); } else { pushHistory(true); toast(ZONE_NAMES[z.type] + ' keep-out area added. Drag to move it, the corner to resize, Delete to remove.'); } zoneTool = null; stage.style.cursor = ''; drag = null; requestRender(); return; }
   if (drag && drag.zoneMove != null) { if (drag.moved) pushHistory(true); drag = null; stage.style.cursor = ''; if (snapGuide) snapGuide = null; requestRender(); return; }
   if (drag && drag.handle) { pushHistory(); if (drag.handle.key === 'centre') buildLayout(); if (drag.handle.key.startsWith('cell')) buildLayerControls(); if (drag.handle.key.startsWith('crop-')) rebuildAll(); }
@@ -3779,7 +3919,8 @@ const endDrag = ev => {
   if (snapGuide) { snapGuide = null; requestRender(); }
 };
 stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
-stage.addEventListener('dblclick', () => { if (zoneTool === 'poly') { if (zoneDraft && zoneDraft.pts.length > 3) zoneDraft.pts.pop(); finishPoly(); } });
+// a double click places two points on the same spot: drop the extra one and finish
+stage.addEventListener('dblclick', () => { if (zoneTool !== 'poly' || !zoneDraft) return; const P = zoneDraft.pts, n = P.length; if (n > 2 && Math.hypot(P[n - 1][0] - P[n - 2][0], P[n - 1][1] - P[n - 2][1]) < 4 / view.scale) penUndoPoint(); finishPoly(); });
 stage.addEventListener('pointerleave', () => { if (!drag) { lastPtr = null; drawRulers(); } });
 // Like Illustrator/Figma: the wheel or two finger trackpad scroll pans; Ctrl/Cmd/Alt + wheel or a trackpad pinch zooms.
 stage.addEventListener('wheel', ev => {
@@ -3943,13 +4084,13 @@ $('#padOk').onclick = () => {
   if (padPts.length < need) { toast('Add at least ' + need + ' points'); return; }
   const d = padPath(padPts, closed) + (padExtra.length ? ' ' + padExtra.join(' ') : '');
   const body = closed ? '<path d="' + d + '" fill="#000"' + (padExtra.length ? ' fill-rule="evenodd"' : '') + '/>' : '<path d="' + d + '" fill="none" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>';
-  // editing one of your shapes updates it everywhere; editing a built in shape makes an edited copy
-  const inPlace = padEdit && !padEdit.builtin && SHAPES[padEdit.id];
+  // editing any shape updates it everywhere it is used; a built in shape can be reset to its original
+  const inPlace = padEdit && SHAPES[padEdit.id];
   try {
     const rec = processSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">' + body + '</svg>', padEdit ? padEdit.name + (inPlace ? '' : ' (edited)') : 'Drawn ' + shapeSeq, { inheritSW: !closed, id: inPlace ? padEdit.id : undefined });
-    if (inPlace) Object.keys(MORPHS).forEach(k => delete MORPHS[k]);
-    const wasEdit = !!padEdit;
-    addShape(rec); $('#drawModal').classList.remove('open'); if (wasEdit) toast(inPlace ? 'Shape updated' : 'Saved as a new shape under Your shapes');
+    if (inPlace) shapeChanged();
+    const wasEdit = !!padEdit, wasOrig = inPlace && ORIG[rec.id];
+    addShape(rec); $('#drawModal').classList.remove('open'); if (wasEdit) toast(!inPlace ? 'Saved as a new shape under Your shapes' : wasOrig ? rec.name + ' updated everywhere. Shapes has Reset to get the original back.' : 'Shape updated', 4000);
   } catch (e) { toast(e.message, 4000); }
 };
 // While drawing: Delete/Backspace removes the selected (or last) point, Enter adds the shape, Ctrl/Cmd+Z removes the last point.
@@ -4041,7 +4182,7 @@ function editShape(id) {
   const cs = shapeContours(sh).sort((a, b) => contourArea(b) - contourArea(a));
   if (!cs.length) { toast('This shape has no outline that can be edited.'); return; }
   padPts = cs[0].pts; padShut = cs[0].closed; padExtra = cs.slice(1).map(c => padPath(c.pts, c.closed)); padSel = -1; padAct = null;
-  padEdit = { id: id, name: sh.name, builtin: sh.builtin };
+  padEdit = { id: id, name: sh.name };
   $('#padClosed').checked = cs.some(c => c.filled);
   $('#padTitle').textContent = 'Edit shape: ' + sh.name; $('#padOk').textContent = 'Save shape';
   $('#drawModal').classList.add('open'); requestAnimationFrame(padDraw);
@@ -4136,6 +4277,7 @@ document.addEventListener('keydown', ev => {
   if (ev.key === 'Escape') { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); if (cropMode) setCrop(false); if (flyGroup) { flyGroup = null; renderShapes(); } if (zoneTool) endZoneTool(); if (selZone >= 0 && !typing) selectZone(-1); if (selCtrl >= 0 && !typing) { selCtrl = -1; selKnot = null; buildGradients(); requestRender(); } }
   if (typing || document.querySelector('.modal.open')) return;
   if (zoneTool === 'poly' && ev.key === 'Enter') { ev.preventDefault(); finishPoly(); return; }
+  if (zoneTool === 'poly' && (ev.key === 'Backspace' || ev.key === 'Delete')) { ev.preventDefault(); penUndoPoint(); return; }
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'd') { ev.preventDefault(); duplicateSelection(); return; }
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selZone >= 0 && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { ev.preventDefault(); deleteZone(selZone); return; }
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selCtrl >= 0 && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { ev.preventDefault(); deleteSelection(); return; }
@@ -4168,10 +4310,11 @@ $('#stage').insertAdjacentHTML('afterbegin', '<defs><pattern id="chk" width="10"
 BUILTINS.forEach(b => {
   const isLine = !!b[3] || !!b[4];
   const body = b[4] ? b[4] : isLine ? '<path d="' + b[2] + '" fill="none" stroke="#000" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>' : '<path d="' + b[2] + '" fill="#000" fill-rule="evenodd"/>';
-  try { const rec = processSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' + body + '</svg>', b[1], { id: b[0], builtin: true, inheritSW: isLine }); SHAPES[rec.id] = rec; }
+  try { const rec = processSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' + body + '</svg>', b[1], { id: b[0], builtin: true, inheritSW: isLine }); SHAPES[rec.id] = ORIG[rec.id] = rec; }
   catch (e) { console.error('builtin', b[0], e); }
 });
 buildGroupPick(); buildPresets();
+try { (JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]') || []).forEach(id => { if (ORIG[id]) HIDDEN[id] = 1; }); } catch (e) { }
 let restored = false;
 try { const s = localStorage.getItem('pattern-studio-v1'); if (s) { const o = JSON.parse(s); (o.shapes || []).forEach(sh => { SHAPES[sh.id] = finishShape(Object.assign({ builtin: false }, sh)); }); S.layers = o.layers.map(L => newLayer(L)); S.sel = Math.min(o.sel || 0, S.layers.length - 1); S.region = Object.assign(defaultState().region, o.region); S.exp = Object.assign(defaultState().exp, o.exp); S.ctrls = Array.isArray(o.ctrls) ? o.ctrls : []; S.mix = o.mix || 'max'; S.fx = normFx(o.fx); migrateMods(); S.excl = normZones(o.excl); S.layers.forEach(L => { if (!SHAPES[L.shape]) L.shape = 'comma'; }); restored = true; } } catch (e) { S = defaultState(); }
 rebuildAll(); render(); fit(); pushHistory(true); renderThumbs();
@@ -4231,7 +4374,7 @@ window.PatternStudio = {
   presets() { return PRESETS.map(p => p[0]); },
   async preset(name) { const p = PRESETS.find(q => q[0].toLowerCase() === String(name).toLowerCase()); if (!p) throw new Error('No preset called ' + name); await applyPreset(p); return summary(); },
   /** What can be used in a project. */
-  shapes() { return Object.values(SHAPES).filter(sh => !RETIRED_SHAPES[sh.id]).map(sh => ({ id: sh.id, name: sh.name, kind: sh.kind, line: !!sh.lineArt, builtin: !!sh.builtin })); },
+  shapes() { return Object.values(SHAPES).filter(usable).map(sh => ({ id: sh.id, name: sh.name, kind: sh.kind, line: !!sh.lineArt, builtin: !!ORIG[sh.id], edited: !!isEdited(sh.id) })); },
   groups() { return GROUPS.map(g => ({ id: g.id, cell: ['oblique', 'rectangular', 'centered rectangular', 'square', 'hexagonal'][g.fam], description: g.d })); },
   layouts() { return LAYOUTS.map(l => ({ id: l[0], name: l[1], description: LAYOUT_DESC[l[0]] || '' })); },
   formats() { return EXPORT_FORMATS.slice(); },

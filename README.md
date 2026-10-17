@@ -14,7 +14,7 @@ python3 -m http.server 8000
 
 Then open http://localhost:8000.
 
-Your work autosaves in the browser. Use **Save project** to keep a `.json` file you can reopen anywhere.
+Your work autosaves in the browser's own storage on your device (local storage, not cookies): the pattern, your own shapes, edits to built in shapes and which shapes you deleted. Nothing is sent anywhere. That storage belongs to one browser on one device and is lost if you clear site data, so use **Save project** to keep a `.json` file you can reopen anywhere; it carries your shapes with it.
 
 ## Finding your way around
 
@@ -27,9 +27,9 @@ Your work autosaves in the browser. Use **Save project** to keep a `.json` file 
   * **Shuffle** tries a random symmetry group and motif placement. Undo brings the last one back.
   * **Clear everything** leaves one empty layer with no gradients or effects.
   * **Fit** shows the whole surface, and **View** turns guides on or off: rulers, cell, motif box, gradient handles, symmetry marks, seamless tile and heat map.
-* **Shape tools** run down the left edge of the canvas, like Illustrator's toolbar. Each button is a family (Organic, Geometric, Lines) and shows the shape in use; click it to open the family and pick a shape. The pen button holds **Your shapes**: imported, drawn and text shapes, with Import, Draw and Text.
+* **Shapes** is the top button on the left edge of the canvas. It shows the shape in use; click it to see every shape, divided into Organic, Geometric, Lines and **Your shapes** (imported, drawn and text shapes, with Import, Draw and Text). The shape in use is named at the top with Edit, Delete and, for an edited built in shape, Reset.
 * **Drag and drop shapes** from the rail or a family: drop on the canvas to use it on the selected layer, on a layer in the Layers list to give that layer the shape, or on empty space in the list for a new layer. Crosshatch, flow and Voronoi layers draw lines rather than motifs, so a shape picked or dropped on one goes on a new layer above it.
-* **Keep out** (red, on the rail) adds red keep-out areas where no pieces go: draw a **rectangle** or **ellipse** by dragging, **draw** any outline by clicking points (click the first point, double click or press Enter to finish), or use **any shape** from the library. Drag an area to move it, its corner (or its points) to reshape it, and press Delete to remove it. In the Keep out panel each area can be hidden, duplicated or deleted, and has a **margin** for extra clear space, a choice between removing pieces that **touch** it or only pieces **centred** in it, and which layers it applies to. Lines in crosshatch and flow layouts break around the areas, and exports follow them.
+* **Keep out** (red, on the rail) adds red keep-out areas where no pieces go: draw a **rectangle** or **ellipse** by dragging, **draw** any outline with the same pen tool as Draw a shape (click for a corner, click and drag for a curve, Shift for 45°, click the first point or press Enter to finish, Backspace removes the last point, Esc cancels), or use **any shape** from the library. Drag an area to move it, its corner to resize it, and press Delete to remove it. On a drawn area drag its points and curve handles to reshape it (Alt/Option drag bends a handle on its own) and Alt/Option click a point to switch it between corner and curve. In the Keep out panel each area can be hidden, duplicated or deleted, and has a **margin** for extra clear space, a choice between removing pieces that **touch** it or only pieces **centred** in it, and which layers it applies to. Lines in crosshatch and flow layouts break around the areas, and exports follow them.
 * **Motif** (bottom of the rail) opens the motif panel next to the shape tools: position, size, turn, stretch, flip, Edit shape outline and Bake cell. It stays open on wide screens and floats over the canvas on phones.
 * **Rulers** along the top and left of the canvas are in millimetres, with 0 at the surface's top left corner.
 * **Settings panel**, with one tab per job: **Layout** (layers and how copies are arranged), **Effects** (gradients and what they do), **Style** (colour, surface), **Presets** and **Export**. The app opens on Layout with a plain pattern and no gradients; presets are optional and sit in their own tab.
@@ -121,8 +121,10 @@ The effects are:
 
 ## Shapes
 
-* 20 built in shapes in three families on the left tool rail: **Organic** (comma, leaf, drop, crescent, wave scale), **Geometric** (dot, ellipse, pill, bar, square, triangle, hexagon, star, ring, plus, L) and **Lines** (line, wave, arc, hook).
-* **Edit any shape:** open it in the pen tool with **Edit shape outline** (Motif tab) or the **Edit** button in a shape family. Curves and arcs become editable points and handles. Editing one of your shapes updates it everywhere; editing a built in shape saves an edited copy under Your shapes. Holes and extra parts are kept as they are.
+* 19 built in shapes under **Shapes** on the left tool rail: **Organic** (comma, leaf, drop, crescent, wave scale), **Geometric** (dot, ellipse, pill, square, triangle, hexagon, star, ring, plus, L) and **Lines** (line, wave, arc, hook). For a bar, use a pill with Stretch, or a line.
+* **Edit any shape:** open it in the pen tool with **Edit shape outline** (Motif tab) or the **Edit** button in a shape family. Curves and arcs become editable points and handles. Every shape edits in place and updates everywhere it is used, built in ones included; an edited built in shape gets a small dot and a **Reset** button that brings back the original. Holes and extra parts are kept as they are.
+* **Delete any shape:** hover a shape under Shapes and click ✕ (on a phone, select it first), or use Delete at the top of the panel. Layers that used it switch to another shape. Undo brings it back. Deleted built in shapes are only hidden, so presets and saved patterns that use them still work, and **Restore** in their group brings them back.
+* Hover a shape for ✎ to open it straight in the pen tool.
 * **Import:** SVG, PNG, JPG, GIF, WebP, BMP, AVIF and DXF. You can also paste SVG code or a path `d` string.
 * **Draw** your own shape with a pen tool that works like Illustrator's: click for a corner, click and drag for a curve, click the first point to close. Drag points and handles to refine; Alt/Option drag a handle to break it, Alt/Option click a point to switch corner and smooth, Shift for 45° steps.
 * **Text:** converted to outlines by default.
