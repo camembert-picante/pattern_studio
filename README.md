@@ -87,18 +87,18 @@ Each controller has a reach, a falloff curve (linear, smooth, ease, step), inver
 
 ## Effects
 
-Effects work like layer effects in Photoshop. Add them in the **Effects** tab; each one is a card you can expand, turn off, reorder or delete.
+Effects work like layer effects in Photoshop. Add them with **+ Add effect** in the **Effects** tab; the menu says what each one does. Each effect is a card you can expand, hide with its eye, move up or delete. If there is no gradient yet, the first effect adds a point gradient you can drag.
 
-* **Driven by:** all gradients, or only the ones you tick.
-* **Applies to:** all layers, or only the ones you tick. Layers with effects show an **fx** badge in the layer list.
+* **Driven by:** all gradients, or only the ones you pick. While a card is open, gradients that don't drive it are dimmed on the canvas.
+* **Applies to:** all layers, or only the ones you pick. Layers with effects show an **fx** badge in the layer list.
 * **Stacking:** several effects can stack, even of the same kind, for example size from a point on one layer and colour from a ramp on all of them.
 
 The effects are:
 * **Size**, from a far scale to a near scale. Line layouts vary line width; Voronoi varies stone size.
 * **Spacing**, which packs pieces denser or spreads them sparser near a controller, like a lens.
-* **Rotation**, and **Face the gradient**, which turns pieces to point along it.
-* **Opacity**. In the displacement map this becomes grey levels.
-* **Feather**, which fades pieces to transparent as the gradient runs out, so its edge dissolves instead of stopping. Feather width sets how much of the weak end fades.
+* **Rotation**, which turns pieces more the closer they are.
+* **Face the source**, which turns every piece to point at the nearest gradient (or along a ramp). It shows nothing on round shapes like Dot.
+* **Opacity**, with **Fade over**: at 100% pieces fade evenly across the gradient; lower values keep them solid and fade only the weak end, so the gradient's edge dissolves like a feather. In the displacement map opacity becomes grey levels.
 * **Drop out**, either below a threshold or by random thinning (dither).
 * **Colour**, from a far colour to each layer's fill colour.
 * **Morph shape**, which blends one shape into another across the gradient (for example a square into a star).
@@ -142,7 +142,7 @@ If a STEP file won't open, switch the CAD import mode between Solid and Surface.
 
 ## Limits
 
-* A seamless tile exists only for wallpaper layouts at rotation 0° or 90°, with no active gradients and no feather.
+* A seamless tile exists only for wallpaper layouts at rotation 0° or 90°, with no active effects and no edge feather.
 * The perforated plate needs pieces that don't overlap each other.
 * Morphing uses each shape's outer outline, so holes inside a shape are not morphed.
 * Very dense patterns stop at about 60,000 pieces. Increase the spacing, or split the surface into parts.

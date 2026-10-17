@@ -192,17 +192,16 @@ To point an effect at particular gradients or layers, give those gradients and l
 
 | `kind` | `p` | Effect |
 |---|---|---|
-| `size` | `min` (far), `max` (near) | Scale. Line layouts vary width; voronoi varies stone size |
-| `spacing` | `amt` (-0.9 denser … 0.9 sparser) | Packs pieces closer or spreads them near gradients |
+| `size` | `min` (far), `max` (near) | Size. Line layouts vary width; voronoi varies stone size |
+| `spacing` | `amt` (-0.9 denser … 0.9 sparser) | Density: packs pieces closer or spreads them near gradients |
 | `rot` | `deg` | Turn pieces near gradients |
-| `align` | `off` | Point pieces along the gradient (plus an offset) |
-| `opacity` | `min` (far opacity) | Fade |
-| `feather` | `w` (0.05 to 1) | Fade to nothing where the gradient dies |
+| `align` | `off` (0 points at the source, 90 runs around it, 180 points away) | Face the source: every piece turns to point at the nearest point, line or curve gradient, or along a ramp |
+| `opacity` | `min` (far opacity), `w` (fade over, 0.05 to 1) | Fade. With `w` 1 the fade runs evenly across the gradient; lower values keep pieces solid and fade only the weak end, like a feathered edge |
 | `drop` | `mode` (`threshold` or `dither`), `t` | Remove pieces where the gradient is weak |
 | `color` | `c2` (far colour) | Blend from `c2` to each layer's `fill` |
 | `morph` | `shape`, `steps` | Morph into another shape across the gradient |
 
-`rot`, `align` and `morph` act on shape layers only. Older projects stored responses per layer as `"mod": { "size": { "on": true, … } }`; those still load and become effects for that layer.
+`rot`, `align` and `morph` act on shape layers only. Older projects stored responses per layer as `"mod": { "size": { "on": true, … } }`, and had a separate `feather` kind (now `opacity` with `w`); those still load and become effects for that layer.
 
 ### Gradients: `ctrls[]` and `mix`
 
@@ -262,7 +261,7 @@ Define your own with `svgShapes`, then use the id like any other:
 { "region": { "W": 220, "H": 70, "shape": "rounded", "radius": 14, "edge": "inside" },
   "ctrls": [ { "type": "ramp", "x1": 10, "y1": 35, "x2": 210, "y2": 35 } ],
   "layers": [ { "group": "p1", "shape": "pill", "cellW": 10, "bLen": 6, "angle": 63.4, "mx": 0, "my": 0, "size": 8 } ],
-  "fx": [ { "kind": "size", "p": { "min": 0.3, "max": 1 } }, { "kind": "feather", "p": { "w": 0.3 } } ] }
+  "fx": [ { "kind": "size", "p": { "min": 0.3, "max": 1 } }, { "kind": "opacity", "p": { "min": 0, "w": 0.3 } } ] }
 ```
 
 **Two layers, one effect each**

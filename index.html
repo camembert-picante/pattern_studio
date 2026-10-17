@@ -150,19 +150,36 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
 .layer.sel{border-color:var(--accent);background:var(--sel)}
 .layer .sw{width:18px;height:18px;border-radius:5px;border:1px solid var(--line-strong);flex:none}
 .layer .nm{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.layer .eye{border:0;background:none;padding:0 4px;min-height:28px;color:var(--muted)}
+.layer .eye,.fxHead .eye{border:0;background:none;padding:0;width:30px;min-height:30px;color:var(--muted);border-radius:6px}
+.layer .eye:hover,.fxHead .eye:hover{background:var(--chip-hover);color:var(--ink)}
+.layer .eye svg.i,.fxHead .eye svg.i{width:17px;height:17px}
+.eye[aria-pressed="false"]{color:var(--line-strong)}
+.fxMenu{margin-bottom:2px}
+.fxMenu>summary.primaryish{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:650}
+.fxMenu .menuList{width:min(320px,calc(100vw - 40px))}
+.fxItem{justify-content:flex-start;align-items:flex-start;gap:10px;text-align:left;white-space:normal;padding:8px 10px;min-height:0}
+.fxItem svg.i{margin-top:2px;color:var(--accent)}
+.fxItem span{display:flex;flex-direction:column;gap:2px}
+.fxItem small{color:var(--muted);font-size:11.5px;font-weight:400}
+.fxIco{width:28px;height:28px;border-radius:7px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
+.fxIco svg.i{width:16px;height:16px}
+.fxName em{font-style:normal;font-weight:400;color:var(--accent);font-size:12px}
+.chev{width:8px;height:8px;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(45deg);margin:0 4px 3px 2px;flex:none}
+.chev.up{transform:rotate(-135deg);margin:3px 4px 0 2px}
+.pills{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:10px}
+.pillsT{width:100%;font-weight:600;font-size:12px}
+.pill{min-height:28px;padding:0 10px;border-radius:999px;font-size:12px;background:transparent;color:var(--muted)}
+.pill.on{background:var(--sel);border-color:var(--accent);color:var(--ink)}
 .fxBadge{min-height:22px;padding:0 6px;font-size:11px;font-style:italic;font-weight:650;border-radius:6px;background:var(--accent-soft);border-color:transparent;color:var(--accent)}
 .fxList{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .fx{border:1px solid var(--line);border-radius:8px;background:var(--field)}
 .fx.open{border-color:var(--line-strong)}
 .fx.off .fxName{opacity:.5}
 .fxHead{display:flex;align-items:center;gap:6px;padding:6px 8px;cursor:pointer;min-height:40px}
-.fxHead .eye{border:0;background:none;padding:0 4px;min-height:28px;color:var(--muted)}
 .fxName{flex:1;min-width:0;display:flex;flex-direction:column;font-weight:600}
 .fxName small{font-weight:400;color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fxBody{padding:2px 10px 10px;border-top:1px solid var(--line)}
-.fxPick{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin-top:8px;font-size:12px;color:var(--muted)}
-.fxPickT{width:100%;color:var(--ink);font-weight:600;font-size:12px}
+
 
 /* ---------- modals, toast ---------- */
 .modal{position:fixed;inset:0;background:rgba(2,8,5,.6);display:none;align-items:center;justify-content:center;z-index:20;padding:12px}
@@ -1484,26 +1501,38 @@ function buildField(only) {
     }
     return q;
   };
-  return { active: true, v: v, grad: grad, warp: warp, maxWarp: Math.max.apply(null, comp.map(k => k.R)) * 0.25 + Math.max(W, H) * 0.05 };
+  // direction toward the nearest source (points, lines, curves), the ramp's direction, or else uphill
+  const dir = p => {
+    let best = null, bd = Infinity;
+    for (const k of comp) { if (!k.near) continue; const n = k.near(p), d = Math.hypot(n[0] - p[0], n[1] - p[1]); if (d > 1e-9 && d < bd) { bd = d; const sg = k.c.invert ? -1 : 1; best = [(n[0] - p[0]) * sg, (n[1] - p[1]) * sg]; } }
+    if (best) return best;
+    const r = comp.find(k => k.c.type === 'ramp'); if (r) { const sg = r.c.invert ? -1 : 1; return [(r.c.x2 - r.c.x1) * sg, (r.c.y2 - r.c.y1) * sg]; }
+    return grad(p);
+  };
+  return { active: true, v: v, grad: grad, dir: dir, warp: warp, maxWarp: Math.max.apply(null, comp.map(k => k.R)) * 0.25 + Math.max(W, H) * 0.05 };
 }
 
 /* ---------- effects ---------- */
 // Like Photoshop layer effects: each effect is one response (size, rotation, colour…) driven by some or all gradients,
 // applied to some or all layers. Several effects of the same kind stack.
 const FX_KINDS = {
-  size: { label: 'Size', p: { min: 0.3, max: 1 } },
-  spacing: { label: 'Spacing', p: { amt: -0.5 } },
-  rot: { label: 'Rotation', p: { deg: 90 }, shapes: true },
-  align: { label: 'Face the gradient', p: { off: 0 }, shapes: true },
-  opacity: { label: 'Opacity', p: { min: 0.2 } },
-  feather: { label: 'Feather', p: { w: 0.35 } },
-  drop: { label: 'Drop out', p: { mode: 'threshold', t: 0.3 } },
-  color: { label: 'Colour', p: { c2: '#e8b04a' } },
-  morph: { label: 'Morph shape', p: { shape: 'star', steps: 10 }, shapes: true }
+  size: { label: 'Size', desc: 'Bigger near the gradient, smaller far from it', p: { min: 0.3, max: 1 }, icon: '<circle cx="6" cy="12" r="2"/><circle cx="16" cy="12" r="5"/>' },
+  spacing: { label: 'Density', desc: 'Packs pieces closer, or spreads them, near the gradient', p: { amt: -0.5 }, icon: '<circle cx="5" cy="12" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="14.5" cy="12" r="1.3"/><circle cx="16.5" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/>' },
+  rot: { label: 'Rotation', desc: 'Turns pieces more the closer they are', p: { deg: 90 }, shapes: true, icon: '<path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19 4v4h-4"/>' },
+  align: { label: 'Face the source', desc: 'Turns every piece to point at the nearest gradient', p: { off: 0 }, shapes: true, icon: '<circle cx="12" cy="12" r="2"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>' },
+  opacity: { label: 'Opacity', desc: 'Fades pieces where the gradient is weak; set how far the fade reaches', p: { min: 0.2, w: 1 }, icon: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 20 20 4" opacity=".5"/>' },
+  drop: { label: 'Drop out', desc: 'Removes pieces where the gradient is weak', p: { mode: 'threshold', t: 0.3 }, icon: '<circle cx="7" cy="12" r="2.5"/><circle cx="17" cy="12" r="2.5" stroke-dasharray="2 2"/>' },
+  color: { label: 'Colour', desc: 'Blends from a far colour to each layer’s own colour', p: { c2: '#e8b04a' }, icon: '<path d="M12 4a8 8 0 1 0 0 16c1 0 1.5-.7 1.5-1.4 0-1.2-1.1-1.3-1.1-2.5 0-.9.7-1.4 1.6-1.4H16a4 4 0 0 0 4-4C20 7 16.4 4 12 4z"/>' },
+  morph: { label: 'Morph shape', desc: 'Turns one shape into another across the gradient', p: { shape: 'star', steps: 10 }, shapes: true, icon: '<rect x="3" y="8" width="7" height="7" rx="1"/><path d="M17 6l1.5 3.2 3.5.4-2.6 2.3.7 3.4-3.1-1.7-3.1 1.7.7-3.4L12 9.6l3.5-.4z"/>' }
 };
+// Older "feather" effects were opacity that only fades the weak end of the gradient.
+const fromFeather = p => ({ min: 0, w: p && p.w != null ? p.w : 0.35 });
+const fxIcon = k => '<svg class="i" viewBox="0 0 24 24">' + (FX_KINDS[k] ? FX_KINDS[k].icon : '') + '</svg>';
+const EYE = on => '<svg class="i" viewBox="0 0 24 24">' + (on ? '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>' : '<path d="M3 3l18 18"/><path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.7 8.4 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/>') + '</svg>';
+function eyeBtn(on, title, onclick) { const b = E('button', { class: 'eye', title: title, 'aria-label': title, 'aria-pressed': on ? 'true' : 'false', onclick: onclick }); b.innerHTML = EYE(on); return b; }
 const newFxId = () => 'fx' + Math.random().toString(36).slice(2, 8);
 function normFx(list) {
-  return (Array.isArray(list) ? list : []).filter(e => e && FX_KINDS[e.kind]).map(e => ({
+  return (Array.isArray(list) ? list : []).filter(e => e && (FX_KINDS[e.kind] || e.kind === 'feather')).map(e => e.kind === 'feather' ? Object.assign({}, e, { kind: 'opacity', p: fromFeather(e.p) }) : e).map(e => ({
     id: e.id || newFxId(), kind: e.kind, on: e.on !== false, p: Object.assign({}, FX_KINDS[e.kind].p, e.p || {}),
     src: Array.isArray(e.src) ? e.src.slice() : 'all', layers: Array.isArray(e.layers) ? e.layers.slice() : 'all'
   }));
@@ -1512,9 +1541,9 @@ function normFx(list) {
 function migrateMods() {
   if (!Array.isArray(S.fx)) S.fx = [];
   S.layers.forEach(L => Object.keys(L.mod || {}).forEach(k => {
-    const m = L.mod[k]; if (!m || !m.on || !FX_KINDS[k]) return;
-    const p = Object.assign({}, m); delete p.on;
-    S.fx.push({ id: newFxId(), kind: k, on: true, p: Object.assign({}, FX_KINDS[k].p, p), src: 'all', layers: [L.id] }); m.on = false;
+    const m = L.mod[k]; if (!m || !m.on || !(FX_KINDS[k] || k === 'feather')) return;
+    const p = Object.assign({}, m); delete p.on; const kind = k === 'feather' ? 'opacity' : k;
+    S.fx.push({ id: newFxId(), kind: kind, on: true, p: Object.assign({}, FX_KINDS[kind].p, k === 'feather' ? fromFeather(p) : p), src: 'all', layers: [L.id] }); m.on = false;
   }));
 }
 const fxTargets = (e, L) => e.layers === 'all' || e.layers.includes(L.id);
@@ -1548,8 +1577,7 @@ function respond(L, F, R, reg, c, key) {
     const v = e.F.v(c);
     if (e.kind === 'drop') { if (p.mode === 'dither' ? rnd01(key[0], key[1], key[2] + 17 + e.n) > v : v < p.t) return null; }
     else if (e.kind === 'size') s *= p.min + (p.max - p.min) * v;
-    else if (e.kind === 'opacity') op *= p.min + (1 - p.min) * v;
-    else if (e.kind === 'feather') op *= CURVES.smooth(clamp(v / Math.max(0.01, p.w), 0, 1)); // fade out over the weakest part of the gradient
+    else if (e.kind === 'opacity') { const w = p.w == null ? 1 : p.w; op *= p.min + (1 - p.min) * (w >= 1 ? v : CURVES.smooth(clamp(v / Math.max(0.01, w), 0, 1))); } // w < 1 fades only the weak end
     else if (e.kind === 'rot') rot += p.deg * v;
     else if (e.kind === 'color') col = lerpColor(p.c2, col || L.fill, v);
     else if (e.kind === 'morph') mv = v;
@@ -1570,7 +1598,7 @@ function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
     if (warps && it.warp !== false) c = fxWarp(L, c);
     const r = respond(L, F, R, reg, c, [it.i, it.j, it.k]); if (!r) continue;
     let A = [T[0] * r.s, T[1] * r.s, T[2] * r.s, T[3] * r.s], rot = r.rot;
-    if (al) { const g = al.F.grad(c); if (g) rot += (Math.atan2(g[1], g[0]) - Math.atan2(A[1], A[0])) / D2R + al.p.off; }
+    if (al) { const g = al.F.dir(c); if (g) rot += (Math.atan2(g[1], g[0]) - Math.atan2(A[1], A[0])) / D2R + al.p.off; }
     if (rot) A = Af.mul(Af.R(rot), A.concat([0, 0])).slice(0, 4);
     const T2 = [A[0], A[1], A[2], A[3], c[0], c[1]];
     const m = morph ? Math.round(r.v * (morph.length - 1)) : -1;
@@ -1759,7 +1787,7 @@ function flowLines(L, reg, F) {
 }
 function strokesToPolys(L, idx, lines, F, R, reg, mode) {
   const warps = fxKind(L, 'spacing').length > 0, base = Math.max(0.02, L.lay.width), out = [];
-  const varies = fxOf(L).some(e => e.kind === 'color' || e.kind === 'opacity' || e.kind === 'feather') || (R.featherOn && /fade/.test(R.featherMode));
+  const varies = fxOf(L).some(e => e.kind === 'color' || e.kind === 'opacity') || (R.featherOn && /fade/.test(R.featherMode));
   const CH = 8;
   lines.forEach((ln, li) => {
     const pts = warps ? ln.pts.map(p => fxWarp(L, p)) : ln.pts;
@@ -2019,8 +2047,9 @@ const HANDLE_R = matchMedia('(pointer: coarse)').matches ? 10 : 6; // bigger dra
 function drawCtrls(px) {
   let s = '';
   (S.ctrls || []).forEach((c, ci) => {
-    const on = ci === selCtrl, col = on ? 'var(--ov)' : 'var(--glide)', op = c.on ? 1 : 0.4;
-    const hd = (p, key) => { HANDLES.push({ x: p[0], y: p[1], ci: ci, key: key }); s += '<circle cx="' + fmt(p[0]) + '" cy="' + fmt(p[1]) + '" r="' + fmt(HANDLE_R * px) + '" fill="var(--panel)" stroke="' + col + '" stroke-width="2" vector-effect="non-scaling-stroke" opacity="' + op + '"/>'; };
+    const openFx = (S.fx || []).find(e => fxOpen.has(e.id)), drives = !openFx || openFx.src === 'all' || openFx.src.includes(c.id);
+    const on = ci === selCtrl, col = on ? 'var(--ov)' : 'var(--glide)', op = (c.on ? 1 : 0.4) * (drives ? 1 : 0.25);
+    const hd = (p, key) => { HANDLES.push({ x: p[0], y: p[1], ci: ci, key: key }); s += '<circle cx="' + fmt(p[0]) + '" cy="' + fmt(p[1]) + '" r="' + fmt(HANDLE_R * px) + '" fill="#fff" stroke="' + col + '" stroke-width="2" vector-effect="non-scaling-stroke" opacity="' + op + '"/>'; };
     const zone = (d, w) => { s += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-opacity="' + (0.09 * op) + '" stroke-width="' + fmt(w) + '" stroke-linecap="round" stroke-linejoin="round"/>'; };
     const ln = (d, dash) => { s += '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.6" vector-effect="non-scaling-stroke" opacity="' + op + '"' + (dash ? ' stroke-dasharray="5 4"' : '') + '/>'; };
     const label = (p, t) => { s += '<text x="' + fmt(p[0] + 9 * px) + '" y="' + fmt(p[1] - 9 * px) + '" font-size="' + fmt(11 * px) + '" fill="' + col + '" opacity="' + op + '" font-family="system-ui,sans-serif" font-weight="600">' + esc(t) + '</text>'; };
@@ -2300,53 +2329,75 @@ function fxSummary(e) {
   return src + ' → ' + lys;
 }
 function addFx(kind) {
+  // an effect needs something to follow: the first one brings a point gradient along
+  if (!S.ctrls.length) { S.ctrls.push(newCtrl('point')); selCtrl = 0; show.grad = true; $('#oGrad').classList.add('on'); buildGradients(); toast('Added a point gradient in the middle to drive it. Drag it on the canvas.', 4200); }
   const e = { id: newFxId(), kind: kind, on: true, p: Object.assign({}, FX_KINDS[kind].p), src: 'all', layers: 'all' };
   S.fx.push(e); fxOpen.add(e.id); buildResponse(); renderLayers(); requestRender(); pushHistory();
 }
-// "All" plus one tick box per item; unticking from "All" starts from every item ticked.
-function pickList(title, items, get, set) {
-  const wrap = E('div', { class: 'fxPick' }, E('span', { class: 'fxPickT' }, title));
-  const all = get() === 'all';
-  wrap.append(chk('All', () => all, v => { set(v ? 'all' : items.map(it => it[0])); buildResponse(); }));
-  if (!all) items.forEach(it => wrap.append(chk(it[1], () => get().includes(it[0]), v => { const keep = get().filter(x => x !== it[0]); if (v) keep.push(it[0]); set(keep); buildResponse(); })));
+// Pills: "All" plus one per item. Picking an item while "All" is on narrows to that item; emptying the list goes back to All.
+function pickPills(title, items, get, set) {
+  const v = get(), all = v === 'all', wrap = E('div', { class: 'pills' }, E('span', { class: 'pillsT' }, title));
+  const pill = (label, on, fn) => E('button', { class: 'pill' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', onclick: fn }, label);
+  wrap.append(pill('All', all, () => { set('all'); fxChanged(); }));
+  items.forEach(it => wrap.append(pill(it[1], !all && v.includes(it[0]), () => {
+    let nv = all ? [it[0]] : (v.includes(it[0]) ? v.filter(x => x !== it[0]) : v.concat([it[0]]));
+    set(nv.length ? nv : 'all'); fxChanged();
+  })));
   return wrap;
+}
+function fxChanged() { buildResponse(); renderLayers(); requestRender(); pushHistory(); }
+function fxWhat(e) {
+  const p = e.p, pc = x => Math.round(x * 100) + '%';
+  return e.kind === 'size' ? pc(p.min) + ' → ' + pc(p.max) : e.kind === 'spacing' ? (p.amt < 0 ? 'denser' : 'sparser') + ' ' + pc(Math.abs(p.amt)) : e.kind === 'rot' ? p.deg + '°' : e.kind === 'align' ? (p.off ? 'offset ' + p.off + '°' : 'pointing in')
+    : e.kind === 'opacity' ? pc(p.min) + ' far' + (p.w < 1 ? ', fade over ' + pc(p.w) : '') : e.kind === 'drop' ? (p.mode === 'dither' ? 'thinning' : 'below ' + pc(p.t)) : e.kind === 'color' ? 'from ' + p.c2 : e.kind === 'morph' ? 'to ' + ((SHAPES[p.shape] || {}).name || p.shape) : '';
 }
 function buildResponse() {
   const box = $('#secResp'); box.innerHTML = '';
-  if (!(S.ctrls || []).length) box.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Effects need a gradient to follow. Add a point, line, ramp or other gradient above, then add effects here.'));
-  box.append(E('div', { class: 'btns', style: 'margin-top:0' }, ...Object.keys(FX_KINDS).map(k => E('button', { class: 'mini', onclick: () => addFx(k) }, '+ ' + FX_KINDS[k].label))));
-  if (!S.fx.length) { box.append(E('p', { class: 'hint' }, 'Each effect works on every layer unless you narrow it down, and several effects can stack, like layer effects in Photoshop.')); return; }
-  const list = E('div', { class: 'fxList' });
+  // + Add effect: one button, a menu that says what each effect does
+  const menu = E('details', { class: 'menu fxMenu' }, E('summary', { class: 'primaryish' }, '+ Add effect'));
+  const list = E('div', { class: 'menuList left' });
+  Object.keys(FX_KINDS).forEach(k => { const it = E('button', { class: 'fxItem', onclick: () => { menu.open = false; addFx(k); } }); it.innerHTML = fxIcon(k) + '<span><b>' + FX_KINDS[k].label + '</b><small>' + FX_KINDS[k].desc + '</small></span>'; list.append(it); });
+  menu.append(list); box.append(menu);
+  if (!S.fx.length) { box.append(E('p', { class: 'hint' }, S.ctrls.length ? 'Effects decide what the gradients do. Each one works on every layer unless you narrow it down, and several can stack, like layer effects in Photoshop.' : 'Effects make pieces respond to gradients: bigger, turned, faded, recoloured… Adding the first effect also places a point gradient you can drag.')); return; }
+  const cards = E('div', { class: 'fxList' });
   S.fx.forEach((e, i) => {
     const K = FX_KINDS[e.kind], open = fxOpen.has(e.id), P = k => () => e.p[k], Q = k => v => { e.p[k] = v; };
     const card = E('div', { class: 'fx' + (e.on ? '' : ' off') + (open ? ' open' : '') });
-    card.append(E('div', { class: 'fxHead', onclick: () => { open ? fxOpen.delete(e.id) : fxOpen.add(e.id); buildResponse(); } },
-      E('button', { class: 'eye', title: e.on ? 'Turn off' : 'Turn on', onclick: ev => { ev.stopPropagation(); e.on = !e.on; buildResponse(); renderLayers(); requestRender(); pushHistory(); } }, e.on ? '●' : '○'),
-      E('span', { class: 'fxName' }, K.label, E('small', {}, fxSummary(e))),
-      E('button', { class: 'eye', title: 'Move up', onclick: ev => { ev.stopPropagation(); if (i > 0) { [S.fx[i - 1], S.fx[i]] = [S.fx[i], S.fx[i - 1]]; buildResponse(); requestRender(); pushHistory(); } } }, '↑'),
-      E('button', { class: 'eye', title: 'Delete effect', onclick: ev => { ev.stopPropagation(); S.fx.splice(i, 1); buildResponse(); renderLayers(); requestRender(); pushHistory(); } }, '✕')));
+    const ico = E('span', { class: 'fxIco' }); ico.innerHTML = fxIcon(e.kind);
+    const iconBtn = (title, path, fn, dis) => { const bt = E('button', { class: 'eye', title: title, 'aria-label': title, onclick: ev => { ev.stopPropagation(); fn(); } }); bt.innerHTML = '<svg class="i" viewBox="0 0 24 24">' + path + '</svg>'; if (dis) bt.disabled = true; return bt; };
+    card.append(E('div', { class: 'fxHead', onclick: () => { open ? fxOpen.delete(e.id) : fxOpen.add(e.id); buildResponse(); requestRender(); } },
+      ico,
+      E('span', { class: 'fxName' }, E('span', {}, K.label, E('em', {}, ' ' + fxWhat(e))), E('small', {}, fxSummary(e))),
+      eyeBtn(e.on, e.on ? 'Hide this effect' : 'Show this effect', ev => { ev.stopPropagation(); e.on = !e.on; fxChanged(); }),
+      iconBtn('Move up', '<path d="M12 19V5M6 11l6-6 6 6"/>', () => { [S.fx[i - 1], S.fx[i]] = [S.fx[i], S.fx[i - 1]]; fxChanged(); }, i === 0),
+      iconBtn('Delete effect', '<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>', () => { S.fx.splice(i, 1); fxOpen.delete(e.id); fxChanged(); }),
+      E('span', { class: 'chev' + (open ? ' up' : '') })));
     if (open) {
       const body = E('div', { class: 'fxBody' });
-      if (e.kind === 'size') body.append(numRow('Far ×', P('min'), Q('min'), 0, 3, 0.01, '', 'Scale where the gradient is 0'), numRow('Near ×', P('max'), Q('max'), 0, 3, 0.01, '', 'Scale where the gradient is 1'));
+      body.append(E('p', { class: 'hint', style: 'margin-top:6px' }, K.desc + '.'));
+      if (e.kind === 'size') body.append(numRow('Far size', P('min'), Q('min'), 0, 3, 0.01, '×', 'Scale where the gradient is 0'), numRow('Near size', P('max'), Q('max'), 0, 3, 0.01, '×', 'Scale where the gradient is 1'));
       if (e.kind === 'spacing') body.append(numRow('Denser ← → sparser', P('amt'), Q('amt'), -0.9, 0.9, 0.01, '', 'Negative packs pieces closer near the gradient, positive spreads them'));
       if (e.kind === 'rot') body.append(numRow('Turn near', P('deg'), Q('deg'), -360, 360, 1, '°'));
-      if (e.kind === 'align') body.append(numRow('Offset', P('off'), Q('off'), -180, 180, 1, '°', '0 = point up the gradient, 90 = run along it'));
-      if (e.kind === 'opacity') body.append(numRow('Far opacity', P('min'), Q('min'), 0, 1, 0.01, ''));
-      if (e.kind === 'feather') body.append(numRow('Feather width', P('w'), Q('w'), 0.05, 1, 0.01, '', 'How much of the weak end fades to transparent. 1 = fade across the whole gradient'));
+      if (e.kind === 'align') body.append(numRow('Turn offset', P('off'), Q('off'), -180, 180, 1, '°', '0 = point at the source, 90 = run around it, 180 = point away'));
+      if (e.kind === 'opacity') body.append(numRow('Far opacity', P('min'), Q('min'), 0, 1, 0.01, ''), numRow('Fade over', P('w'), Q('w'), 0.05, 1, 0.01, '', '1 = fade evenly across the whole gradient. Lower values keep pieces solid and fade only the weak end, like a feathered edge'));
       if (e.kind === 'drop') { body.append(line(E('label', {}, 'Mode'), sel([['threshold', 'Below a threshold'], ['dither', 'Random thinning (dither)']], P('mode'), v => { e.p.mode = v; buildResponse(); }))); if (e.p.mode === 'threshold') body.append(numRow('Threshold', P('t'), Q('t'), 0, 1, 0.01, '')); }
       if (e.kind === 'color') body.append(line(E('label', {}, 'Far colour'), color(P('c2'), Q('c2')), E('span', { class: 'hint' }, '→ near = each layer’s fill colour')));
       if (e.kind === 'morph') {
         const closed = Object.values(SHAPES).filter(sh => mainLoop(sh) && !RETIRED_SHAPES[sh.id]);
         body.append(line(E('label', {}, 'Morph to'), sel(closed.map(sh => [sh.id, sh.name]), P('shape'), Q('shape'))), numRow('Steps', P('steps'), Q('steps'), 2, 24, 1, ''));
       }
-      if (K.shapes) body.append(E('p', { class: 'hint' }, 'Works on shape layers; line and Voronoi layouts ignore it.'));
-      body.append(pickList('Driven by', S.ctrls.map((c, ci) => [c.id, (ci + 1) + ' ' + CTRL_NAMES[c.type]]), () => e.src, v => { e.src = v; }));
-      body.append(pickList('Applies to', S.layers.map((L, li) => [L.id, 'Layer ' + (li + 1)]), () => e.layers, v => { e.layers = v; renderLayers(); }));
+      if (K.shapes) {
+        const hit = S.layers.filter(L => fxTargets(e, L) && !L.empty);
+        if (hit.some(L => GEOM_LAYOUTS[L.layout])) body.append(E('p', { class: 'hint' }, 'Line and Voronoi layouts ignore this effect.'));
+        if ((e.kind === 'rot' || e.kind === 'align') && hit.some(L => !GEOM_LAYOUTS[L.layout] && (L.shape === 'dot' || L.shape === 'ring'))) body.append(E('p', { class: 'warn' }, 'Round shapes look the same at any angle, so turning them shows nothing. Try Ellipse, Pill or Comma.'));
+      }
+      body.append(pickPills('Driven by', S.ctrls.map((c, ci) => [c.id, (ci + 1) + ' ' + CTRL_NAMES[c.type]]), () => e.src, v => { e.src = v; }));
+      body.append(pickPills('Applies to', S.layers.map((L, li) => [L.id, 'Layer ' + (li + 1)]), () => e.layers, v => { e.layers = v; }));
       card.append(body);
     }
-    list.append(card);
+    cards.append(card);
   });
-  box.append(list);
+  box.append(cards);
 }
 function addCtrl(type) {
   if (type === 'image') { $('#imgIn').click(); return; }
@@ -2360,7 +2411,7 @@ function buildGradients() {
   S.ctrls.forEach((c, i) => {
     box.append(E('div', { class: 'layer' + (i === selCtrl ? ' sel' : ''), onclick: () => { selCtrl = i === selCtrl ? -1 : i; buildGradients(); requestRender(); } },
       E('span', { class: 'nm' }, (i + 1) + ' · ' + CTRL_NAMES[c.type] + (c.invert ? ' (inverted)' : '')),
-      E('button', { class: 'eye', title: c.on ? 'Turn off' : 'Turn on', onclick: ev => { ev.stopPropagation(); c.on = !c.on; buildGradients(); requestRender(); pushHistory(); } }, c.on ? '●' : '○')));
+      eyeBtn(c.on, c.on ? 'Hide this gradient' : 'Show this gradient', ev => { ev.stopPropagation(); c.on = !c.on; buildGradients(); requestRender(); pushHistory(); })));
   });
   if (S.ctrls.length > 1) box.append(line(E('label', {}, 'Combine'), sel([['max', 'Strongest wins'], ['add', 'Add'], ['multiply', 'Multiply'], ['min', 'Weakest wins']], () => S.mix || 'max', v => { S.mix = v; })));
   const c = S.ctrls[selCtrl]; if (!c) return;
@@ -2435,7 +2486,7 @@ function renderLayers() {
       E('span', { class: 'sw', style: 'background:' + L.fill }),
       E('span', { class: 'nm' }, 'Layer ' + (i + 1) + ' · ' + (L.empty ? 'empty' : layoutName(L) + (geomL ? '' : ' · ' + sh.name))),
       (() => { const n = (S.fx || []).filter(e => e.on && fxTargets(e, L)).length; return n ? E('button', { class: 'fxBadge', title: n + ' effect' + (n > 1 ? 's' : '') + ' on this layer', onclick: ev => { ev.stopPropagation(); showTab('grad'); } }, 'fx ' + n) : null; })(),
-      E('button', { class: 'eye', title: L.visible ? 'Hide' : 'Show', onclick: (ev) => { ev.stopPropagation(); L.visible = !L.visible; renderLayers(); requestRender(); pushHistory(); } }, L.visible ? '●' : '○'));
+      eyeBtn(L.visible, L.visible ? 'Hide this layer' : 'Show this layer', ev => { ev.stopPropagation(); L.visible = !L.visible; renderLayers(); requestRender(); pushHistory(); }));
     box.append(row);
   });
 }
