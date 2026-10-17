@@ -28,7 +28,7 @@ Your work autosaves in the browser. Use **Save project** to keep a `.json` file 
   * **Clear everything** leaves one empty layer with no gradients or effects.
   * **Fit** shows the whole surface, and **View** turns guides on or off: rulers, cell, motif box, gradient handles, symmetry marks, seamless tile and heat map.
 * **Shape tools** run down the left edge of the canvas, like Illustrator's toolbar. Each button is a family (Organic, Geometric, Lines) and shows the shape in use; click it to open the family and pick a shape. The pen button holds **Your shapes**: imported, drawn and text shapes, with Import, Draw and Text.
-* **Drag and drop shapes** from the rail or a family: drop on the canvas to use it on the selected layer, on a layer in the Layers list to give that layer the shape, or on empty space in the list for a new layer.
+* **Drag and drop shapes** from the rail or a family: drop on the canvas to use it on the selected layer, on a layer in the Layers list to give that layer the shape, or on empty space in the list for a new layer. Crosshatch, flow and Voronoi layers draw lines rather than motifs, so a shape picked or dropped on one goes on a new layer above it.
 * **Motif** (bottom of the rail) opens the motif panel next to the shape tools: position, size, turn, stretch, flip, Edit shape outline and Bake cell. It stays open on wide screens and floats over the canvas on phones.
 * **Rulers** along the top and left of the canvas are in millimetres, with 0 at the surface's top left corner.
 * **Settings panel**, with one tab per job: **Layout** (layers and how copies are arranged), **Effects** (gradients and what they do), **Style** (colour, surface), **Presets** and **Export**. The app opens on Layout with a plain pattern and no gradients; presets are optional and sit in their own tab.
@@ -44,6 +44,7 @@ It works like Illustrator or Figma:
 | Move the motif | Drag the dashed motif box (or Shift drag anywhere) |
 | Move the whole pattern | Drag the green cell box |
 | Move a gradient | Drag its round handles |
+| Snap to the middle | Handles, the pattern and the motif snap to the surface's centre lines (the motif also to its cell centre), with a pink guide. Hold Alt to drag freely, or turn it off under View → Snap to middle |
 
 On a phone the canvas stays at the top and the settings sit in a sheet below it, with the tabs along the bottom. Tap the open tab again, or the grab bar, to give the canvas the full screen. Drag with one finger to pan or move things, and pinch with two fingers to zoom.
 
@@ -92,7 +93,9 @@ Each controller has a reach, a falloff curve (linear, smooth, ease, step), inver
 Effects work like layer effects in Photoshop. Add them with **+ Add effect** in the **Effects** tab; the menu says what each one does. Each effect is a card you can expand, hide with its eye, move up or delete. If there is no gradient yet, the first effect adds a point gradient you can drag.
 
 * **Driven by:** all gradients, or only the ones you pick. While a card is open, gradients that don't drive it are dimmed on the canvas.
-* **Applies to:** all layers, or only the ones you pick. Each layer in the Layers list shows the effects acting on it, like Photoshop; click one to open it.
+* **Applies to:** all layers, or only the ones you pick.
+* **In the Layers list**, like Photoshop: overall effects sit on an **All layers** row at the top, and each layer lists its own effects underneath it. Drag an effect chip onto another layer to move it there, onto **All layers** to make it overall, or hold Alt while dropping to copy it. Click a chip to open it.
+* **Order:** drag an effect card by its grip in the Effects tab to change the order effects apply in.
 * **Stacking:** several effects can stack, even of the same kind, for example size from a point on one layer and colour from a ramp on all of them.
 
 The effects are:

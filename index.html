@@ -92,8 +92,19 @@ body.motifOpen .motifPanel{display:block}
 .railMotif.open span{color:var(--accent)}
 .dragGhost{position:fixed;z-index:50;width:44px;height:44px;margin:-22px 0 0 -22px;padding:6px;border-radius:10px;background:var(--raise);border:1px solid var(--accent);color:var(--ink);pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:.92}
 .dragGhost svg{width:100%;height:100%;display:block}
+.dragGhost.fxGhost{width:auto;height:auto;margin:-16px 0 0 -16px;padding:5px 10px 5px 7px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;white-space:nowrap}
+.dragGhost.fxGhost svg{width:15px;height:15px;color:var(--accent)}
+body.draggingFx,body.draggingFx *{cursor:grabbing!important}
+body.draggingFx .layerAll,body.draggingFx .layer{outline:1.5px dashed var(--line-strong);outline-offset:-2px}
+.layerAll{display:flex;flex-wrap:wrap;align-items:center;gap:4px 5px;padding:6px 8px;margin:0 0 6px;border:1px dashed var(--line-strong);border-radius:8px;background:var(--field)}
+.laName{font-size:12px;font-weight:600;margin-right:4px}
+.laHint{font-size:11.5px;color:var(--muted)}
+.fxChip{cursor:grab}
+.fxGrip{display:grid;place-items:center;width:18px;height:28px;color:var(--muted);cursor:grab;touch-action:none;flex:none;margin-left:-4px}
+.fxGrip svg.i{width:16px;height:16px;fill:currentColor;stroke:none}
 body.draggingShape,body.draggingShape *{cursor:grabbing!important}
 body.draggingShape .stageWrap,body.draggingShape #layerList{outline:1.5px dashed var(--line-strong);outline-offset:-3px}
+body.draggingShape #layerList::after{content:'+ Drop here for a new layer';display:block;margin-top:4px;padding:10px;text-align:center;font-size:12px;border:1.5px dashed var(--accent);border-radius:8px;color:var(--accent)}
 .dropHot{outline:2px solid var(--accent)!important;outline-offset:-2px!important;background:var(--accent-soft)}
 .layerFx{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:-3px 0 7px 26px;padding:0 0 0 6px;border-left:1.5px solid var(--line)}
 .layerFx.sel{border-left-color:var(--accent)}
@@ -311,6 +322,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
         <div class="menuList">
           <div class="mh">Show on canvas</div>
           <button id="oRul" class="tg on">Rulers</button>
+          <button id="oSnap" class="tg on" title="Dragged handles, the pattern and the motif snap to the middle of the surface (hold Alt to skip)">Snap to middle</button>
           <button id="oCell" class="tg on">Cell <small>drag to move the pattern</small></button>
           <button id="oBox" class="tg on">Motif box <small>drag to move the motif</small></button>
           <button id="oGrad" class="tg on" title="Show gradient controllers and their handles">Gradient handles</button>
@@ -1368,7 +1380,8 @@ function defaultState() {
 }
 let S = defaultState();
 const view = { cx: 100, cy: 75, scale: 3 };
-const show = { cell: true, marks: false, tile: false, box: true, grad: true, field: false, rulers: true };
+const show = { cell: true, marks: false, tile: false, box: true, grad: true, field: false, rulers: true, snap: true };
+let snapGuide = null; // { x, y } guide lines drawn while something is snapped
 let cropMode = false, spaceDown = false, CELL_POLY = null, MOTIF_POLY = null, lastPtr = null;
 const cur = () => S.layers[S.sel] || S.layers[0];
 
@@ -2130,7 +2143,7 @@ function drawOverlays(reg) {
     s += '<text x="' + fmt(cx) + '" y="' + fmt(cy + fs * 1.1) + '" text-anchor="middle" font-size="' + fmt(fs * 0.85) + '" fill="var(--ov-line)">Pick a shape on the left to start.</text>';
     if (show.grad) s += drawCtrls(px);
     if (cropMode) s += cropOverlay(px);
-    $('#ov').innerHTML = s; return;
+    $('#ov').innerHTML = s + snapGuideSvg(px); return;
   }
   const isLat = !L.layout || L.layout === 'wallpaper' || L.layout === 'grid';
   if (isLat) {
@@ -2181,7 +2194,7 @@ function drawOverlays(reg) {
   if (show.grad) s += drawCtrls(px);
   if (cropMode) s += cropOverlay(px);
   if (L.layout && L.lay && (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci')) HANDLES.push({ x: L.lay.cx / 100 * S.region.W, y: L.lay.cy / 100 * S.region.H, ci: -1, key: 'centre' });
-  $('#ov').innerHTML = s;
+  $('#ov').innerHTML = s + snapGuideSvg(px);
 }
 let HANDLES_CENTRE = null;
 
@@ -2410,8 +2423,14 @@ function buildResponse() {
     const card = E('div', { class: 'fx' + (e.on ? '' : ' off') + (open ? ' open' : '') });
     const ico = E('span', { class: 'fxIco' }); ico.innerHTML = fxIcon(e.kind);
     const iconBtn = (title, path, fn, dis) => { const bt = E('button', { class: 'eye', title: title, 'aria-label': title, onclick: ev => { ev.stopPropagation(); fn(); } }); bt.innerHTML = '<svg class="i" viewBox="0 0 24 24">' + path + '</svg>'; if (dis) bt.disabled = true; return bt; };
+    const grip = E('span', { class: 'fxGrip', title: 'Drag to reorder' }); grip.innerHTML = '<svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/></svg>';
+    makeDrag(grip, { click: () => { }, ghost: () => fxIcon(e.kind) + '<span>' + K.label + '</span>', ghostClass: 'fxGhost', bodyClass: 'draggingFx',
+      target: (x, y) => { const t = document.elementFromPoint(x, y), c = t && t.closest('.fx[data-i]'); if (!c) return null; const r = c.getBoundingClientRect(); return { el: c, i: +c.getAttribute('data-i'), after: y > r.top + r.height / 2 }; },
+      drop: t => { let to = t.i + (t.after ? 1 : 0); const [m] = S.fx.splice(i, 1); if (to > i) to--; S.fx.splice(to, 0, m); fxChanged(); } });
+    grip.addEventListener('click', ev => ev.stopPropagation()); // the grip drags; it doesn't open or close the card
+    card.setAttribute('data-i', i);
     card.append(E('div', { class: 'fxHead', onclick: () => { open ? fxOpen.delete(e.id) : fxOpen.add(e.id); buildResponse(); requestRender(); } },
-      ico,
+      grip, ico,
       E('span', { class: 'fxName' }, E('span', {}, K.label, E('em', {}, ' ' + fxWhat(e))), E('small', {}, fxSummary(e))),
       eyeBtn(e.on, e.on ? 'Hide this effect' : 'Show this effect', ev => { ev.stopPropagation(); e.on = !e.on; fxChanged(); }),
       iconBtn('Move up', '<path d="M12 19V5M6 11l6-6 6 6"/>', () => { [S.fx[i - 1], S.fx[i]] = [S.fx[i], S.fx[i - 1]]; fxChanged(); }, i === 0),
@@ -2523,8 +2542,19 @@ function buildExport() {
   if (f.endsWith('tile')) { const t = commonTile(); ex.append(E('p', { class: t ? 'hint' : 'warn' }, t ? 'Tile: ' + fmt(t.w) + ' × ' + fmt(t.h) + ' mm. Edges match when tiled side by side.' : 'No seamless tile: needs wallpaper layouts, rotation 0/90°, and no gradients or feather.')); }
   ex.append(E('div', { class: 'btns' }, E('button', { class: 'primary', onclick: doExport }, 'Export'), E('button', { onclick: copySVG }, 'Copy SVG code')));
 }
+function fxChip(e, fromLayer) {
+  const c = E('button', { class: 'fxChip' + (e.on ? '' : ' off'), title: FX_KINDS[e.kind].label + (e.on ? '' : ' (hidden)') + ': ' + fxWhat(e) + '. Click to open, drag to another layer or to All layers (Alt copies)' });
+  c.innerHTML = fxIcon(e.kind) + '<span>' + FX_KINDS[e.kind].label + '</span>'; fxDrag(c, e, fromLayer); return c;
+}
 function renderLayers() {
   const box = $('#layerList'); box.innerHTML = '';
+  // overall effects sit on their own row at the top, like an adjustment layer over everything
+  if ((S.fx || []).length) {
+    const all = (S.fx || []).filter(e => e.layers === 'all');
+    const row = E('div', { class: 'layerAll' }, E('span', { class: 'fxTag' }, 'fx'), E('span', { class: 'laName' }, 'All layers'));
+    if (all.length) all.forEach(e => row.append(fxChip(e, 'all'))); else row.append(E('span', { class: 'laHint' }, 'Drop an effect here to use it on every layer'));
+    box.append(row);
+  }
   S.layers.slice().reverse().forEach(L => {
     const i = S.layers.indexOf(L), sh = SHAPES[L.shape] || SHAPES.comma, geomL = GEOM_LAYOUTS[L.layout];
     const row = E('div', { class: 'layer' + (i === S.sel ? ' sel' : ''), 'data-layer': L.id, onclick: () => { S.sel = i; renderLayers(); buildLayerControls(); renderShapes(); requestRender(); } },
@@ -2533,10 +2563,10 @@ function renderLayers() {
       eyeBtn(L.visible, L.visible ? 'Hide this layer' : 'Show this layer', ev => { ev.stopPropagation(); L.visible = !L.visible; renderLayers(); requestRender(); pushHistory(); }));
     box.append(row);
     // like Photoshop: the effects acting on this layer, listed under it; click one to open it
-    const fxs = (S.fx || []).filter(e => fxTargets(e, L));
+    const fxs = (S.fx || []).filter(e => Array.isArray(e.layers) && e.layers.includes(L.id));
     if (fxs.length) {
-      const tl = E('div', { class: 'layerFx' + (i === S.sel ? ' sel' : '') }, E('span', { class: 'fxTag' }, 'fx'));
-      fxs.forEach(e => { const c = E('button', { class: 'fxChip' + (e.on ? '' : ' off'), title: FX_KINDS[e.kind].label + (e.on ? '' : ' (hidden)') + ': ' + fxWhat(e) + '. Click to open', onclick: ev => { ev.stopPropagation(); fxOpen.add(e.id); showTab('grad'); buildResponse(); requestRender(); } }); c.innerHTML = fxIcon(e.kind) + '<span>' + FX_KINDS[e.kind].label + '</span>'; tl.append(c); });
+      const tl = E('div', { class: 'layerFx' + (i === S.sel ? ' sel' : ''), 'data-layer': L.id }, E('span', { class: 'fxTag' }, 'fx'));
+      fxs.forEach(e => tl.append(fxChip(e, L.id)));
       box.append(tl);
     }
   });
@@ -2603,42 +2633,89 @@ const groupShapes = gr => gr[2] ? gr[2].filter(id => SHAPES[id]) : Object.values
 const PEN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/><path d="M2 2l7.6 7.6"/><circle cx="11" cy="11" r="2"/></svg>';
 // Press and drag a shape (from the rail or a flyout): drop it on the canvas for the selected layer, on a layer
 // to give that layer the shape, or on empty space in the layer list for a new layer. A press without a drag is a click.
-let shapeDragOn = null;
-function shapeDrag(el, id, onClick) {
+// Press and drag with mouse or finger. A press that doesn't move is a click. While dragging a ghost follows
+// the pointer, drop targets light up, and on release the target under the pointer gets the drop.
+function makeDrag(el, o) {
   el.style.touchAction = 'none';
-  el.addEventListener('click', e => { if (e.detail === 0) onClick(); }); // keyboard (Enter / Space)
+  el.addEventListener('click', e => { if (e.detail === 0) o.click(); }); // keyboard (Enter / Space)
   el.addEventListener('pointerdown', ev => {
     if (ev.button !== 0) return; ev.stopPropagation();
     const x0 = ev.clientX, y0 = ev.clientY; let ghost = null, hot = null;
     el.setPointerCapture(ev.pointerId);
-    const targetAt = (x, y) => {
-      const t = document.elementFromPoint(x, y); if (!t) return null;
-      const row = t.closest('.layer[data-layer]'); if (row) return { el: row, layer: row.getAttribute('data-layer') };
-      if (t.closest('#stage') || t.closest('.stageWrap')) return { el: $('.stageWrap'), layer: cur().id };
-      if (t.closest('#layerList') || t.closest('#lAdd')) return { el: $('#layerList'), layer: null };
-      return null;
-    };
+    const setHot = t => { const nh = t && t.el; if (hot !== nh) { if (hot) hot.classList.remove('dropHot'); hot = nh; if (hot) hot.classList.add('dropHot'); } };
     const move = e => {
-      if (!id) return;
+      if (!o.ghost) return;
       if (!ghost && Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return;
-      if (!ghost) { ghost = E('div', { class: 'dragGhost' }); ghost.innerHTML = shapeThumb(SHAPES[id]); document.body.append(ghost); document.body.classList.add('draggingShape'); shapeDragOn = id; if (flyGroup) { flyGroup = null; renderFly(); } }
+      if (!ghost) { ghost = E('div', { class: 'dragGhost ' + (o.ghostClass || '') }); ghost.innerHTML = o.ghost(); document.body.append(ghost); document.body.classList.add('dragging', o.bodyClass || 'draggingShape'); if (o.start) o.start(); }
       ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px';
-      const t = targetAt(e.clientX, e.clientY), nh = t && t.el;
-      if (hot !== nh) { if (hot) hot.classList.remove('dropHot'); hot = nh; if (hot) hot.classList.add('dropHot'); }
+      setHot(o.target(e.clientX, e.clientY, e));
     };
     const up = e => {
       el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
-      if (hot) hot.classList.remove('dropHot');
-      if (!ghost) { if (e.type === 'pointerup') onClick(); return; }
-      ghost.remove(); document.body.classList.remove('draggingShape'); shapeDragOn = null;
-      const t = targetAt(e.clientX, e.clientY); if (!t || e.type !== 'pointerup') return;
-      if (t.layer) { const i = S.layers.findIndex(L => L.id === t.layer); if (i >= 0) { S.sel = i; pickShape(id); toast(SHAPES[id].name + ' on Layer ' + (i + 1)); } }
-      else { $('#lAdd').click(); pickShape(id); toast('New layer with ' + SHAPES[id].name); }
+      setHot(null);
+      if (!ghost) { if (e.type === 'pointerup') o.click(); return; }
+      const t = e.type === 'pointerup' ? o.target(e.clientX, e.clientY, e) : null; // before the drop zones go away
+      ghost.remove(); document.body.classList.remove('dragging', o.bodyClass || 'draggingShape');
+      if (t) o.drop(t, e);
     };
     el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   });
 }
-function pickShape(id) { cur().shape = id; cur().empty = false; flyGroup = null; renderShapes(); buildLayerControls(); renderLayers(); requestRender(); pushHistory(); }
+// Shapes: drop on the canvas for the selected layer, on a layer to give it the shape, or on empty space in the layer list for a new layer.
+function shapeDrag(el, id, onClick) {
+  makeDrag(el, {
+    click: onClick, ghost: id ? () => shapeThumb(SHAPES[id]) : null, start: () => { if (flyGroup) { flyGroup = null; renderFly(); } },
+    target: (x, y) => {
+      const t = document.elementFromPoint(x, y); if (!t) return null;
+      const row = t.closest('[data-layer]'); if (row) return { el: row, layer: row.getAttribute('data-layer') };
+      if (t.closest('#stage') || t.closest('.stageWrap')) return { el: $('.stageWrap'), layer: cur().id };
+      if (t.closest('#layerList') || t.closest('#lAdd')) return { el: $('#layerList'), layer: null };
+      return null;
+    },
+    drop: t => {
+      if (t.layer) { const i = S.layers.findIndex(L => L.id === t.layer); if (i >= 0) { const was = S.layers.length; S.sel = i; pickShape(id); if (S.layers.length === was) toast(SHAPES[id].name + ' on Layer ' + (i + 1)); } }
+      else { addShapeLayer(id); toast('New layer with ' + SHAPES[id].name); }
+    }
+  });
+}
+// Effects in the Layers list: drag a chip onto a layer to move it there, onto "All layers" to make it an
+// overall effect, or hold Alt while dropping to copy it instead of moving it.
+function fxDrag(el, e, fromLayer) {
+  makeDrag(el, {
+    click: () => { fxOpen.add(e.id); showTab('grad'); buildResponse(); requestRender(); },
+    ghost: () => fxIcon(e.kind) + '<span>' + FX_KINDS[e.kind].label + '</span>', ghostClass: 'fxGhost', bodyClass: 'draggingFx',
+    target: (x, y) => {
+      const t = document.elementFromPoint(x, y); if (!t) return null;
+      if (t.closest('.layerAll')) return { el: t.closest('.layerAll'), to: 'all' };
+      const row = t.closest('[data-layer]'); if (row) return { el: row, to: row.getAttribute('data-layer') };
+      return null;
+    },
+    drop: (t, ev) => {
+      const copy = ev.altKey, name = FX_KINDS[e.kind].label;
+      if (t.to === 'all') { e.layers = 'all'; toast(name + ' now works on all layers'); }
+      else {
+        const i = S.layers.findIndex(L => L.id === t.to), was = e.layers;
+        if (copy && was !== 'all') e.layers = was.includes(t.to) ? was : was.concat([t.to]);
+        else if (copy) { S.fx.push(Object.assign(JSON.parse(JSON.stringify(e)), { id: newFxId(), layers: [t.to] })); }
+        else e.layers = was === 'all' ? [t.to] : was.filter(id => id !== fromLayer).concat(was.includes(t.to) ? [] : [t.to]);
+        toast(name + (copy ? ' copied to ' : ' moved to ') + 'Layer ' + (i + 1));
+      }
+      fxChanged();
+    }
+  });
+}
+function pickShape(id) {
+  const L = cur();
+  // crosshatch, flow and Voronoi layers draw lines, not motifs, so the shape gets its own layer above
+  if (GEOM_LAYOUTS[L.layout] && !L.empty) { addShapeLayer(id); toast(layoutName(L) + ' draws lines, not motifs, so ' + SHAPES[id].name + ' went on a new layer above it.', 4200); return; }
+  L.shape = id; L.empty = false; flyGroup = null; renderShapes(); buildLayerControls(); renderLayers(); requestRender(); pushHistory();
+}
+// A new wallpaper layer with this shape, just above the selected layer, motif placed tidily.
+function addShapeLayer(id) {
+  const n = S.layers.length, pal = PALETTES[n % PALETTES.length];
+  const L = newLayer({ shape: id, fill: pal[0], palette: pal.slice() }); autoPlace(L);
+  S.layers.splice(S.sel + 1, 0, L); S.sel++; flyGroup = null; rebuildAll(); pushHistory(); return L;
+}
 function renderShapes() {
   const rail = $('#shapeRail'), cs = cur().empty ? null : cur().shape; rail.innerHTML = '';
   SHAPE_GROUPS.forEach((gr, gi) => {
@@ -3227,6 +3304,29 @@ function dragModeAt(ev) {
   return 'pan';
 }
 
+/* ---------- snapping ---------- */
+// While dragging, a point within a few screen pixels of the surface's middle lines (or of an extra target,
+// like the cell centre for the motif) snaps onto it and a guide line shows. Alt skips snapping for that drag.
+function snapPoint(w, ev, extra) {
+  snapGuide = null;
+  if (!show.snap || (ev && ev.altKey)) return w;
+  const tol = 8 / view.scale, xs = [S.region.W / 2], ys = [S.region.H / 2];
+  if (extra) { xs.push(extra[0]); ys.push(extra[1]); }
+  let x = w[0], y = w[1], gx = null, gy = null;
+  xs.forEach(t => { if (Math.abs(w[0] - t) < tol && (gx == null || Math.abs(w[0] - t) < Math.abs(w[0] - gx))) gx = t; });
+  ys.forEach(t => { if (Math.abs(w[1] - t) < tol && (gy == null || Math.abs(w[1] - t) < Math.abs(w[1] - gy))) gy = t; });
+  if (gx != null) x = gx; if (gy != null) y = gy;
+  if (gx != null || gy != null) snapGuide = { x: gx, y: gy };
+  return [x, y];
+}
+function snapGuideSvg(px) {
+  if (!snapGuide) return '';
+  const R = S.region, ext = 20000 * px; let s = '';
+  if (snapGuide.x != null) s += '<line x1="' + fmt(snapGuide.x) + '" y1="' + fmt(-ext) + '" x2="' + fmt(snapGuide.x) + '" y2="' + fmt(R.H + ext) + '"/>';
+  if (snapGuide.y != null) s += '<line x1="' + fmt(-ext) + '" y1="' + fmt(snapGuide.y) + '" x2="' + fmt(R.W + ext) + '" y2="' + fmt(snapGuide.y) + '"/>';
+  return '<g stroke="#ff3fa4" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="5 3">' + s + '</g>';
+}
+
 /* ---------- cell corners ---------- */
 // Measures the pointer in the pattern's own (unrotated) frame, then resizes the cell. Linked layers edit Layer 1, whose cell they share.
 function dragCell(key, w, snap) {
@@ -3365,6 +3465,7 @@ stage.addEventListener('pointermove', ev => {
       cropTo(x0, y0, x1, y1); requestRender(); return;
     }
     if (h.key === 'cellA' || h.key === 'cellB') { dragCell(h.key, toWorld(ev), ev.shiftKey); requestRender(); return; }
+    const sw = snapPoint(w, ev); w[0] = +sw[0].toFixed(2); w[1] = +sw[1].toFixed(2);
     if (h.key === 'centre') { const L = cur(); L.lay.cx = +(w[0] / S.region.W * 100).toFixed(2); L.lay.cy = +(w[1] / S.region.H * 100).toFixed(2); }
     else {
       const c = S.ctrls[h.ci]; if (!c) return;
@@ -3379,10 +3480,14 @@ stage.addEventListener('pointermove', ev => {
   const L = cur(), w = toWorld(ev);
   drag.moved = drag.moved || Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) > 3;
   if (drag.mode === 'motif') {
-    const p = eff(L), d = Af.lin(Af.R(-p.rot), [w[0] - drag.w0[0], w[1] - drag.w0[1]]);
+    const p = eff(L);
+    if (!drag.m0) { const g = geom(L); drag.m0 = Af.ap(g.M, [0, 0]); drag.cc = [L.sx + (g.a[0] + g.b[0]) / 2, L.sy + (g.a[1] + g.b[1]) / 2]; }
+    const tgt = snapPoint([drag.m0[0] + w[0] - drag.w0[0], drag.m0[1] + w[1] - drag.w0[1]], ev, drag.cc);
+    const d = Af.lin(Af.R(-p.rot), [tgt[0] - drag.m0[0], tgt[1] - drag.m0[1]]);
     L.mx = +(drag.mx + d[0]).toFixed(2); L.my = +(drag.my + d[1]).toFixed(2);
   } else if (drag.mode === 'pattern') {
-    L.sx = +(drag.sx + w[0] - drag.w0[0]).toFixed(2); L.sy = +(drag.sy + w[1] - drag.w0[1]).toFixed(2);
+    const o = snapPoint([drag.sx + w[0] - drag.w0[0], drag.sy + w[1] - drag.w0[1]], ev);
+    L.sx = +o[0].toFixed(2); L.sy = +o[1].toFixed(2);
   } else { view.cx = drag.cx - (ev.clientX - drag.x) / view.scale; view.cy = drag.cy - (ev.clientY - drag.y) / view.scale; }
   requestRender();
 });
@@ -3392,6 +3497,7 @@ const endDrag = ev => {
   if (drag && drag.handle) { pushHistory(); if (drag.handle.key === 'centre') buildLayout(); if (drag.handle.key.startsWith('cell')) buildLayerControls(); if (drag.handle.key.startsWith('crop-')) rebuildAll(); }
   else if (drag && drag.mode !== 'pan' && drag.moved) { buildLayerControls(); pushHistory(); }
   drag = null; stage.style.cursor = spaceDown ? 'grab' : '';
+  if (snapGuide) { snapGuide = null; requestRender(); }
 };
 stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
 stage.addEventListener('pointerleave', () => { if (!drag) { lastPtr = null; drawRulers(); } });
@@ -3686,7 +3792,7 @@ $('#tFit').onclick = fit;
 $('#tCrop').onclick = () => setCrop(!cropMode);
 $('#tCenter').onclick = centerPattern;
 $('#oRul').onclick = () => { show.rulers = !show.rulers; $('#oRul').classList.toggle('on', show.rulers); $('.canvasWrap').classList.toggle('noRulers', !show.rulers); requestRender(); };
-toggle('#oCell', 'cell'); toggle('#oMarks', 'marks'); toggle('#oTile', 'tile'); toggle('#oBox', 'box'); toggle('#oGrad', 'grad'); toggle('#oField', 'field');
+toggle('#oSnap', 'snap'); toggle('#oCell', 'cell'); toggle('#oMarks', 'marks'); toggle('#oTile', 'tile'); toggle('#oBox', 'box'); toggle('#oGrad', 'grad'); toggle('#oField', 'field');
 $('#imgIn').onchange = async ev => {
   const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
   const data = await readFile(f, 'url');
