@@ -218,6 +218,27 @@ Gradients are sources: each gives a value from 0 to 1 everywhere on the surface,
 
 All types also take `curve` (falloff: `linear smooth in out step`), `invert`, `weight` (strength 0 to 1) and `on`. `mix` combines several: `max` (default), `add`, `multiply`, `min`.
 
+### Keep-out areas: `excl[]`
+
+Red areas where pieces are removed (screw holes, logos, clear bands). Coordinates in mm from the surface's top left.
+
+```json
+"excl": [
+  { "type": "ellipse", "x": 85, "y": 60, "w": 30, "h": 30, "margin": 2 },
+  { "type": "rect", "x": 0, "y": 0, "w": 200, "h": 12, "mode": "centre" },
+  { "type": "poly", "pts": [[20, 100], [60, 90], [70, 140], [15, 135]] },
+  { "type": "shape", "shapeId": "star", "x": 140, "y": 20, "w": 40, "h": 40, "layers": ["L2"] }
+]
+```
+
+| Field | Meaning | Default |
+|---|---|---|
+| `type` | `rect`, `ellipse` (box `x`, `y`, `w`, `h`), `poly` (`pts`), `shape` (a shape id stretched to the box) | |
+| `margin` | Extra clear space around the area, mm | 0 |
+| `mode` | `touch` removes pieces that touch the area; `centre` only those centred in it | `touch` |
+| `layers` | `"all"` or a list of layer `id`s | `"all"` |
+| `on` | Turn the area off without removing it | `true` |
+
 ### Shapes
 
 Built in ids:

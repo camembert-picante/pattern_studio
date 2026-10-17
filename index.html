@@ -90,6 +90,25 @@ body.motifOpen .motifPanel{display:block}
 .railMotif::after{display:none}
 .railMotif.open{background:var(--sel);border-color:var(--accent)}
 .railMotif.open span{color:var(--accent)}
+.railKeep{height:auto;min-height:48px;flex-direction:column;gap:1px;padding:6px 4px;color:#ff6b70}
+.railKeep svg{width:20px;height:20px}
+.railKeep span{font-size:9.5px;font-weight:600}
+.railKeep::after{display:none}
+.railKeep.open,.railKeep.has{background:rgba(229,72,77,.14);border-color:rgba(229,72,77,.55)}
+.keepT{color:#ff6b70}
+.keepTool svg.i{width:15px;height:15px;color:#ff6b70}
+.keepShapes{margin-top:8px;font-size:12px}
+.keepShapes summary{cursor:pointer;color:var(--muted);padding:4px 0}
+.keepShapes .shapes{margin-top:6px}
+.keepList{display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.keepRow{display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:var(--field)}
+.keepRow.sel{border-color:#e5484d;background:rgba(229,72,77,.12)}
+.keepRow .nm{flex:1;font-size:12.5px}
+.keepRow .eye{border:0;background:none;padding:0;width:28px;min-height:28px;color:var(--muted)}
+.keepRow .eye svg.i{width:16px;height:16px}
+.keepSw{width:12px;height:12px;border-radius:3px;background:rgba(229,72,77,.35);border:1.5px solid #e5484d;flex:none}
+.keepBody{padding:2px 4px 8px}
+.keepBody .row{grid-template-columns:62px minmax(0,1fr) 54px}
 .dragGhost{position:fixed;z-index:50;width:44px;height:44px;margin:-22px 0 0 -22px;padding:6px;border-radius:10px;background:var(--raise);border:1px solid var(--accent);color:var(--ink);pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:.92}
 .dragGhost svg{width:100%;height:100%;display:block}
 .dragGhost.fxGhost{width:auto;height:auto;margin:-16px 0 0 -16px;padding:5px 10px 5px 7px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;white-space:nowrap}
@@ -376,7 +395,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
             <div id="layerList"></div>
             <div class="btns">
               <button id="lAdd" class="mini">+ Layer</button>
-              <button id="lDup" class="mini">Duplicate</button>
+              <button id="lDup" class="mini" title="Exact copy of the selected layer (Ctrl/Cmd+D)">Duplicate</button>
               <button id="lUp" class="mini icon" title="Move up" aria-label="Move layer up">↑</button>
               <button id="lDown" class="mini icon" title="Move down" aria-label="Move layer down">↓</button>
               <button id="lDel" class="mini">Delete</button>
@@ -1373,7 +1392,7 @@ function newLayer(over) {
 }
 function defaultState() {
   return {
-    layers: [newLayer()], sel: 0, ctrls: [], mix: 'max', fx: [],
+    layers: [newLayer()], sel: 0, ctrls: [], mix: 'max', fx: [], excl: [],
     region: { W: 200, H: 150, shape: 'rect', margin: 0, radius: 12, edge: 'clip', bgOn: true, bg: '#f7f3ea', boundary: false, shapeId: '', fit: 'contain', featherOn: false, featherW: 10, featherMode: 'size', featherCurve: 'smooth', featherMin: 0 },
     exp: { fmt: 'svg', expand: true, dpi: 300, reliefH: 1.0, baseT: 2.0, jpgQ: 0.92, solid: 'relief', split: 1, stepTol: 0.01 }
   };
@@ -1387,7 +1406,7 @@ const cur = () => S.layers[S.sel] || S.layers[0];
 
 /* ---------- History & autosave ---------- */
 let hist = [], hIdx = -1, hT = 0;
-const snap = () => JSON.stringify({ layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, fx: S.fx });
+const snap = () => JSON.stringify({ layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, fx: S.fx, excl: S.excl });
 function pushHistory(now) {
   clearTimeout(hT);
   const go = () => {
@@ -1397,12 +1416,12 @@ function pushHistory(now) {
   };
   if (now) go(); else hT = setTimeout(go, 250);
 }
-function restore(s) { const o = JSON.parse(s); S.layers = o.layers; S.sel = Math.min(o.sel, o.layers.length - 1); S.region = o.region; S.exp = o.exp; S.ctrls = o.ctrls || []; S.mix = o.mix || 'max'; S.fx = o.fx || []; if (selCtrl >= S.ctrls.length) selCtrl = -1; rebuildAll(); }
+function restore(s) { const o = JSON.parse(s); S.layers = o.layers; S.sel = Math.min(o.sel, o.layers.length - 1); S.region = o.region; S.exp = o.exp; S.ctrls = o.ctrls || []; S.mix = o.mix || 'max'; S.fx = o.fx || []; S.excl = o.excl || []; if (selCtrl >= S.ctrls.length) selCtrl = -1; selZone = -1; rebuildAll(); }
 function undo() { if (hIdx > 0) { hIdx--; restore(hist[hIdx]); updUndo(); autosave(); } }
 function redo() { if (hIdx < hist.length - 1) { hIdx++; restore(hist[hIdx]); updUndo(); autosave(); } }
 function updUndo() { $('#bUndo').disabled = hIdx <= 0; $('#bRedo').disabled = hIdx >= hist.length - 1; }
 function customShapes() { return Object.values(SHAPES).filter(s => !s.builtin).map(s => ({ id: s.id, name: s.name, kind: s.kind, inner: s.inner, w: s.w, h: s.h, k: s.k, polys: s.polys, lineArt: s.lineArt, data: s.data || null })); }
-function projectJSON() { return JSON.stringify({ app: 'pattern-studio', v: 3, layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, fx: S.fx, shapes: customShapes() }); }
+function projectJSON() { return JSON.stringify({ app: 'pattern-studio', v: 3, layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, fx: S.fx, excl: S.excl, shapes: customShapes() }); }
 let saveT = 0;
 function autosave() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('pattern-studio-v1', projectJSON()); } catch (e) { /* storage full or blocked: fine */ } }, 500); }
 function loadProject(o) {
@@ -1418,7 +1437,7 @@ function loadProject(o) {
   // a layer that gives no motif size or position gets the same tidy placement as Reset motif
   S.layers = o.layers.map(L0 => { const L = newLayer(L0); if (L0.size == null && L0.mx == null && L0.my == null) autoPlace(L); return L; }); S.sel = clamp(o.sel || 0, 0, S.layers.length - 1);
   S.ctrls = Array.isArray(o.ctrls) ? o.ctrls.filter(c => c && CTRL_NAMES[c.type]).map(c => Object.assign(newCtrl(c.type), c)) : []; S.mix = o.mix || 'max'; selCtrl = -1;
-  S.fx = normFx(o.fx); migrateMods();
+  S.fx = normFx(o.fx); migrateMods(); S.excl = normZones(o.excl); selZone = -1;
   S.layers.forEach(L => { if (!SHAPES[L.shape]) L.shape = 'comma'; });
   shapesDirty = true; rebuildAll(); fit(); pushHistory(true);
 }
@@ -1549,6 +1568,46 @@ function buildField(only) {
   return { active: true, v: v, grad: grad, dir: dir, warp: warp, maxWarp: Math.max.apply(null, comp.map(k => k.R)) * 0.25 + Math.max(W, H) * 0.05 };
 }
 
+/* ---------- keep-out areas ---------- */
+// Red areas where pieces are removed: rectangles, ellipses, drawn polygons or any shape's outline.
+// A piece goes if its bounding circle touches the area plus its margin (or, in "centre" mode, if its centre is inside).
+let selZone = -1;
+const ZONE_RED = '#e5484d';
+const ZONE_NAMES = { rect: 'Rectangle', ellipse: 'Ellipse', poly: 'Drawn area', shape: 'Shape' };
+function normZones(list) {
+  return (Array.isArray(list) ? list : []).filter(z => z && ZONE_NAMES[z.type]).map(z => Object.assign({ id: 'z' + Math.random().toString(36).slice(2, 7), on: true, margin: 0, mode: 'touch', layers: 'all', x: 0, y: 0, w: 20, h: 20 }, z));
+}
+// The zone's outline in surface millimetres.
+function zonePoly(z) {
+  if (z.type === 'rect') return [[z.x, z.y], [z.x + z.w, z.y], [z.x + z.w, z.y + z.h], [z.x, z.y + z.h]];
+  if (z.type === 'ellipse') { const out = [], cx = z.x + z.w / 2, cy = z.y + z.h / 2; for (let i = 0; i < 48; i++) { const t = i / 48 * TAU; out.push([cx + Math.cos(t) * z.w / 2, cy + Math.sin(t) * z.h / 2]); } return out; }
+  if (z.type === 'poly') return z.pts || [];
+  if (z.type === 'shape') {
+    const sh = SHAPES[z.shapeId], loop = sh && mainLoop(sh); if (!loop) return [];
+    const b = bboxOf(loop), bw = b[2] - b[0] || 1, bh = b[3] - b[1] || 1;
+    return loop.map(q => [z.x + (q[0] - b[0]) / bw * z.w, z.y + (q[1] - b[1]) / bh * z.h]);
+  }
+  return [];
+}
+let ZONES = null, zonesKey = '';
+function zonesNow() {
+  const k = JSON.stringify(S.excl || []); if (ZONES && k === zonesKey) return ZONES;
+  zonesKey = k;
+  ZONES = (S.excl || []).filter(z => z.on).map(z => { const P = zonePoly(z); return P.length > 2 ? { z: z, P: P, b: bboxOf(P) } : null; }).filter(Boolean);
+  return ZONES;
+}
+// true when a piece at c with radius r must go for layer L
+function exclHit(L, c, r) {
+  const Z = zonesNow(); if (!Z.length) return false;
+  for (let i = 0; i < Z.length; i++) {
+    const q = Z[i], z = q.z; if (z.layers !== 'all' && !z.layers.includes(L.id)) continue;
+    const pad = (z.mode === 'centre' ? 0 : r) + (z.margin || 0), b = q.b;
+    if (c[0] < b[0] - pad || c[0] > b[2] + pad || c[1] < b[1] - pad || c[1] > b[3] + pad) continue;
+    if (inPoly(q.P, c) || (pad > 0 && polyDist(c, q.P, true).d <= pad)) return true;
+  }
+  return false;
+}
+
 /* ---------- effects ---------- */
 // Like Photoshop layer effects: each effect is one response (size, rotation, colour…) driven by some or all gradients,
 // applied to some or all layers. Several effects of the same kind stack.
@@ -1642,6 +1701,7 @@ function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
     const hull = m >= 0 ? morph[m].hull : sh.hull;
     if (mode === 'inside') { let ok = true; for (let h = 0; h < hull.length; h++) if (!reg.contains(Af.ap(T2, hull[h]))) { ok = false; break; } if (!ok) continue; }
     else if (!reg.contains(c, rad * r.s)) continue;
+    if (exclHit(L, c, rad * r.s)) continue;
     out.push({ T: T2, i: it.i, j: it.j, k: it.k, neg: Af.det(T2) < 0, op: r.op, col: r.col, m: m });
     if (out.length >= budget) { out.over = true; break; }
   }
@@ -1832,7 +1892,7 @@ function strokesToPolys(L, idx, lines, F, R, reg, mode) {
     for (let q = 0; q < pts.length; q++) {
       const p = pts[q];
       const ok = mode === 'inside' ? reg.edgeDist(p) >= base * 0.5 : reg.contains(p, base * 2);
-      if (!ok) continue;
+      if (!ok || exclHit(L, p, base * 0.5)) continue;
       const r = respond(L, F, R, reg, p, [li, q, idx + 7 * ln.di]); if (!r) continue;
       ws[q] = base * r.s; cols[q] = r.col; ops[q] = r.op;
     }
@@ -1884,8 +1944,10 @@ function voronoiStones(L, idx, reg, F, R, mode) {
     if (r.s !== 1) poly = poly.map(v => [cx + (v[0] - cx) * r.s, cy + (v[1] - cy) * r.s]);
     if (lay.corner > 0) poly = filletPoly(poly, lay.corner * r.s);
     for (let it = 0; it < (lay.round | 0); it++) { const q2 = []; for (let k = 0; k < poly.length; k++) { const A = poly[k], B = poly[(k + 1) % poly.length]; q2.push([0.75 * A[0] + 0.25 * B[0], 0.75 * A[1] + 0.25 * B[1]], [0.25 * A[0] + 0.75 * B[0], 0.25 * A[1] + 0.75 * B[1]]); } poly = q2; }
+    let srad = 0; poly.forEach(v => { srad = Math.max(srad, Math.hypot(v[0] - cx, v[1] - cy)); });
     if (mode === 'inside') { if (!poly.every(v => reg.contains(v))) return; }
-    else { let rad = 0; poly.forEach(v => { rad = Math.max(rad, Math.hypot(v[0] - cx, v[1] - cy)); }); if (!reg.contains([cx, cy], rad)) return; }
+    else if (!reg.contains([cx, cy], srad)) return;
+    if (exclHit(L, [cx, cy], srad)) return;
     out.push({ pts: poly, j: i, col: r.col, op: r.op });
   });
   return out;
@@ -2142,6 +2204,7 @@ function drawOverlays(reg) {
     const fs = Math.min(13 * px, S.region.W / 22), cx = S.region.W / 2, cy = S.region.H / 2;
     s += '<text x="' + fmt(cx) + '" y="' + fmt(cy - fs * 0.4) + '" text-anchor="middle" font-size="' + fmt(fs) + '" font-weight="600" fill="var(--ov-line)">Empty layer</text>';
     s += '<text x="' + fmt(cx) + '" y="' + fmt(cy + fs * 1.1) + '" text-anchor="middle" font-size="' + fmt(fs * 0.85) + '" fill="var(--ov-line)">Pick a shape on the left to start.</text>';
+    s += zonesOverlay(px);
     if (show.grad) s += drawCtrls(px);
     if (cropMode) s += cropOverlay(px);
     $('#ov').innerHTML = s + snapGuideSvg(px); return;
@@ -2192,6 +2255,7 @@ function drawOverlays(reg) {
     HANDLES_CENTRE = C;
     s += '<path d="M' + fmt(C[0] - 7 * px) + ' ' + fmt(C[1]) + 'H' + fmt(C[0] + 7 * px) + 'M' + fmt(C[0]) + ' ' + fmt(C[1] - 7 * px) + 'V' + fmt(C[1] + 7 * px) + '" stroke="var(--ov)" stroke-width="2" vector-effect="non-scaling-stroke"/>';
   }
+  s += zonesOverlay(px);
   if (show.grad) s += drawCtrls(px);
   if (cropMode) s += cropOverlay(px);
   if (L.layout && L.lay && (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci')) HANDLES.push({ x: L.lay.cx / 100 * S.region.W, y: L.lay.cy / 100 * S.region.H, ci: -1, key: 'centre' });
@@ -2394,13 +2458,14 @@ function addFx(kind) {
   S.fx.push(e); fxOpen.add(e.id); buildResponse(); renderLayers(); requestRender(); pushHistory();
 }
 // Pills: "All" plus one per item. Picking an item while "All" is on narrows to that item; emptying the list goes back to All.
-function pickPills(title, items, get, set) {
+function pickPills(title, items, get, set, done) {
   const v = get(), all = v === 'all', wrap = E('div', { class: 'pills' }, E('span', { class: 'pillsT' }, title));
   const pill = (label, on, fn) => E('button', { class: 'pill' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', onclick: fn }, label);
-  wrap.append(pill('All', all, () => { set('all'); fxChanged(); }));
+  const after = done || fxChanged;
+  wrap.append(pill('All', all, () => { set('all'); after(); }));
   items.forEach(it => wrap.append(pill(it[1], !all && v.includes(it[0]), () => {
     let nv = all ? [it[0]] : (v.includes(it[0]) ? v.filter(x => x !== it[0]) : v.concat([it[0]]));
-    set(nv.length ? nv : 'all'); fxChanged();
+    set(nv.length ? nv : 'all'); after();
   })));
   return wrap;
 }
@@ -2435,6 +2500,7 @@ function buildResponse() {
       E('span', { class: 'fxName' }, E('span', {}, K.label, E('em', {}, ' ' + fxWhat(e))), E('small', {}, fxSummary(e))),
       eyeBtn(e.on, e.on ? 'Hide this effect' : 'Show this effect', ev => { ev.stopPropagation(); e.on = !e.on; fxChanged(); }),
       iconBtn('Move up', '<path d="M12 19V5M6 11l6-6 6 6"/>', () => { [S.fx[i - 1], S.fx[i]] = [S.fx[i], S.fx[i - 1]]; fxChanged(); }, i === 0),
+      iconBtn('Duplicate effect (Ctrl/Cmd+D)', '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>', () => duplicateFx(i)),
       iconBtn('Delete effect', '<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>', () => { S.fx.splice(i, 1); fxOpen.delete(e.id); fxChanged(); }),
       E('span', { class: 'chev' + (open ? ' up' : '') })));
     if (open) {
@@ -2579,7 +2645,7 @@ function presetBase(region, ctrls, layers) {
   S.ctrls = []; (ctrls || []).forEach(c => S.ctrls.push(Object.assign(newCtrlAt(c.type, S.region), c)));
   S.mix = 'max';
   S.layers = layers.map(l => newLayer(l));
-  S.sel = 0; selCtrl = -1; S.fx = []; migrateMods();
+  S.sel = 0; selCtrl = -1; S.fx = []; S.excl = []; selZone = -1; migrateMods();
 }
 function newCtrlAt(type, R) { const keep = S.region; S.region = R; const c = newCtrl(type); S.region = keep; return c; }
 const PRESETS = [
@@ -2727,6 +2793,9 @@ function renderShapes() {
     shapeDrag(b, show, () => { flyGroup = flyGroup === gr[0] ? null : gr[0]; renderShapes(); });
     rail.append(b);
   });
+  const kb = E('button', { class: 'railBtn railKeep' + (flyGroup === 'keepout' ? ' open' : '') + ((S.excl || []).length ? ' has' : ''), 'data-g': 'keepout', title: 'Keep-out areas: red areas where no pieces go', 'aria-label': 'Keep-out areas', onclick: ev => { ev.stopPropagation(); flyGroup = flyGroup === 'keepout' ? null : 'keepout'; renderShapes(); } });
+  kb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/></svg><span>Keep out</span>';
+  rail.append(kb);
   rail.append(E('div', { class: 'railSep' }));
   const mb = E('button', { class: 'railBtn railMotif' + (document.body.classList.contains('motifOpen') ? ' open' : ''), title: 'Motif: size, turn, stretch and position', 'aria-label': 'Motif settings', onclick: ev => { ev.stopPropagation(); setMotifPanel(!document.body.classList.contains('motifOpen')); } });
   mb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>Motif</span>';
@@ -2739,8 +2808,41 @@ function setMotifPanel(on) {
   try { localStorage.setItem(MOTIF_KEY, on ? '1' : '0'); } catch (e) { }
   renderShapes(); requestAnimationFrame(() => requestRender());
 }
+function renderKeepout(fly) {
+  fly.append(E('div', { class: 'flyHead' }, E('span', { class: 'keepT' }, 'Keep-out areas'), E('button', { class: 'icon ghost', 'aria-label': 'Close', onclick: () => { flyGroup = null; renderShapes(); } }, '✕')));
+  fly.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Pieces are removed inside the red areas: around screw holes, logos, or anywhere the pattern should stop.'));
+  const tool = (t, label, svg) => { const b = E('button', { class: 'mini keepTool', onclick: () => startZoneTool(t) }); b.innerHTML = '<svg class="i" viewBox="0 0 24 24">' + svg + '</svg>' + label; return b; };
+  fly.append(E('div', { class: 'btns', style: 'margin-top:0' }, tool('rect', 'Rectangle', '<rect x="4" y="6" width="16" height="12" rx="1"/>'), tool('ellipse', 'Ellipse', '<ellipse cx="12" cy="12" rx="8" ry="6"/>'), tool('poly', 'Draw', '<path d="M5 18 8 6l6 4 5-3-2 11z"/>')));
+  const pick = E('details', { class: 'keepShapes' }, E('summary', {}, 'From a shape…'));
+  const grid = E('div', { class: 'shapes' });
+  Object.values(SHAPES).filter(sh => !RETIRED_SHAPES[sh.id] && mainLoop(sh)).forEach(sh => { const it = E('div', { class: 'shape', title: sh.name, onclick: () => zoneFromShape(sh.id) }); it.innerHTML = shapeThumb(sh); grid.append(it); });
+  pick.append(grid); fly.append(pick);
+  if (!(S.excl || []).length) return;
+  const list = E('div', { class: 'keepList' });
+  S.excl.forEach((z, i) => {
+    const name = (z.type === 'shape' && SHAPES[z.shapeId] ? SHAPES[z.shapeId].name : ZONE_NAMES[z.type]) + ' ' + (i + 1);
+    list.append(E('div', { class: 'keepRow' + (i === selZone ? ' sel' : ''), onclick: () => selectZone(i === selZone ? -1 : i) },
+      E('span', { class: 'keepSw' }), E('span', { class: 'nm' }, name),
+      eyeBtn(z.on, z.on ? 'Turn this area off' : 'Turn this area on', ev => { ev.stopPropagation(); z.on = !z.on; renderFly(); requestRender(); pushHistory(); }),
+      (() => { const b = E('button', { class: 'eye', title: 'Duplicate area (Ctrl/Cmd+D)', 'aria-label': 'Duplicate area', onclick: ev => { ev.stopPropagation(); duplicateZone(i); } }); b.innerHTML = '<svg class="i" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>'; return b; })(),
+      (() => { const b = E('button', { class: 'eye', title: 'Delete area', 'aria-label': 'Delete area', onclick: ev => { ev.stopPropagation(); deleteZone(i); } }); b.innerHTML = '<svg class="i" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>'; return b; })()));
+    if (i === selZone) {
+      const P = k => () => z[k], Q = k => v => { z[k] = v; };
+      list.append(E('div', { class: 'keepBody' },
+        numRow('Margin', P('margin'), Q('margin'), 0, 30, 0.1, 'mm', 'Extra clear space around the area'),
+        line(E('label', {}, 'Remove'), sel([['touch', 'Pieces that touch it'], ['centre', 'Pieces centred in it']], P('mode'), Q('mode'))),
+        pickPills('Applies to', S.layers.map((L, li) => [L.id, 'Layer ' + (li + 1)]), () => z.layers, v => { z.layers = v; }, () => { renderFly(); requestRender(); pushHistory(); })));
+    }
+  });
+  fly.append(list);
+}
 function renderFly() {
   const fly = $('#shapeFly'), gr = SHAPE_GROUPS.find(q => q[0] === flyGroup);
+  if (flyGroup === 'keepout') {
+    fly.hidden = false; fly.innerHTML = ''; renderKeepout(fly);
+    const btn = $('#shapeRail [data-g="keepout"]'), room = fly.parentElement.clientHeight;
+    fly.style.top = Math.max(6, Math.min(btn ? btn.offsetTop : 6, room - fly.offsetHeight - 6)) + 'px'; return;
+  }
   if (!gr) { fly.hidden = true; return; }
   const ids = groupShapes(gr); fly.hidden = false; fly.innerHTML = '';
   fly.append(E('div', { class: 'flyHead' }, E('span', {}, gr[1]), E('button', { class: 'icon ghost', 'aria-label': 'Close', onclick: () => { flyGroup = null; renderShapes(); } }, '✕')));
@@ -2767,7 +2869,7 @@ function renderFly() {
   const btn = $('#shapeRail [data-g="' + gr[0] + '"]'), room = fly.parentElement.clientHeight;
   fly.style.top = Math.max(6, Math.min(btn ? btn.offsetTop : 6, room - fly.offsetHeight - 6)) + 'px';
 }
-document.addEventListener('click', ev => { if (flyGroup && document.contains(ev.target) && !ev.target.closest('#shapeFly') && !ev.target.closest('#shapeRail')) { flyGroup = null; renderShapes(); } });
+document.addEventListener('click', ev => { if (flyGroup && document.contains(ev.target) && !ev.target.closest('#shapeFly') && !ev.target.closest('#shapeRail') && !(flyGroup === 'keepout' && ev.target.closest('#stage'))) { flyGroup = null; renderShapes(); } });
 function buildTraceBox() {
   const box = $('#traceBox'); box.innerHTML = '';
   const s = SHAPES[cur().shape];
@@ -3305,6 +3407,66 @@ function dragModeAt(ev) {
   return 'pan';
 }
 
+/* ---------- keep-out areas on the canvas ---------- */
+let zoneTool = null, zoneDraft = null; // zoneTool: 'rect' | 'ellipse' | 'poly' while drawing a new area
+function zonesOverlay(px) {
+  let s = '';
+  (S.excl || []).forEach((z, i) => {
+    const P = zonePoly(z); if (P.length < 3) return;
+    const sel = i === selZone, d = 'M' + P.map(q => fmt(q[0]) + ' ' + fmt(q[1])).join('L') + 'Z';
+    s += '<path d="' + d + '" fill="' + ZONE_RED + '" fill-opacity="' + (z.on ? 0.2 : 0.06) + '" stroke="' + ZONE_RED + '" stroke-width="' + (sel ? 2 : 1.4) + '"' + (sel ? '' : ' stroke-dasharray="5 3"') + ' stroke-opacity="' + (z.on ? 1 : 0.5) + '" vector-effect="non-scaling-stroke"/>';
+    if (z.margin > 0) s += '<path d="' + d + '" fill="none" stroke="' + ZONE_RED + '" stroke-opacity=".55" stroke-width="' + fmt(2 * z.margin) + '" stroke-linejoin="round"/>';
+    if (sel) {
+      const hs = (HANDLE_R - 1) * px, hd = (x, y, key) => { HANDLES.push({ x: x, y: y, ci: -4, key: key }); s += '<rect x="' + fmt(x - hs) + '" y="' + fmt(y - hs) + '" width="' + fmt(2 * hs) + '" height="' + fmt(2 * hs) + '" fill="#fff" stroke="' + ZONE_RED + '" stroke-width="2" vector-effect="non-scaling-stroke"/>'; };
+      if (z.type === 'poly') z.pts.forEach((q, k) => hd(q[0], q[1], 'zv' + k)); else hd(z.x + z.w, z.y + z.h, 'zs');
+    }
+  });
+  if (zoneDraft && zoneDraft.pts.length) {
+    const P = zoneDraft.pts.concat(zoneDraft.hover ? [zoneDraft.hover] : []);
+    s += '<path d="M' + P.map(q => fmt(q[0]) + ' ' + fmt(q[1])).join('L') + '" fill="' + ZONE_RED + '" fill-opacity=".12" stroke="' + ZONE_RED + '" stroke-width="1.6" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>';
+    zoneDraft.pts.forEach((q, k) => { s += '<circle cx="' + fmt(q[0]) + '" cy="' + fmt(q[1]) + '" r="' + fmt((k === 0 ? 5 : 3.5) * px) + '" fill="#fff" stroke="' + ZONE_RED + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'; });
+  }
+  return s;
+}
+const zoneAt = w => { for (let i = (S.excl || []).length - 1; i >= 0; i--) if (inPoly(zonePoly(S.excl[i]), w)) return i; return -1; };
+function selectZone(i) { selZone = i; if (i >= 0) { selCtrl = -1; selKnot = null; } if (flyGroup === 'keepout') renderFly(); requestRender(); }
+function addZone(z, quiet) { S.excl.push(Object.assign({ id: 'z' + Math.random().toString(36).slice(2, 7), on: true, margin: 0, mode: 'touch', layers: 'all' }, z)); selectZone(S.excl.length - 1); if (!quiet) pushHistory(true); }
+function deleteZone(i) { if (!S.excl[i]) return; S.excl.splice(i, 1); selZone = -1; if (flyGroup === 'keepout') renderFly(); requestRender(); pushHistory(true); toast('Keep-out area deleted. Undo brings it back.'); }
+function startZoneTool(t) {
+  zoneTool = t; zoneDraft = t === 'poly' ? { pts: [], hover: null } : null; flyGroup = null; renderShapes(); stage.style.cursor = 'crosshair';
+  toast(t === 'poly' ? 'Click to place points. Click the first point, double click or press Enter to finish; Esc cancels.' : 'Drag on the canvas to draw the ' + ZONE_NAMES[t].toLowerCase() + '. Shift keeps it even.', 4200);
+}
+function endZoneTool() { zoneTool = null; zoneDraft = null; stage.style.cursor = ''; requestRender(); }
+function finishPoly() { if (zoneDraft && zoneDraft.pts.length >= 3) addZone({ type: 'poly', pts: zoneDraft.pts.map(q => [+q[0].toFixed(2), +q[1].toFixed(2)]) }); endZoneTool(); }
+function zoneFromShape(id) { const R = S.region, m = Math.min(R.W, R.H) / 3, sh = SHAPES[id], ar = sh ? sh.w / (sh.h || 1) : 1; const w = ar >= 1 ? m : m * ar, h = ar >= 1 ? m / ar : m; addZone({ type: 'shape', shapeId: id, x: +(R.W / 2 - w / 2).toFixed(2), y: +(R.H / 2 - h / 2).toFixed(2), w: +w.toFixed(2), h: +h.toFixed(2) }); toast(sh.name + ' keep-out area added. Drag to move it, the corner to resize it.'); }
+
+/* ---------- duplicating ---------- */
+// Exact copies, placed right after the original and selected. Effects on a layer follow its copy.
+function duplicateLayer() {
+  const src = cur(), L = JSON.parse(JSON.stringify(src)), was = L.id; L.id = 'L' + Math.random().toString(36).slice(2, 8);
+  S.fx.forEach(e => { if (Array.isArray(e.layers) && e.layers.includes(was)) e.layers.push(L.id); });
+  (S.excl || []).forEach(z => { if (Array.isArray(z.layers) && z.layers.includes(was)) z.layers.push(L.id); });
+  S.layers.splice(S.sel + 1, 0, L); S.sel++; rebuildAll(); pushHistory(true); toast('Layer duplicated');
+}
+function duplicateFx(i) {
+  const e = S.fx[i]; if (!e) return;
+  const c = Object.assign(JSON.parse(JSON.stringify(e)), { id: newFxId() }); S.fx.splice(i + 1, 0, c);
+  fxOpen.delete(e.id); fxOpen.add(c.id); fxChanged(); toast(FX_KINDS[e.kind].label + ' effect duplicated');
+}
+function duplicateZone(i) {
+  const z = S.excl[i]; if (!z) return;
+  const c = Object.assign(JSON.parse(JSON.stringify(z)), { id: 'z' + Math.random().toString(36).slice(2, 7) });
+  if (c.type === 'poly') c.pts = c.pts.map(q => [q[0] + 5, q[1] + 5]); else { c.x += 5; c.y += 5; }
+  S.excl.splice(i + 1, 0, c); selectZone(i + 1); pushHistory(true); toast('Keep-out area duplicated');
+}
+// Ctrl/Cmd+D duplicates what you're working on: a selected keep-out area, else the open effect on the Effects tab, else the layer.
+function duplicateSelection() {
+  if (selZone >= 0) return duplicateZone(selZone);
+  const onFx = document.querySelector('.tabs [data-tab="grad"].on'), open = S.fx.findIndex(e => fxOpen.has(e.id));
+  if (onFx && open >= 0) return duplicateFx(open);
+  duplicateLayer();
+}
+
 /* ---------- deleting gradients ---------- */
 let selKnot = null; // the handle last clicked on the selected gradient: { ci, key }
 function deleteCtrl(i) {
@@ -3427,6 +3589,7 @@ function cropTo(x0, y0, x1, y1) {
     if (L.lay && L.lay.cx != null) { L.lay.cx = +((L.lay.cx / 100 * R.W - x0) / W * 100).toFixed(3); L.lay.cy = +((L.lay.cy / 100 * R.H - y0) / H * 100).toFixed(3); }
   });
   (S.ctrls || []).forEach(c => { sh(c, 'x', 'y'); sh(c, 'x1', 'y1'); sh(c, 'x2', 'y2'); if (c.pts) c.pts = c.pts.map(p => [+(p[0] - x0).toFixed(2), +(p[1] - y0).toFixed(2)]); });
+  (S.excl || []).forEach(z => { sh(z, 'x', 'y'); if (z.pts) z.pts = z.pts.map(p => [+(p[0] - x0).toFixed(2), +(p[1] - y0).toFixed(2)]); });
   R.W = W; R.H = H; view.cx -= x0; view.cy -= y0; FIELD = null;
 }
 function setCrop(on) {
@@ -3494,7 +3657,21 @@ stage.addEventListener('pointerdown', ev => {
     }
     if (touchPts.size > 2) return;
   }
+  if (zoneTool && !spaceDown && ev.button === 0) {
+    const w = snapPoint(toWorld(ev), ev);
+    if (zoneTool === 'poly') {
+      const f = zoneDraft.pts[0];
+      if (f && zoneDraft.pts.length >= 3 && Math.hypot(w[0] - f[0], w[1] - f[1]) < 10 / view.scale) { finishPoly(); return; }
+      zoneDraft.pts.push(w); requestRender(); return;
+    }
+    drag = { zoneNew: true, w0: w }; addZone({ type: zoneTool, x: w[0], y: w[1], w: 0, h: 0 }, true); return;
+  }
   const mode = dragModeAt(ev), h = mode === 'pan' && (spaceDown || ev.button === 1) ? null : hitHandle(ev);
+  if (h && h.ci === -4) { drag = { handle: h, w0: toWorld(ev), z0: JSON.parse(JSON.stringify(S.excl[selZone])) }; stage.style.cursor = 'grabbing'; return; }
+  if (!h && mode !== 'motif' && !(spaceDown || ev.button === 1)) {
+    const zi = zoneAt(toWorld(ev));
+    if (zi >= 0 && (zi === selZone || mode === 'pan')) { selectZone(zi); drag = { zoneMove: zi, w0: toWorld(ev), z0: JSON.parse(JSON.stringify(S.excl[zi])), x: ev.clientX, y: ev.clientY, moved: false }; stage.style.cursor = 'move'; return; }
+  }
   if (h) {
     drag = { handle: h, w0: toWorld(ev) };
     if (h.ci >= 0) { selKnot = { ci: h.ci, key: h.key }; if (selCtrl !== h.ci) { selCtrl = h.ci; buildGradients(); } requestRender(); }
@@ -3514,11 +3691,31 @@ stage.addEventListener('pointermove', ev => {
     requestRender(); return;
   }
   if (ev.pointerType !== 'touch') { lastPtr = toWorld(ev); drawRulers(); }
+  if (!drag && zoneDraft) { zoneDraft.hover = snapPoint(toWorld(ev), ev); requestRender(); }
   if (!drag) {
+    if (zoneTool) { stage.style.cursor = 'crosshair'; return; }
     if (ev.pointerType === 'touch') return;
     const h = !spaceDown && hitHandle(ev), m = dragModeAt(ev);
     stage.style.cursor = h ? (h.key.startsWith('crop-') ? (h.key.length === 6 ? (h.key === 'crop-t' || h.key === 'crop-b' ? 'ns-resize' : 'ew-resize') : (h.key === 'crop-lt' || h.key === 'crop-rb' ? 'nwse-resize' : 'nesw-resize')) : 'pointer') : m === 'pan' ? '' : 'move';
     return;
+  }
+  if (drag.zoneNew) {
+    const z = S.excl[selZone], w = snapPoint(toWorld(ev), ev); let dx = w[0] - drag.w0[0], dy = w[1] - drag.w0[1];
+    if (ev.shiftKey) { const m = Math.max(Math.abs(dx), Math.abs(dy)); dx = Math.sign(dx || 1) * m; dy = Math.sign(dy || 1) * m; }
+    z.x = +Math.min(drag.w0[0], drag.w0[0] + dx).toFixed(2); z.y = +Math.min(drag.w0[1], drag.w0[1] + dy).toFixed(2); z.w = +Math.abs(dx).toFixed(2); z.h = +Math.abs(dy).toFixed(2);
+    requestRender(); return;
+  }
+  if (drag.zoneMove != null) {
+    const z = S.excl[drag.zoneMove], w = toWorld(ev), dx = w[0] - drag.w0[0], dy = w[1] - drag.w0[1], o = drag.z0;
+    drag.moved = drag.moved || Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) > 3;
+    if (z.type === 'poly') z.pts = o.pts.map(q => [+(q[0] + dx).toFixed(2), +(q[1] + dy).toFixed(2)]); else { z.x = +(o.x + dx).toFixed(2); z.y = +(o.y + dy).toFixed(2); }
+    requestRender(); return;
+  }
+  if (drag.handle && drag.handle.ci === -4) {
+    const z = S.excl[selZone], k = drag.handle.key, w = snapPoint(toWorld(ev), ev);
+    if (k === 'zs') { let nw = Math.max(1, w[0] - z.x), nh = Math.max(1, w[1] - z.y); if (ev.shiftKey && drag.z0.w && drag.z0.h) { const r = drag.z0.w / drag.z0.h; if (nw / nh > r) nh = nw / r; else nw = nh * r; } z.w = +nw.toFixed(2); z.h = +nh.toFixed(2); }
+    else z.pts[+k.slice(2)] = [+w[0].toFixed(2), +w[1].toFixed(2)];
+    requestRender(); return;
   }
   if (drag.handle) {
     const h = drag.handle, w = toWorld(ev).map(v => +v.toFixed(2));
@@ -3558,13 +3755,16 @@ stage.addEventListener('pointermove', ev => {
 const endDrag = ev => {
   touchPts.delete(ev.pointerId);
   if (pinch) { if (touchPts.size === 0) pinch = null; return; }
+  if (drag && drag.zoneNew) { const z = S.excl[selZone]; if (!z || z.w < 1 || z.h < 1) { S.excl.splice(selZone, 1); selZone = -1; toast('Too small: drag a bigger area'); } else { pushHistory(true); toast(ZONE_NAMES[z.type] + ' keep-out area added. Drag to move it, the corner to resize, Delete to remove.'); } zoneTool = null; stage.style.cursor = ''; drag = null; requestRender(); return; }
+  if (drag && drag.zoneMove != null) { if (drag.moved) pushHistory(true); drag = null; stage.style.cursor = ''; if (snapGuide) snapGuide = null; requestRender(); return; }
   if (drag && drag.handle) { pushHistory(); if (drag.handle.key === 'centre') buildLayout(); if (drag.handle.key.startsWith('cell')) buildLayerControls(); if (drag.handle.key.startsWith('crop-')) rebuildAll(); }
   else if (drag && drag.mode !== 'pan' && drag.moved) { buildLayerControls(); pushHistory(); }
-  else if (drag && drag.mode === 'pan' && Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 4 && (selCtrl >= 0 || selKnot)) { selCtrl = -1; selKnot = null; buildGradients(); requestRender(); }
+  else if (drag && drag.mode === 'pan' && Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 4 && (selCtrl >= 0 || selKnot || selZone >= 0)) { selCtrl = -1; selKnot = null; selZone = -1; buildGradients(); if (flyGroup === 'keepout') renderFly(); requestRender(); }
   drag = null; stage.style.cursor = spaceDown ? 'grab' : '';
   if (snapGuide) { snapGuide = null; requestRender(); }
 };
 stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
+stage.addEventListener('dblclick', () => { if (zoneTool === 'poly') { if (zoneDraft && zoneDraft.pts.length > 3) zoneDraft.pts.pop(); finishPoly(); } });
 stage.addEventListener('pointerleave', () => { if (!drag) { lastPtr = null; drawRulers(); } });
 // Like Illustrator/Figma: the wheel or two finger trackpad scroll pans; Ctrl/Cmd/Alt + wheel or a trackpad pinch zooms.
 stage.addEventListener('wheel', ev => {
@@ -3879,8 +4079,8 @@ $('#lAdd').onclick = () => {
   const L = newLayer({ group: base.group, cellW: base.cellW, cellH: base.cellH, bLen: base.bLen, angle: base.angle, rot: base.rot, link: true, fill: pal[0], palette: pal.slice(), shape: 'dot', size: +(base.cellW * 0.12).toFixed(2), mx: 0, my: 0 });
   S.layers.push(L); S.sel = S.layers.length - 1; rebuildAll(); pushHistory();
 };
-$('#lDup').onclick = () => { const L = JSON.parse(JSON.stringify(cur())), was = L.id; L.id = 'L' + Math.random().toString(36).slice(2, 8); S.fx.forEach(e => { if (Array.isArray(e.layers) && e.layers.includes(was)) e.layers.push(L.id); }); L.link = S.sel === 0 ? true : L.link; S.layers.splice(S.sel + 1, 0, L); S.sel++; rebuildAll(); pushHistory(); };
-$('#lDel').onclick = () => { if (S.layers.length < 2) { toast('Keep at least one layer'); return; } const gone = S.layers[S.sel].id; S.fx.forEach(e => { if (Array.isArray(e.layers)) e.layers = e.layers.filter(id => id !== gone); }); S.layers.splice(S.sel, 1); S.sel = Math.max(0, S.sel - 1); if (S.layers[0]) S.layers[0].link = false; rebuildAll(); pushHistory(); };
+$('#lDup').onclick = () => duplicateLayer();
+$('#lDel').onclick = () => { if (S.layers.length < 2) { toast('Keep at least one layer'); return; } const gone = S.layers[S.sel].id; S.fx.forEach(e => { if (Array.isArray(e.layers)) e.layers = e.layers.filter(id => id !== gone); }); (S.excl || []).forEach(z => { if (Array.isArray(z.layers)) { z.layers = z.layers.filter(id => id !== gone); if (!z.layers.length) z.layers = 'all'; } }); S.layers.splice(S.sel, 1); S.sel = Math.max(0, S.sel - 1); if (S.layers[0]) S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#lUp').onclick = () => { const i = S.sel; if (i >= S.layers.length - 1) return; [S.layers[i], S.layers[i + 1]] = [S.layers[i + 1], S.layers[i]]; S.sel = i + 1; S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#lDown').onclick = () => { const i = S.sel; if (i <= 0) return; [S.layers[i], S.layers[i - 1]] = [S.layers[i - 1], S.layers[i]]; S.sel = i - 1; S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#bImport').onclick = () => $('#fileIn').click();
@@ -3918,8 +4118,11 @@ document.addEventListener('keydown', ev => {
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.type !== 'range' && document.activeElement.type !== 'checkbox';
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'z' && !typing) { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'y' && !typing) { ev.preventDefault(); redo(); return; }
-  if (ev.key === 'Escape') { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); if (cropMode) setCrop(false); if (flyGroup) { flyGroup = null; renderShapes(); } if (selCtrl >= 0 && !typing) { selCtrl = -1; selKnot = null; buildGradients(); requestRender(); } }
+  if (ev.key === 'Escape') { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); if (cropMode) setCrop(false); if (flyGroup) { flyGroup = null; renderShapes(); } if (zoneTool) endZoneTool(); if (selZone >= 0 && !typing) selectZone(-1); if (selCtrl >= 0 && !typing) { selCtrl = -1; selKnot = null; buildGradients(); requestRender(); } }
   if (typing || document.querySelector('.modal.open')) return;
+  if (zoneTool === 'poly' && ev.key === 'Enter') { ev.preventDefault(); finishPoly(); return; }
+  if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'd') { ev.preventDefault(); duplicateSelection(); return; }
+  if ((ev.key === 'Delete' || ev.key === 'Backspace') && selZone >= 0 && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { ev.preventDefault(); deleteZone(selZone); return; }
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selCtrl >= 0 && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { ev.preventDefault(); deleteSelection(); return; }
   if (ev.key === ' ') { ev.preventDefault(); if (!spaceDown) { spaceDown = true; if (!drag) stage.style.cursor = 'grab'; } return; }
   if (ev.key === 'Enter' && cropMode) { setCrop(false); return; }
@@ -3955,7 +4158,7 @@ BUILTINS.forEach(b => {
 });
 buildGroupPick(); buildPresets();
 let restored = false;
-try { const s = localStorage.getItem('pattern-studio-v1'); if (s) { const o = JSON.parse(s); (o.shapes || []).forEach(sh => { SHAPES[sh.id] = finishShape(Object.assign({ builtin: false }, sh)); }); S.layers = o.layers.map(L => newLayer(L)); S.sel = Math.min(o.sel || 0, S.layers.length - 1); S.region = Object.assign(defaultState().region, o.region); S.exp = Object.assign(defaultState().exp, o.exp); S.ctrls = Array.isArray(o.ctrls) ? o.ctrls : []; S.mix = o.mix || 'max'; S.fx = normFx(o.fx); migrateMods(); S.layers.forEach(L => { if (!SHAPES[L.shape]) L.shape = 'comma'; }); restored = true; } } catch (e) { S = defaultState(); }
+try { const s = localStorage.getItem('pattern-studio-v1'); if (s) { const o = JSON.parse(s); (o.shapes || []).forEach(sh => { SHAPES[sh.id] = finishShape(Object.assign({ builtin: false }, sh)); }); S.layers = o.layers.map(L => newLayer(L)); S.sel = Math.min(o.sel || 0, S.layers.length - 1); S.region = Object.assign(defaultState().region, o.region); S.exp = Object.assign(defaultState().exp, o.exp); S.ctrls = Array.isArray(o.ctrls) ? o.ctrls : []; S.mix = o.mix || 'max'; S.fx = normFx(o.fx); migrateMods(); S.excl = normZones(o.excl); S.layers.forEach(L => { if (!SHAPES[L.shape]) L.shape = 'comma'; }); restored = true; } } catch (e) { S = defaultState(); }
 rebuildAll(); render(); fit(); pushHistory(true); renderThumbs();
 if (/^#(p|pattern)=/.test(location.hash)) setTimeout(openFromHash); else if (restored) toast('Restored your last session');
 window.__PS = { buildSTEP: buildSTEP, stepSolids: stepSolids, getField: getField, layerOut: layerOut, PRESETS: PRESETS, newCtrl: newCtrl, MORPHS: MORPHS, shapeSolid: shapeSolid, S: S, GROUPS: GROUPS, SHAPES: SHAPES, geom: geom, buildSVG: buildSVG, buildDXF: buildDXF, buildSTL: buildSTL, parseDXF: parseDXF, processSvg: processSvg, commonTile: commonTile, rectTileOf: rectTileOf, instances: instances, regionInfo: regionInfo, marksFor: marksFor, traceImage: traceImage, processRaster: processRaster, addShape: addShape, importText: importText, bakeCell: bakeCell, getS: () => S, rebuildAll: rebuildAll };
