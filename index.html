@@ -4378,7 +4378,8 @@ $('#lAdd').onclick = () => {
   S.layers.push(L); S.sel = S.layers.length - 1; rebuildAll(); pushHistory();
 };
 $('#lDup').onclick = () => duplicateLayer();
-$('#lDel').onclick = () => { if (S.layers.length < 2) { toast('Keep at least one layer'); return; } const gone = S.layers[S.sel].id; S.fx.forEach(e => { if (Array.isArray(e.layers)) e.layers = e.layers.filter(id => id !== gone); }); (S.excl || []).forEach(z => { if (Array.isArray(z.layers)) { z.layers = z.layers.filter(id => id !== gone); if (!z.layers.length) z.layers = 'all'; } }); S.layers.splice(S.sel, 1); S.sel = Math.max(0, S.sel - 1); if (S.layers[0]) S.layers[0].link = false; rebuildAll(); pushHistory(); };
+// deleting the only layer clears everything, leaving one empty layer
+$('#lDel').onclick = () => { if (S.layers.length < 2) { startOver('clear'); return; } const gone = S.layers[S.sel].id; S.fx.forEach(e => { if (Array.isArray(e.layers)) e.layers = e.layers.filter(id => id !== gone); }); (S.excl || []).forEach(z => { if (Array.isArray(z.layers)) { z.layers = z.layers.filter(id => id !== gone); if (!z.layers.length) z.layers = 'all'; } }); S.layers.splice(S.sel, 1); S.sel = Math.max(0, S.sel - 1); if (S.layers[0]) S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#lUp').onclick = () => { const i = S.sel; if (i >= S.layers.length - 1) return; [S.layers[i], S.layers[i + 1]] = [S.layers[i + 1], S.layers[i]]; S.sel = i + 1; S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#lDown').onclick = () => { const i = S.sel; if (i <= 0) return; [S.layers[i], S.layers[i - 1]] = [S.layers[i - 1], S.layers[i]]; S.sel = i - 1; S.layers[0].link = false; rebuildAll(); pushHistory(); };
 $('#bImport').onclick = () => $('#fileIn').click();
@@ -4398,12 +4399,16 @@ function askNew(kind) {
 $('#bNew').onclick = () => askNew('new');
 $('#tClear').onclick = () => askNew('clear');
 $('#newCancel').onclick = () => $('#newModal').classList.remove('open');
-$('#newOk').onclick = () => {
-  $('#newModal').classList.remove('open'); const keep = S.exp; S = defaultState(); S.exp = keep; selCtrl = -1;
-  if (newKind === 'clear') S.layers[0].empty = true;
+$('#newOk').onclick = () => { $('#newModal').classList.remove('open'); startOver(newKind); };
+// 'clear' leaves one empty layer, 'new' the starter pattern. Export settings stay; Undo brings everything back.
+function startOver(kind) {
+  const keep = S.exp; S = defaultState(); S.exp = keep; selCtrl = -1; selKnot = null; selZone = -1;
+  if (kind === 'clear') S.layers[0].empty = true;
   if (cropMode) setCrop(false);
-  rebuildAll(); fit(); pushHistory(true); if (newKind === 'clear') toast('Cleared. Pick a shape on the left to start.');
-};
+  if (zoneTool) endZoneTool();
+  rebuildAll(); fit(); pushHistory(true);
+  if (kind === 'clear') toast('Cleared. Pick a shape on the left to start. Undo brings it all back.', 3600);
+}
 $('#bDraw').onclick = openDraw;
 $('#bText').onclick = openText;
 $('#sBake').onclick = bakeCell;

@@ -19,7 +19,7 @@ Your work autosaves in the browser's own storage on your device (local storage, 
 ## Finding your way around
 
 * **Top bar:** Undo, Redo, a **File** menu (new, open, save, share link, import, draw or type a shape) and **Export**.
-* **Clear everything** (next to Shuffle on the canvas toolbar) removes all layers, gradients, effects, colours and surface settings and leaves one empty layer, ready for you to pick a shape. Your shapes and export settings stay, and Undo brings everything back. **File → New pattern** starts again from the example pattern instead.
+* **Clear everything** (next to Shuffle on the canvas toolbar) removes all layers, gradients, effects, colours and surface settings and leaves one empty layer, ready for you to pick a shape. Your shapes and export settings stay, and Undo brings everything back. **File → New pattern** starts again from the example pattern instead. Deleting the only layer does the same, without asking; Undo brings it back.
 * **Canvas toolbar:**
   * **Crop** puts handles on the surface edges. Drag them to trim or extend the surface; the pattern stays where it is. Press Esc or Enter when done.
   * **Center** moves the pattern so a symmetry point sits in the middle of the surface (spirals, rings and sunflowers move their centre there).
