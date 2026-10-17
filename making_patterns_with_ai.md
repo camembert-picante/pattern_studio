@@ -72,7 +72,7 @@ On the site (or any copy of `index.html`), `window.PatternStudio` offers:
 | `get()` | The current pattern as a full project object |
 | `summary()` | Layers, pieces, open area, surface, seamless tile, gradient count |
 | `reset('clear' \| 'example')` | One empty layer, or the starter pattern |
-| `presets()` / `preset(name)` | List or load the built in presets |
+| `presets()` / `preset(name)` | List or load the built in presets. Loading one is a clean start: nothing from the previous pattern carries over except custom shapes and export settings |
 | `shapes()`, `groups()`, `layouts()`, `formats()` | What can be used |
 | `addShape(svgText, name)` | Add a shape from SVG; returns its id |
 | `await export(format, options)` | `[{ filename, mime, base64 }]`, with no download dialog |
