@@ -2412,9 +2412,10 @@ function renderThumbs() {
     const geoSel = geom(L, g.id), o = geoSel.origin;
     const reg = { x0: o[0] - span / 2, y0: o[1] - span / 2, x1: o[0] + span / 2, y1: o[1] + span / 2, contains: (q, r) => Math.abs(q[0] - o[0]) <= span / 2 + (r || 0) && Math.abs(q[1] - o[1]) <= span / 2 + (r || 0) };
     let h = '<rect x="' + fmt(reg.x0) + '" y="' + fmt(reg.y0) + '" width="' + fmt(span) + '" height="' + fmt(span) + '" fill="' + (S.region.bgOn ? esc(S.region.bg) : 'transparent') + '"/>';
-    S.layers.forEach((M, idx) => {
-      if ((!M.visible || M.empty) && M !== L) return;
-      const geo = M === L ? geoSel : geom(M);
+    // only the selected layer: it is the one the group applies to, and other layers (crosshatch, flow, other
+    // groups) would show motifs that are not in this layer
+    [L].forEach(M => {
+      const geo = geoSel;
       const res = instances(geo, reg, 'clip', 3000), sh = geo.sh, v = sh.kind === 'raster' ? 'o' : (M.useOrig ? 'o' : 'm');
       const sw = (M.sw || 0) / ((sh.k || 1) * Math.max(1e-6, geo.p.size)), pal = M.palette.slice(0, M.paletteN);
       h += '<g fill="' + esc(M.fill) + '" color="' + esc(M.strokeOn ? M.stroke : M.fill) + '" stroke="' + (M.strokeOn ? esc(M.stroke) : 'none') + '" stroke-width="' + fmt(sw) + '"' + (M.opacity < 1 ? ' opacity="' + fmt(M.opacity) + '"' : '') + '>';
