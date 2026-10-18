@@ -104,7 +104,8 @@ All sizes are in **millimetres**; angles are in degrees. Coordinates are measure
 | `W`, `H` | Surface width and height | 200, 150 |
 | `shape` | `rect`, `rounded`, `ellipse`, `custom` (outline of a shape, see `shapeId`) | `rect` |
 | `radius` | Corner radius for `rounded` | 12 |
-| `shapeId`, `fit` | For `custom`: the shape whose outline is the surface; `contain` or `stretch` | |
+| `shapeId`, `fit` | For `custom`: the shape whose outline is the surface; `contain` or `stretch` fit it into the surface, `actual` uses its real size in mm (shapes from `svgShapes` get it from the SVG's `width` in mm, cm, in, pt or px and its `viewBox`) | `contain` |
+| `ocx`, `ocy` | With `fit: "actual"`: where the middle of the outline sits, mm | middle of the surface |
 | `margin` | Empty band inside the edge | 0 |
 | `edge` | `clip` cut pieces at the edge · `inside` only whole pieces inside · `touch` whole pieces that may overhang | `clip` |
 | `bgOn`, `bg` | Paint the background, and its colour | `true`, `#f7f3ea` |

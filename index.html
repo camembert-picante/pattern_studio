@@ -333,6 +333,7 @@ aside.panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;back
     </div>
   </details>
   <button id="bExport" class="primary">Export</button>
+  <input type="file" id="outlineIn" hidden accept=".svg,.dxf,.png,.jpg,.jpeg,.webp,image/*">
   <input type="file" id="fileIn" hidden accept=".svg,.png,.jpg,.jpeg,.gif,.webp,.bmp,.avif,.dxf,.json,image/*">
   <input type="file" id="projIn" hidden accept=".json,application/json">
   <input type="file" id="imgIn" hidden accept="image/*">
@@ -668,6 +669,11 @@ function customLoops(R, x0, y0, w, h) {
   const sh = SHAPES[R.shapeId]; if (!sh) return null;
   const loops = sh.polys.filter(p => p.closed && p.pts.length > 2).map(p => p.pts);
   if (!loops.length) return null;
+  if (R.fit === 'actual' && sh.mm) {
+    // real size, centred where it was placed (the middle of the surface by default)
+    const k = sh.mm, ox = R.ocx == null ? R.W / 2 : R.ocx, oy = R.ocy == null ? R.H / 2 : R.ocy;
+    return loops.map(l => l.map(p => [ox + p[0] * k, oy + p[1] * k]));
+  }
   let sx = w / sh.w, sy = h / sh.h; if (R.fit !== 'stretch') sx = sy = Math.min(sx, sy);
   const cx = x0 + w / 2, cy = y0 + h / 2;
   return loops.map(l => l.map(p => [cx + p[0] * sx, cy + p[1] * sy]));
@@ -1033,14 +1039,20 @@ function resolvePaint(svg, v) {
   }
   return v;
 }
-// Turn any SVG markup into a clean, normalized shape record.
+// Millimetres per SVG user unit, from the file's width and viewBox (mm, cm, in, pt, pc or px at 96 per inch).
+function svgUnitMM(el) {
+  const px = 25.4 / 96, vb = (el.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number), m = /^\s*([\d.]+)\s*(mm|cm|in|pt|pc|px)?\s*$/i.exec(el.getAttribute('width') || '');
+  if (!m || vb.length !== 4 || !(vb[2] > 0)) return px;
+  return +m[1] * ({ mm: 1, cm: 10, in: 25.4, pt: 25.4 / 72, pc: 25.4 / 6, px: px }[(m[2] || 'px').toLowerCase()]) / vb[2];
+}
+// Turn any SVG markup into a clean, normalized shape record. rec.mm keeps its real size: the longest side in mm.
 function processSvg(text, name, opts) {
   opts = opts || {};
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
   if (doc.querySelector('parsererror')) throw new Error('This SVG could not be read.');
   let src = doc.documentElement;
   if (src.localName !== 'svg') { src = doc.querySelector('svg'); if (!src) throw new Error('No <svg> element found.'); }
-  const svg = document.importNode(src, true);
+  const unitMM = svgUnitMM(src), svg = document.importNode(src, true);
   svg.querySelectorAll('script,foreignObject,iframe,animate,animateTransform,set').forEach(n => n.remove());
   svg.querySelectorAll('*').forEach(e => [...e.attributes].forEach(at => { if (/^on/i.test(at.name)) e.removeAttribute(at.name); }));
   svg.setAttribute('width', '400'); svg.setAttribute('height', '400');
@@ -1126,7 +1138,7 @@ function processSvg(text, name, opts) {
   const rec = {
     id: opts.id || ('u' + Date.now().toString(36) + (shapeSeq++)), name: name || 'Shape', builtin: !!opts.builtin,
     kind: hasImg && !npolys.length ? 'raster' : (hasText && !npolys.length ? 'text' : 'vector'),
-    inner: { o: head + ser(false) + '</g>', m: head + ser(true) + '</g>' }, w: w * k, h: h * k, k: k, polys: npolys, lineArt: lineArt,
+    inner: { o: head + ser(false) + '</g>', m: head + ser(true) + '</g>' }, w: w * k, h: h * k, k: k, polys: npolys, lineArt: lineArt, mm: +(D * unitMM).toFixed(3),
     src: opts.keepSrc ? text : null
   };
   finishShape(rec);
@@ -1335,7 +1347,9 @@ function parseDXF(text) {
   let body = '';
   if (closed.length) body += '<path d="' + closed.map(pl => dOf(pl, true)).join('') + '" fill="#000" fill-rule="evenodd"/>';
   if (chains.length) body += '<path d="' + chains.map(pl => dOf(pl, false)).join('') + '" fill="none" stroke="#000" stroke-width="' + fmt(D * 0.01) + '" stroke-linecap="round" stroke-linejoin="round"/>';
-  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + [mnx, mny, mxx - mnx, mxy - mny].map(fmt).join(' ') + '">' + body + '</svg>';
+  // DXF drawings are in $INSUNITS (inches, feet, mm, cm or m; none given = mm): pass the real size on in mm
+  const iu = pairs.findIndex(q => q[0] === 9 && q[1] === '$INSUNITS'), unit = { 1: 25.4, 2: 304.8, 4: 1, 5: 10, 6: 1000 }[iu >= 0 && pairs[iu + 1] ? parseInt(pairs[iu + 1][1], 10) : 4] || 1;
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + fmt((mxx - mnx) * unit) + 'mm" height="' + fmt((mxy - mny) * unit) + 'mm" viewBox="' + [mnx, mny, mxx - mnx, mxy - mny].map(fmt).join(' ') + '">' + body + '</svg>';
 }
 
 /* ---------- Built in shapes ---------- */
@@ -1444,7 +1458,7 @@ function restore(s) { const o = JSON.parse(s); S.layers = o.layers; S.sel = Math
 function undo() { if (hIdx > 0) { hIdx--; restore(hist[hIdx]); updUndo(); autosave(); } }
 function redo() { if (hIdx < hist.length - 1) { hIdx++; restore(hist[hIdx]); updUndo(); autosave(); } }
 function updUndo() { $('#bUndo').disabled = hIdx <= 0; $('#bRedo').disabled = hIdx >= hist.length - 1; }
-function customShapes() { return Object.values(SHAPES).filter(s => !s.builtin && !HIDDEN[s.id]).map(s => ({ id: s.id, name: s.name, kind: s.kind, inner: s.inner, w: s.w, h: s.h, k: s.k, polys: s.polys, lineArt: s.lineArt, data: s.data || null })); }
+function customShapes() { return Object.values(SHAPES).filter(s => !s.builtin && !HIDDEN[s.id]).map(s => ({ id: s.id, name: s.name, kind: s.kind, inner: s.inner, w: s.w, h: s.h, k: s.k, polys: s.polys, lineArt: s.lineArt, mm: s.mm || null, data: s.data || null })); }
 function projectJSON() { return JSON.stringify({ app: 'pattern-studio', v: 3, layers: S.layers, sel: S.sel, region: S.region, exp: S.exp, ctrls: S.ctrls, mix: S.mix, fx: S.fx, excl: S.excl, shapes: customShapes() }); }
 let saveT = 0;
 function autosave() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem('pattern-studio-v1', projectJSON()); } catch (e) { /* storage full or blocked: fine */ } }, 500); }
@@ -2703,16 +2717,56 @@ function buildGradients() {
   box.append(bt);
 }
 let imgTarget = null;
+// Use a shape as the surface outline. With a real size it goes in at that size (centred on `at`, or the middle)
+// and the surface grows to fit it; without one it is fitted into the surface.
+function useOutline(rec, at) {
+  if (!mainLoop(rec)) { toast('That has no closed outline to use as a surface.', 4000); return; }
+  SHAPES[rec.id] = rec; shapesDirty = true;
+  const R = S.region; R.shape = 'custom'; R.shapeId = rec.id;
+  if (rec.mm) { R.fit = 'actual'; R.ocx = at ? +at[0].toFixed(2) : null; R.ocy = at ? +at[1].toFixed(2) : null; }
+  else { R.fit = 'contain'; R.ocx = R.ocy = null; }
+  const grew = R.fit === 'actual' && growForOutline();
+  rebuildAll(); fit(); pushHistory(true);
+  toast(grew ? 'Outline set. The surface grew to ' + fmt(R.W) + ' × ' + fmt(R.H) + ' mm to fit it.' : 'Outline set: the pattern now lives inside it.', 4200);
+}
+// Grow the surface so an actual size outline fits inside it with the margin, and keep the outline on the surface.
+function growForOutline() {
+  const R = S.region, sh = SHAPES[R.shapeId]; if (!sh || !sh.mm) return false;
+  const m = R.margin || 0, w = sh.w * sh.mm, h = sh.h * sh.mm; let grew = false;
+  if (w + 2 * m > R.W + 1e-6) { R.W = Math.ceil(w + 2 * m); grew = true; }
+  if (h + 2 * m > R.H + 1e-6) { R.H = Math.ceil(h + 2 * m); grew = true; }
+  const keep = (c, half, size) => c == null ? null : +clamp(c, half + m, size - half - m).toFixed(2);
+  R.ocx = grew ? null : keep(R.ocx, w / 2, R.W); R.ocy = grew ? null : keep(R.ocy, h / 2, R.H);
+  return grew;
+}
+async function uploadOutline(f) {
+  const name = (f.name || 'Outline').replace(/\.[^.]+$/, '').slice(0, 30), ext = (f.name.split('.').pop() || '').toLowerCase();
+  try {
+    let rec;
+    if (ext === 'svg' || f.type === 'image/svg+xml') rec = processSvg(await readFile(f), name);
+    else if (ext === 'dxf') rec = processSvg(parseDXF(await readFile(f)), name, { inheritSW: true });
+    else if (/^image\//.test(f.type)) { rec = processSvg(await traceImage(await readFile(f, 'url'), { threshold: 0.5, invert: false, smooth: true, detail: 0.6 }), name + ' (traced)'); rec.mm = null; }
+    else throw new Error('Use an SVG, DXF or image file for the outline.');
+    useOutline(rec);
+  } catch (e) { toast(e.message || String(e), 4500); }
+}
 function buildSurface() {
   const R = S.region, P = (k) => () => R[k], Q = (k) => (v) => { R[k] = v; };
   const sf = $('#secSurface'); sf.innerHTML = '';
   sf.append(numRow('Width', P('W'), Q('W'), 10, 1000, 1, 'mm'), numRow('Height', P('H'), Q('H'), 10, 1000, 1, 'mm'));
   sf.append(line(E('label', {}, 'Boundary'), sel([['rect', 'Rectangle'], ['rounded', 'Rounded rectangle'], ['ellipse', 'Circle / ellipse'], ['custom', 'Any shape…']], P('shape'), v => { R.shape = v; if (v === 'custom' && !SHAPES[R.shapeId]) R.shapeId = 'hex'; buildSurface(); })));
+  sf.append(line(E('button', { class: 'mini', title: 'Draw an outline on the canvas with the pen tool; the pattern will only live inside it', onclick: () => startZoneTool('outline') }, 'Draw outline'), E('button', { class: 'mini', title: 'SVG or DXF at its real size, or an image (traced); the pattern will only live inside it', onclick: () => $('#outlineIn').click() }, 'Upload outline…')));
   if (R.shape === 'rounded') sf.append(numRow('Corner radius', P('radius'), Q('radius'), 0, 200, 0.5, 'mm'));
   if (R.shape === 'custom') {
     const closed = Object.values(SHAPES).filter(s => s.polys.some(p => p.closed) && usable(s));
-    sf.append(line(E('label', {}, 'Outline'), sel(closed.map(s => [s.id, s.name]), P('shapeId'), Q('shapeId')), sel([['contain', 'Keep proportions'], ['stretch', 'Stretch to fill']], P('fit'), Q('fit'))));
-    sf.append(E('p', { class: 'hint' }, 'Import or draw any outline from the shape tools on the left (Your shapes), then pick it here. Holes in the outline are kept.'));
+    const sh = SHAPES[R.shapeId], real = sh && sh.mm;
+    sf.append(line(E('label', {}, 'Outline'), sel(closed.map(s => [s.id, s.name]), P('shapeId'), v => { R.shapeId = v; buildSurface(); }), sel([['actual', 'Actual size'], ['contain', 'Keep proportions'], ['stretch', 'Stretch to fill']], () => R.fit === 'actual' && !real ? 'contain' : R.fit, v => { if (v === 'actual' && !real) { toast('This outline has no real size. Use Upload outline with an SVG or DXF, or draw one on the canvas.', 4200); buildSurface(); return; } R.fit = v; if (v === 'actual') growForOutline(); buildSurface(); })));
+    if (R.fit === 'actual' && real) {
+      const wmm = sh.w * sh.mm, hmm = sh.h * sh.mm;
+      sf.append(numRow('Outline x', () => R.ocx == null ? R.W / 2 : R.ocx, v => { R.ocx = v; }, 0, Math.max(R.W, 10), 0.5, 'mm', 'Where the middle of the outline sits'), numRow('Outline y', () => R.ocy == null ? R.H / 2 : R.ocy, v => { R.ocy = v; }, 0, Math.max(R.H, 10), 0.5, 'mm'));
+      sf.append(line(E('span', { class: 'hint', style: 'margin:0' }, 'Outline ' + fmt(+wmm.toFixed(1)) + ' × ' + fmt(+hmm.toFixed(1)) + ' mm'), E('button', { class: 'mini', title: 'Make the surface just big enough for the outline plus the margin, with the outline in the middle', onclick: () => { const m = R.margin || 0; R.W = Math.ceil(wmm + 2 * m); R.H = Math.ceil(hmm + 2 * m); R.ocx = R.ocy = null; rebuildAll(); fit(); pushHistory(true); } }, 'Fit surface to outline')));
+    }
+    sf.append(E('p', { class: 'hint' }, 'The pattern only lives inside the outline; holes in it stay empty. Uploaded SVG and DXF files keep their real size, and the surface grows if the outline is bigger.'));
   }
   sf.append(numRow('Margin', P('margin'), Q('margin'), 0, 100, 0.5, 'mm', 'Keeps the pattern away from the edges'));
   sf.append(line(E('label', {}, 'At the edge'), sel([['clip', 'Cut pieces at the edge'], ['inside', 'Only whole pieces inside'], ['touch', 'Whole pieces, may overhang']], P('edge'), Q('edge'))));
@@ -3624,13 +3678,13 @@ function zonesOverlay(px) {
   });
   const D = zoneDraft;
   if (D && D.pts.length) {
-    const P = D.pts, n = P.length, last = P[n - 1], h = D.hover, a0 = P[0], dc = D.ci != null ? 'var(--ov)' : ZONE_RED;
-    s += '<path d="' + penD(P, D.hs, false) + '" fill="' + (D.ci != null ? 'none' : ZONE_RED) + '" fill-opacity=".12" stroke="' + dc + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+    const P = D.pts, n = P.length, last = P[n - 1], h = D.hover, a0 = P[0], dc = D.col;
+    s += '<path d="' + penD(P, D.hs, false) + '" fill="' + (D.open ? 'none' : dc) + '" fill-opacity=".12" stroke="' + dc + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
     if (h && !drag) { const o = penOut(P, D.hs, n - 1); s += '<path d="M' + fmt(last[0]) + ' ' + fmt(last[1]) + 'C' + [o[0], o[1], h[0], h[1], h[0], h[1]].map(fmt).join(' ') + '" fill="none" stroke="' + dc + '" stroke-width="1.3" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>'; }
     if (D.hs[n - 1]) s += penHandles(last, D.hs[n - 1], px, null, dc);
-    if (D.hs[0] && n > 1 && D.ci == null) s += penHandles(a0, D.hs[0], px, null, dc);
+    if (D.hs[0] && n > 1 && !D.open) s += penHandles(a0, D.hs[0], px, null, dc);
     P.forEach((q, k) => { const r = (k === n - 1 ? 4.5 : 3.5) * px; s += '<rect x="' + fmt(q[0] - r) + '" y="' + fmt(q[1] - r) + '" width="' + fmt(2 * r) + '" height="' + fmt(2 * r) + '" fill="' + (k === n - 1 ? dc : '#fff') + '" stroke="' + dc + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'; });
-    if (h && n > 1 && D.ci == null && Math.hypot(h[0] - a0[0], h[1] - a0[1]) < 10 * px) s += '<circle cx="' + fmt(a0[0]) + '" cy="' + fmt(a0[1]) + '" r="' + fmt(10 * px) + '" fill="none" stroke="' + dc + '" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+    if (h && n > 1 && !D.open && Math.hypot(h[0] - a0[0], h[1] - a0[1]) < 10 * px) s += '<circle cx="' + fmt(a0[0]) + '" cy="' + fmt(a0[1]) + '" r="' + fmt(10 * px) + '" fill="none" stroke="' + dc + '" stroke-width="2" vector-effect="non-scaling-stroke"/>';
   }
   return s;
 }
@@ -3649,12 +3703,21 @@ function selectZone(i) { selZone = i; if (i >= 0) { selCtrl = -1; selKnot = null
 function addZone(z, quiet) { S.excl.push(Object.assign({ id: 'z' + Math.random().toString(36).slice(2, 7), on: true, margin: 0, mode: 'touch', layers: 'all' }, z)); selectZone(S.excl.length - 1); if (!quiet) pushHistory(true); }
 function deleteZone(i) { if (!S.excl[i]) return; S.excl.splice(i, 1); selZone = -1; if (flyGroup === 'keepout') renderFly(); requestRender(); pushHistory(true); toast('Keep-out area deleted. Undo brings it back.'); }
 function startZoneTool(t) {
-  zoneTool = t; zoneDraft = t === 'poly' || t === 'curve' ? { pts: [], hs: [], hover: null, ci: t === 'curve' ? selCtrl : null } : null; flyGroup = null; renderShapes(); stage.style.cursor = 'crosshair';
-  toast(t === 'curve' ? 'Pen tool: click for a corner, click and drag for a curve, Shift for 45°. Click the last point, double click or press Enter to finish. Backspace removes the last point, Esc cancels.' : t === 'poly' ? 'Pen tool: click for a corner, click and drag for a curve, Shift for 45°. Click the first point or press Enter to finish. Backspace removes the last point, Esc cancels.' : 'Drag on the canvas to draw the ' + ZONE_NAMES[t].toLowerCase() + '. Shift keeps it even.', 5200);
+  zoneTool = t; zoneDraft = PEN_TOOLS[t] ? { pts: [], hs: [], hover: null, ci: t === 'curve' ? selCtrl : null, open: t === 'curve', col: t === 'poly' ? ZONE_RED : 'var(--ov)' } : null; flyGroup = null; renderShapes(); stage.style.cursor = 'crosshair';
+  toast(t === 'outline' ? 'Draw the surface outline: click for a corner, click and drag for a curve, Shift for 45°. Click the first point or press Enter to finish. Backspace removes the last point, Esc cancels.' : t === 'curve' ? 'Pen tool: click for a corner, click and drag for a curve, Shift for 45°. Click the last point, double click or press Enter to finish. Backspace removes the last point, Esc cancels.' : t === 'poly' ? 'Pen tool: click for a corner, click and drag for a curve, Shift for 45°. Click the first point or press Enter to finish. Backspace removes the last point, Esc cancels.' : 'Drag on the canvas to draw the ' + ZONE_NAMES[t].toLowerCase() + '. Shift keeps it even.', 5200);
 }
 function endZoneTool() { zoneTool = null; zoneDraft = null; snapGuide = null; stage.style.cursor = ''; requestRender(); }
+const PEN_TOOLS = { poly: 1, curve: 1, outline: 1 };
 function finishPoly() {
   const D = zoneDraft;
+  if (D && zoneTool === 'outline') {
+    const P = D.pts, H = D.hs, pts = penOutline(P, H); endZoneTool();
+    if (P.length < 2 || pts.length < 3) { if (P.length) toast('Add at least three points, or drag out a curve'); return; }
+    const b = bboxOf(pts), w = Math.max(0.01, b[2] - b[0]), h = Math.max(0.01, b[3] - b[1]);
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + fmt(w) + 'mm" height="' + fmt(h) + 'mm" viewBox="' + [b[0], b[1], w, h].map(fmt).join(' ') + '"><path d="' + penD(P, H, true) + '" fill="#000"/></svg>';
+    try { useOutline(processSvg(svg, 'Drawn outline ' + (shapeSeq + 1)), [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]); } catch (e) { toast(e.message, 4000); }
+    return;
+  }
   if (D && D.ci != null) {
     const c = S.ctrls[D.ci], r = v => +v.toFixed(2);
     if (c && D.pts.length >= 2) { c.pts = D.pts.map(q => q.map(r)); c.hs = D.hs.map(h => h ? h.map(r) : 0); selCtrl = D.ci; selKnot = null; endZoneTool(); buildGradients(); pushHistory(true); toast('Curve drawn. Drag its points and handles to refine it; Alt click a point for corner or curve.', 4200); }
@@ -3923,9 +3986,9 @@ stage.addEventListener('pointerdown', ev => {
   }
   if (zoneTool && !spaceDown && ev.button === 0) {
     const w = snapPoint(toWorld(ev), ev);
-    if (zoneTool === 'poly' || zoneTool === 'curve') {
+    if (PEN_TOOLS[zoneTool]) {
       const D = zoneDraft, f = D.pts[0], last = D.pts[D.pts.length - 1], tol = 10 / view.scale;
-      if (zoneTool === 'poly' && f && D.pts.length >= 2 && Math.hypot(w[0] - f[0], w[1] - f[1]) < tol) { drag = { zonePen: 0, close: true, x: ev.clientX, y: ev.clientY }; return; }
+      if (zoneTool !== 'curve' && f && D.pts.length >= 2 && Math.hypot(w[0] - f[0], w[1] - f[1]) < tol) { drag = { zonePen: 0, close: true, x: ev.clientX, y: ev.clientY }; return; }
       if (zoneTool === 'curve' && last && D.pts.length >= 2 && Math.hypot(w[0] - last[0], w[1] - last[1]) < tol) { finishPoly(); return; }
       const p = ev.shiftKey && last ? constrain45(last, w) : w;
       D.pts.push(p); D.hs.push(0); drag = { zonePen: D.pts.length - 1, x: ev.clientX, y: ev.clientY }; requestRender(); return;
@@ -4061,7 +4124,7 @@ const endDrag = ev => {
 };
 stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
 // a double click places two points on the same spot: drop the extra one and finish
-stage.addEventListener('dblclick', () => { if (zoneTool !== 'poly' && zoneTool !== 'curve' || !zoneDraft) return; const P = zoneDraft.pts, n = P.length; if (n > 2 && Math.hypot(P[n - 1][0] - P[n - 2][0], P[n - 1][1] - P[n - 2][1]) < 4 / view.scale) penUndoPoint(); finishPoly(); });
+stage.addEventListener('dblclick', () => { if (!PEN_TOOLS[zoneTool] || !zoneDraft) return; const P = zoneDraft.pts, n = P.length; if (n > 2 && Math.hypot(P[n - 1][0] - P[n - 2][0], P[n - 1][1] - P[n - 2][1]) < 4 / view.scale) penUndoPoint(); finishPoly(); });
 stage.addEventListener('pointerleave', () => { if (!drag) { lastPtr = null; drawRulers(); } });
 // Like Illustrator/Figma: the wheel or two finger trackpad scroll pans; Ctrl/Cmd/Alt + wheel or a trackpad pinch zooms.
 stage.addEventListener('wheel', ev => {
@@ -4410,6 +4473,7 @@ function startOver(kind) {
   if (kind === 'clear') toast('Cleared. Pick a shape on the left to start. Undo brings it all back.', 3600);
 }
 $('#bDraw').onclick = openDraw;
+$('#outlineIn').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) uploadOutline(f); };
 $('#bText').onclick = openText;
 $('#sBake').onclick = bakeCell;
 $('#sEdit').onclick = () => editShape(cur().shape);
@@ -4423,8 +4487,8 @@ document.addEventListener('keydown', ev => {
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'y' && !typing) { ev.preventDefault(); redo(); return; }
   if (ev.key === 'Escape') { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); if (cropMode) setCrop(false); if (flyGroup) { flyGroup = null; renderShapes(); } if (zoneTool) endZoneTool(); if (selZone >= 0 && !typing) selectZone(-1); if (selCtrl >= 0 && !typing) { selCtrl = -1; selKnot = null; buildGradients(); requestRender(); } }
   if (typing || document.querySelector('.modal.open')) return;
-  if ((zoneTool === 'poly' || zoneTool === 'curve') && ev.key === 'Enter') { ev.preventDefault(); finishPoly(); return; }
-  if ((zoneTool === 'poly' || zoneTool === 'curve') && (ev.key === 'Backspace' || ev.key === 'Delete')) { ev.preventDefault(); penUndoPoint(); return; }
+  if (PEN_TOOLS[zoneTool] && ev.key === 'Enter') { ev.preventDefault(); finishPoly(); return; }
+  if (PEN_TOOLS[zoneTool] && (ev.key === 'Backspace' || ev.key === 'Delete')) { ev.preventDefault(); penUndoPoint(); return; }
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'd') { ev.preventDefault(); duplicateSelection(); return; }
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selZone >= 0 && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { ev.preventDefault(); deleteZone(selZone); return; }
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selCtrl >= 0 && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { ev.preventDefault(); deleteSelection(); return; }

@@ -115,6 +115,7 @@ The effects are:
 ## Surface
 
 * **Boundary:** a rectangle, a rounded rectangle, a circle or ellipse, or **any shape** (imported, drawn, or a text outline). Holes in a shape are kept.
+* **Your own outline:** under Surface, **Draw outline** draws the boundary on the canvas with the pen tool, right where you want it, and **Upload outline…** takes an SVG or DXF (or an image, which is traced). The pattern then only lives inside that outline. SVG and DXF files keep their real size (from the SVG's width in mm, cm, in, pt or px, or the DXF's units), and if the outline is bigger than the surface, the surface grows to fit it. With **Actual size** you can move the outline with Outline x and y, and **Fit surface to outline** trims the surface to the outline plus the margin. Keep proportions and Stretch to fill still fit any outline into the surface.
 * **Margin**, and what happens at the edge: cut pieces, keep only whole pieces, or let whole pieces overhang.
 * **Feather edges:** set a width and an effect (shrink, fade, shrink + fade, or thin out). A dotted line on the canvas marks where the feather starts.
 * **Open area:** the status bar shows roughly how much of the surface is open, which is useful for vents and grilles.
