@@ -74,6 +74,7 @@ Every layout uses the same boundary, shapes and gradients, so switching between 
 | Random scatter | Poisson disc spacing, so pieces are random but evenly spaced. Gradients can make it denser or sparser. |
 | Spiral | Archimedean spiral; arms and turn gap are adjustable |
 | Concentric | Rings around a centre, or rings that follow the surface outline |
+| Circular pattern | Copies turned around a centre with any number of folds (5, 8, 10, 12…), like a rosette or mandala. Mirror copies adds a reflected copy beside each one; set the first ring, ring gap and number of rings, even spacing (outer rings get more copies, always a multiple of the folds), a twist per ring and a centre piece |
 | Fibonacci | Sunflower packing using the golden angle |
 | Crosshatch lines | Continuous lines whose width follows the gradient. A second direction gives moiré effects. |
 | Voronoi stone cracks | Stones separated by cracks of a set width. **Corner radius** rounds the stones, up to smooth pebbles |

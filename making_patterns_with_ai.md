@@ -126,6 +126,7 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `scatter` | Random but evenly spaced (Poisson disc) | `spacing` (min distance), `seed`, `jitter` (random turn ±°) |
 | `spiral` | Archimedean spiral | `spacing`, `pitch` (gap between turns), `arms`, `cx`, `cy` (centre, % of W/H), `align`, `jitter` |
 | `concentric` | Rings | `spacing`, `ringMode`: `circle` or `boundary` (follow the surface outline), `cx`, `cy`, `align`, `jitter` |
+| `circular` | Rosette: copies turned around a centre | `fold` (number of folds), `mirror` (add reflected copies), `offset` (° from the mirror line), `r0` (first ring radius), `ringGap`, `rings` (0 fills the surface), `even` (more copies on outer rings, a multiple of `fold`, about `spacing` apart), `twist` (° per ring), `centre` (a piece in the middle), `cx`, `cy`, `align` |
 | `fibonacci` | Sunflower packing | `spacing`, `cx`, `cy`, `align` (point copies outward), `jitter` |
 | `hatch` | Continuous lines; their width follows gradients | `spacing`, `width`, `angle`, `cross` (second direction), `crossAngle` |
 | `flow` | Lines that bend with gradients and can wave | `spacing`, `width`, `angle`, `bend`, `bendCentre`, `wave`, `waveLen`, `waveSkew` |

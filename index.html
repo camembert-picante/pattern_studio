@@ -1421,7 +1421,7 @@ const BUILTINS = [
 
 /* ================= State ================= */
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
-const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none' });
+const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true });
 const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
 // Random variation per copy: turn (any angle within ±rot, or whole steps of `step` degrees), size (± share),
 // mirror, and a mix of extra shapes. The same seed always gives the same pattern.
@@ -1851,16 +1851,18 @@ function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
 }
 
 /* ================= Layouts ================= */
-const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Crosshatch lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
+const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['circular', 'Circular pattern'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Crosshatch lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
 const LAYOUT_DESC = {
   wallpaper: 'Copies follow one of the 17 symmetry groups.', grid: 'Rows and columns. Row offset 0.5 gives a brick / staggered grid.',
   scatter: 'Even random spacing (Poisson disc). Gradients can make it denser or sparser.', path: 'Copies along a Curve or Line gradient (or a default curve), in one or more rows.',
   spiral: 'Copies along an Archimedean spiral from the centre.', concentric: 'Rings of copies around a centre, or following the surface outline.',
+  circular: 'Copies turned around a centre in rings, with any number of folds (5, 8, 10, 12…) and optional mirrored copies, like a rosette or a mandala.',
   fibonacci: 'Golden angle sunflower packing. Very even, no visible rows.', hatch: 'Continuous lines whose width follows the gradients. Two directions make crosshatching.',
   voronoi: 'Stones separated by cracks. Gradients change stone size, so cracks open and close.', flow: 'Each line bends with the gradients and can wave. Size drives width, spacing drives density.'
 };
 const GEOM_LAYOUTS = { hatch: 1, flow: 1, voronoi: 1 };
-const POINT_LAYOUTS = { scatter: 1, path: 1, spiral: 1, concentric: 1, fibonacci: 1 };
+const POINT_LAYOUTS = { scatter: 1, path: 1, spiral: 1, concentric: 1, circular: 1, fibonacci: 1 };
+const CENTRED = { spiral: 1, concentric: 1, circular: 1, fibonacci: 1 }; // layouts built around a centre you can drag
 function layoutName(L) { if (L.layout === 'wallpaper' || !L.layout) return eff(L).group; return (LAYOUTS.find(x => x[0] === L.layout) || [0, L.layout])[1]; }
 function pathPolyline(L) {
   const c = (S.ctrls || []).find(q => q.id === L.lay.pathId && (q.type === 'curve' || q.type === 'line' || q.type === 'ramp'));
@@ -1921,7 +1923,7 @@ function pointBase(L, idx, reg, F) {
   const C = [lay.cx / 100 * W, lay.cy / 100 * H];
   const maxR = Math.max.apply(null, [[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]].map(q => Math.hypot(q[0] - C[0], q[1] - C[1])));
   const cap = MAX_INST * 2, pts = [], al = lay.align;
-  const add = (p, ang, i, j) => { if (inBox(p) && pts.length < cap) pts.push({ p: p, ang: ang, i: i, j: j }); };
+  const add = (p, ang, i, j, ref) => { if (inBox(p) && pts.length < cap) pts.push({ p: p, ang: ang, i: i, j: j, ref: ref }); };
   if (L.layout === 'scatter') {
     const sp = fxKind(L, 'spacing')[0];
     scatterPoints(lay, box, sp ? sp.F : F, sp ? sp.p.amt : 0, (lay.seed || 1) * 7919 + idx).forEach((p, i) => add(p, 0, i, 0));
@@ -1954,6 +1956,22 @@ function pointBase(L, idx, reg, F) {
         for (let q = 0; q < n; q++) { const t = (q + (k % 2) * 0.5) / n * TAU; add([C[0] + r * Math.cos(t), C[1] + r * Math.sin(t)], al ? t / D2R + 90 : 0, q, k); }
       }
     }
+  } else if (L.layout === 'circular') {
+    // Rings around the centre with n fold symmetry. Each copy sits `offset` degrees from a mirror line; with
+    // mirrors on, its reflection sits on the other side (a dihedral rosette). Even spacing gives outer rings
+    // more copies, always a multiple of the folds, so the symmetry holds.
+    const n = clamp(Math.round(lay.fold || 8), 1, 72), rings = Math.max(0, Math.round(lay.rings || 0)), gap = Math.max(0.3, lay.ringGap || sp), r0 = Math.max(0, lay.r0 == null ? sp : lay.r0);
+    const off = (lay.mirror ? lay.offset || 0 : 0) * D2R;
+    if (lay.centre) add(C.slice(), 0, 0, 0);
+    for (let k = 0; (rings ? k < rings : true) && k < 4000 && pts.length < cap; k++) {
+      const r = r0 + k * gap; if (r > maxR) break; if (r < 1e-6) continue;
+      const m = lay.even ? Math.max(1, Math.round(TAU * r / (sp * n))) : 1, cnt = n * m, tw = (lay.twist || 0) * k * D2R;
+      for (let q = 0; q < cnt; q++) {
+        const ax = q / cnt * TAU + tw, t = ax + off;
+        add([C[0] + r * Math.cos(t), C[1] + r * Math.sin(t)], al ? t / D2R + 90 : 0, q * 2, k + 1);
+        if (lay.mirror && Math.abs(off) > 1e-9) { const t2 = ax - off; add([C[0] + r * Math.cos(t2), C[1] + r * Math.sin(t2)], al ? t / D2R + 90 : 0, q * 2 + 1, k + 1, ax); }
+      }
+    }
   } else if (L.layout === 'fibonacci') {
     const c = sp / Math.sqrt(Math.PI) * 1.05, ga = Math.PI * (3 - Math.sqrt(5)), N = Math.min(cap, Math.ceil(Math.pow(maxR / c, 2)));
     for (let n = 0; n < N; n++) { const r = c * Math.sqrt(n + 0.5), t = n * ga; add([C[0] + r * Math.cos(t), C[1] + r * Math.sin(t)], al ? t / D2R : 0, n, 0); }
@@ -1967,7 +1985,10 @@ function pointBase(L, idx, reg, F) {
   const s = L.size * mo.sc, asp = mo.ax, fl = L.flip ? -1 : 1, jit = lay.jitter || 0, jr = rng((lay.seed || 1) * 31 + 7);
   return pts.map(pt => {
     const a = (pt.ang + L.mrot + (jit ? (jr() * 2 - 1) * jit : 0)) * D2R, cs = Math.cos(a), sn = Math.sin(a);
-    return { T: [cs * s * asp * fl, sn * s * asp * fl, -sn * s, cs * s, pt.p[0], pt.p[1]], i: pt.i, j: pt.j, k: 0, warp: L.layout !== 'scatter' };
+    let T = [cs * s * asp * fl, sn * s * asp * fl, -sn * s, cs * s, pt.p[0], pt.p[1]];
+    // a mirrored copy: its partner's orientation reflected across the mirror line at angle `ref`
+    if (pt.ref != null) { const c2 = Math.cos(2 * pt.ref), s2 = Math.sin(2 * pt.ref); T = Af.mul([c2, s2, s2, -c2, 0, 0], T.slice(0, 4).concat([0, 0])); T[4] = pt.p[0]; T[5] = pt.p[1]; }
+    return { T: T, i: pt.i, j: pt.j, k: 0, warp: L.layout !== 'scatter' };
   });
 }
 
@@ -2479,7 +2500,7 @@ function drawOverlays(reg) {
       const m = Af.ap(geo.M, [0, 0]);
       s += '<circle cx="' + fmt(m[0]) + '" cy="' + fmt(m[1]) + '" r="' + fmt(3.5 * px) + '" fill="var(--panel)" stroke="var(--ov)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
     }
-  } else if (L.layout && L.lay && (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci')) {
+  } else if (L.layout && L.lay && CENTRED[L.layout]) {
     const C = [L.lay.cx / 100 * S.region.W, L.lay.cy / 100 * S.region.H];
     HANDLES_CENTRE = C;
     s += '<path d="M' + fmt(C[0] - 7 * px) + ' ' + fmt(C[1]) + 'H' + fmt(C[0] + 7 * px) + 'M' + fmt(C[0]) + ' ' + fmt(C[1] - 7 * px) + 'V' + fmt(C[1] + 7 * px) + '" stroke="var(--ov)" stroke-width="2" vector-effect="non-scaling-stroke"/>';
@@ -2487,7 +2508,7 @@ function drawOverlays(reg) {
   s += zonesOverlay(px);
   if (show.grad) s += drawCtrls(px);
   if (cropMode) s += cropOverlay(px);
-  if (L.layout && L.lay && (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci')) HANDLES.push({ x: L.lay.cx / 100 * S.region.W, y: L.lay.cy / 100 * S.region.H, ci: -1, key: 'centre' });
+  if (L.layout && L.lay && CENTRED[L.layout]) HANDLES.push({ x: L.lay.cx / 100 * S.region.W, y: L.lay.cy / 100 * S.region.H, ci: -1, key: 'centre' });
   $('#ov').innerHTML = s + snapGuideSvg(px);
 }
 let HANDLES_CENTRE = null;
@@ -2688,6 +2709,15 @@ function buildLayout() {
     case 'spiral': box.append(spacing(), numRow('Turn gap', P('pitch'), Q('pitch'), 0.5, 60, 0.1, 'mm', 'Distance between spiral turns'), numRow('Arms', P('arms'), Q('arms'), 1, 12, 1, ''), ...centre(), align(), jitter()); break;
     case 'concentric': box.append(spacing(), line(E('label', {}, 'Rings'), sel([['circle', 'Circles'], ['boundary', 'Follow the surface outline']], P('ringMode'), Q('ringMode'))), ...centre(), align(), jitter()); break;
     case 'fibonacci': box.append(spacing(), ...centre(), align('Point copies outward'), jitter()); break;
+    case 'circular':
+      box.append(numRow('Folds', P('fold'), Q('fold'), 1, 36, 1, '×', 'How many times the pattern repeats around the centre'));
+      box.append(line(chk('Mirror copies', P('mirror'), v => { lay.mirror = v; buildLayout(); }, 'Adds a reflected copy on the other side of each mirror line, like a kaleidoscope')));
+      if (lay.mirror) box.append(numRow('Mirror offset', P('offset'), Q('offset'), 0, 90, 0.5, '°', 'How far each copy sits from its mirror line. 0 puts both copies on the line'));
+      box.append(numRow('First ring', P('r0'), Q('r0'), 0, 300, 0.5, 'mm', 'Radius of the inner ring'), numRow('Ring gap', P('ringGap'), Q('ringGap'), 0.5, 100, 0.1, 'mm'), numRow('Rings', P('rings'), Q('rings'), 0, 60, 1, '', '0 fills the whole surface'));
+      box.append(line(chk('Even spacing', P('even'), v => { lay.even = v; buildLayout(); }, 'Outer rings get more copies (always a multiple of the folds) so copies stay about Spacing apart'), chk('Centre piece', P('centre'), Q('centre'))));
+      if (lay.even) box.append(spacing());
+      box.append(numRow('Twist', P('twist'), Q('twist'), -45, 45, 0.5, '° per ring', 'Turns each ring a little more than the last, for a spiralling rosette'), ...centre(), align('Turn copies with the circle'), jitter());
+      break;
     case 'path': {
       const curves = (S.ctrls || []).filter(c => c.type === 'curve' || c.type === 'line' || c.type === 'ramp');
       box.append(line(E('label', {}, 'Path'), sel([['', 'Default S curve']].concat(curves.map(c => [c.id, (S.ctrls.indexOf(c) + 1) + ' ' + CTRL_NAMES[c.type]])), P('pathId'), Q('pathId'))));
@@ -3923,7 +3953,7 @@ function keepInside() {
       if (sc) { L.sx += sc[0]; L.sy += sc[1]; g = geom(L); changed = true; }
       const sm = latticeShift(Af.ap(g.M, [0, 0]), motifOffs(g), g.a, g.b);
       if (sm) { const d = Af.lin(Af.R(-eff(L).rot), sm); L.mx += d[0]; L.my += d[1]; changed = true; }
-    } else if (L.lay && (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci')) {
+    } else if (L.lay && CENTRED[L.layout]) {
       const cx = clamp(L.lay.cx, 0, 100), cy = clamp(L.lay.cy, 0, 100);
       if (cx !== L.lay.cx || cy !== L.lay.cy) { L.lay.cx = cx; L.lay.cy = cy; changed = true; }
     }
@@ -4034,7 +4064,7 @@ function centerPattern() {
   S.layers.forEach(L => {
     if (!L.layout || L.layout === 'wallpaper' || L.layout === 'grid') {
       L.sx = +C[0].toFixed(3); L.sy = +C[1].toFixed(3); n++; // the lattice origin is a symmetry point, so the cell box lands in the middle
-    } else if (L.layout === 'spiral' || L.layout === 'concentric' || L.layout === 'fibonacci') { L.lay.cx = 50; L.lay.cy = 50; n++; }
+    } else if (CENTRED[L.layout]) { L.lay.cx = 50; L.lay.cy = 50; n++; }
   });
   if (!n) { toast('This layout already spreads evenly over the surface, so there is nothing to center.'); return; }
   buildLayerControls(); buildLayout(); requestRender(); pushHistory(); toast('Pattern centered on the surface');
