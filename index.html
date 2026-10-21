@@ -1421,7 +1421,7 @@ const BUILTINS = [
 
 /* ================= State ================= */
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
-const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true });
+const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', weave: false, wgap: 0.4, pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true });
 const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
 // Random variation per copy: turn (any angle within ±rot, or whole steps of `step` degrees), size (± share),
 // mirror, and a mix of extra shapes. The same seed always gives the same pattern.
@@ -2102,8 +2102,8 @@ function ribbon(run, capA, capB) {
 }
 // One ribbon for the whole run, cut at the given points, so neighbouring pieces share their edges exactly.
 let GRAD_SEQ = 0; // gradient ids stay unique across every render on the page
-function ribbonCuts(run, cuts) {
-  const st = ribbon(run, true, true).strip, out = [];
+function ribbonCuts(run, cuts, capA, capB) {
+  const st = ribbon(run, capA !== false, capB !== false).strip, out = [];
   for (let c = 0; c < cuts.length - 1; c++) {
     const s = cuts[c], e = cuts[c + 1], L = st.L.slice(s, e + 1), R = st.R.slice(s, e + 1), cA = s === 0 ? st.cA : [], cB = e === run.length - 1 ? st.cB : [];
     const poly = L.concat(cB, R.slice().reverse(), cA); poly.strip = { L: L, R: R, cA: cA, cB: cB }; out.push({ poly: poly, s: s });
@@ -2134,14 +2134,15 @@ function hatchLines(L, reg) {
   if (lay.cross) dirs.push(lay.angle + lay.crossAngle);
   const pad = sp + lay.width * 2, box = [reg.x0 - pad, reg.y0 - pad, reg.x1 + pad, reg.y1 + pad], step = Math.max(0.25, Math.min(sp / 2, 3));
   const corners = [[box[0], box[1]], [box[2], box[1]], [box[2], box[3]], [box[0], box[3]]], lines = [];
+  const nrm = deg => [-Math.sin(deg * D2R), Math.cos(deg * D2R)];
   dirs.forEach((deg, di) => {
-    const d = [Math.cos(deg * D2R), Math.sin(deg * D2R)], n = [-d[1], d[0]];
+    const d = [Math.cos(deg * D2R), Math.sin(deg * D2R)], n = [-d[1], d[0]], wv = lay.weave && dirs.length === 2 ? { d: d, n2: nrm(dirs[1 - di]), sp: sp } : null;
     const pn = corners.map(c => c[0] * n[0] + c[1] * n[1]), pd = corners.map(c => c[0] * d[0] + c[1] * d[1]);
     const n0 = Math.min.apply(null, pn), n1 = Math.max.apply(null, pn), t0 = Math.min.apply(null, pd), t1 = Math.max.apply(null, pd);
     for (let k = Math.ceil(n0 / sp); k * sp <= n1; k++) {
       const o = k * sp, pts = [];
       for (let t = t0; t <= t1 + 1e-9; t += step) pts.push([n[0] * o + d[0] * t, n[1] * o + d[1] * t]);
-      lines.push({ pts: pts, j: k, di: di });
+      lines.push({ pts: pts, j: k, di: di, wv: wv });
     }
   });
   return lines;
@@ -2211,7 +2212,27 @@ function strokesToPolys(L, idx, lines, F, R, reg, mode) {
   const varies = fxOf(L).some(e => e.kind === 'color' || e.kind === 'opacity') || (R.featherOn && /fade/.test(R.featherMode));
   lines.forEach((ln, li) => {
     // a fade or colour change follows the line closely: points at most 0.75 mm apart
-    const src = varies ? densify(ln.pts, 0.75) : ln.pts, pts = warps ? src.map(p => fxWarp(L, p)) : src;
+    let src = varies ? densify(ln.pts, 0.75) : ln.pts, gaps = null, butt = null;
+    // Weaving: at every other crossing this line goes under the crossing one. It is cut there, as wide as the other
+    // line plus the weave gap on each side, with exact cut points and square ends.
+    if (ln.wv && src.length > 1) {
+      const W = ln.wv, p0 = src[0], nd = W.d[0] * W.n2[0] + W.d[1] * W.n2[1];
+      if (Math.abs(nd) > 1e-6) {
+        const tOf = p => (p[0] - p0[0]) * W.d[0] + (p[1] - p0[1]) * W.d[1], c0 = p0[0] * W.n2[0] + p0[1] * W.n2[1], tEnd = tOf(src[src.length - 1]);
+        const ca = c0, cb = c0 + tEnd * nd, gapW = Math.max(0, L.lay.wgap || 0);
+        gaps = [];
+        for (let m = Math.ceil(Math.min(ca, cb) / W.sp); m * W.sp <= Math.max(ca, cb); m++) {
+          if (((ln.j + m) & 1) !== ln.di) continue; // this line is on top at this crossing
+          const tc = (m * W.sp - c0) / nd, pc = [p0[0] + W.d[0] * tc, p0[1] + W.d[1] * tc], rr = respond(L, F, R, reg, pc, [li, m, idx + 3]);
+          const hl = (base * (rr ? rr.s : 1) / 2 + gapW) / Math.abs(nd); gaps.push([tc - hl, tc + hl]);
+        }
+        const all = src.map(p => ({ p: p, t: tOf(p), b: false }));
+        gaps.forEach(g => { [g[0], g[1]].forEach(t => { if (t > 0 && t < tEnd) all.push({ p: [p0[0] + W.d[0] * t, p0[1] + W.d[1] * t], t: t, b: true }); }); });
+        all.sort((a, b) => a.t - b.t);
+        src = all.map(a => a.p); butt = all.map(a => a.b); gaps.tOf = all.map(a => a.t);
+      }
+    }
+    const pts = warps ? src.map(p => fxWarp(L, p)) : src;
     const ws = new Float32Array(pts.length), cols = new Array(pts.length), ops = new Float32Array(pts.length);
     for (let q = 0; q < pts.length; q++) {
       const p = pts[q];
@@ -2220,13 +2241,15 @@ function strokesToPolys(L, idx, lines, F, R, reg, mode) {
       const r = respond(L, F, R, reg, p, [li, q, idx + 7 * ln.di]); if (!r) continue;
       ws[q] = base * r.s; cols[q] = r.col; ops[q] = r.op;
     }
+    if (gaps && gaps.tOf) for (let q = 0; q < pts.length; q++) { const t = gaps.tOf[q]; if (gaps.some(g => t > g[0] + 1e-9 && t < g[1] - 1e-9)) ws[q] = 0; }
     let q = 0;
     while (q < pts.length) {
       if (ws[q] <= 0.01) { q++; continue; }
       let e = q; while (e + 1 < pts.length && ws[e + 1] > 0.01) e++;
       if (e > q) {
         const run = []; for (let k = q; k <= e; k++) run.push([pts[k], ws[k]]);
-        if (!varies) out.push({ pts: ribbon(run, true, true), j: ln.j, col: cols[(q + e) >> 1], op: 1 });
+        const capA = !(butt && butt[q]), capB = !(butt && butt[e]);
+        if (!varies) out.push({ pts: ribbon(run, capA, capB), j: ln.j, col: cols[(q + e) >> 1], op: 1 });
         else {
           // Each straight stretch is one piece filled with a gradient along it, so fades and colour changes are
           // smooth. A curving line is cut where it turns more than 12° from the stretch so far.
@@ -2236,7 +2259,7 @@ function strokesToPolys(L, idx, lines, F, R, reg, mode) {
             if ((dx * tx + dy * ty) / ((Math.hypot(dx, dy) * Math.hypot(tx, ty)) || 1) < Math.cos(12 * D2R)) { cuts.push(k - 1); A = k - 1; }
           }
           cuts.push(run.length - 1);
-          ribbonCuts(run, cuts).forEach((pc, ci) => {
+          ribbonCuts(run, cuts, capA, capB).forEach((pc, ci) => {
             const s0 = pc.s, e0 = cuts[ci + 1], a = run[s0][0], b = run[e0][0], vx = b[0] - a[0], vy = b[1] - a[1], vv = vx * vx + vy * vy || 1, stops = [];
             for (let k = s0; k <= e0; k++) {
               const t = clamp(((run[k][0][0] - a[0]) * vx + (run[k][0][1] - a[1]) * vy) / vv, 0, 1), col = cols[q + k], op = ops[q + k] || 1, last = stops[stops.length - 1];
@@ -2435,7 +2458,8 @@ function layerSVG(lo, L, idx, o) {
     });
     let body = '';
     groups.forEach((list, key) => { const kk = key.split('|'); body += '<path d="' + loopsD(list) + '"' + (kk[0] ? ' fill="' + kk[0] + '"' : '') + (kk[1] ? ' opacity="' + kk[1] + '"' : '') + '/>'; });
-    return '<g data-layer="' + idx + '"' + at + '>' + (defs ? '<defs>' + defs + '</defs>' : '') + body + grads + '</g>';
+    const cas = !disp && L.casing > 0 && lo.polys.length ? '<path d="' + loopsD(lo.polys.map(pg => pg.pts)) + '" fill="' + esc(L.casingCol || S.region.bg) + '" stroke="' + esc(L.casingCol || S.region.bg) + '" stroke-width="' + fmt(2 * L.casing) + '" stroke-linejoin="round"/>' : '';
+    return '<g data-layer="' + idx + '"' + at + '>' + (defs ? '<defs>' + defs + '</defs>' : '') + cas + body + grads + '</g>';
   }
   const sh = lo.sh, size = Math.max(1e-6, eff(L).size);
   const mono = disp || !L.useOrig || sh.kind === 'raster', v = sh.kind === 'raster' ? 'o' : (mono ? 'm' : 'o');
@@ -2453,7 +2477,16 @@ function layerSVG(lo, L, idx, o) {
     if (o.expand) parts.push('<g transform="' + Af.str(it.T) + '"' + ca + '>' + (mo ? mo.inner.m : ish.inner[v]) + '</g>');
     else parts.push('<use' + (o.xlink ? ' xlink:href="' + href + '"' : '') + ' href="' + href + '" transform="' + Af.str(it.T) + '"' + ca + '/>');
   }
-  return '<g data-layer="' + idx + '"' + at + '>' + parts.join('') + '</g>';
+  // outline band: every piece drawn first in the band colour, its outline widened by the band on each side
+  let cas = '';
+  if (!disp && L.casing > 0 && sh.kind !== 'raster' && lo.items.length) {
+    const cc = esc(L.casingCol || S.region.bg), cw = ((sh.lineArt ? (L.sw || 0) : 0) + 2 * L.casing) / ((sh.k || 1) * size);
+    cas = '<g fill="' + cc + '" color="' + cc + '" stroke="' + cc + '" stroke-width="' + fmt(cw) + '" stroke-linejoin="round" stroke-linecap="round">' + lo.items.map(it => {
+      const mo = it.m >= 0 ? lo.morph[it.m] : null, ish = it.sh || sh;
+      return o.expand ? '<g transform="' + Af.str(it.T) + '">' + (mo ? mo.inner.m : ish.inner.m) + '</g>' : '<use' + (o.xlink ? ' xlink:href="' + (mo ? '#' + mo.id : '#sh_' + ish.id + '_m') + '"' : '') + ' href="' + (mo ? '#' + mo.id : '#sh_' + ish.id + '_m') + '" transform="' + Af.str(it.T) + '"/>';
+    }).join('') + '</g>';
+  }
+  return '<g data-layer="' + idx + '"' + at + '>' + cas + parts.join('') + '</g>';
 }
 
 /* ================= Rendering ================= */
@@ -2789,6 +2822,7 @@ function buildLayerControls() {
   const sh = SHAPES[L.shape] || SHAPES.comma;
   st.append(line(E('label', {}, 'Fill'), color(P('fill'), Q('fill')), chk('Outline', P('strokeOn'), Q('strokeOn')), color(P('stroke'), Q('stroke'))));
   st.append(numRow(!isGeom && sh.lineArt ? 'Line width' : 'Outline', P('sw'), Q('sw'), 0, 6, 0.05, 'mm'));
+  st.append(line(E('label', {}, 'Outline band'), color(() => L.casingCol || S.region.bg, Q('casingCol'))), numRow('Band width', () => L.casing || 0, v => { L.casing = v; }, 0, 6, 0.05, 'mm', 'A solid band around every piece, drawn under the layer: outlined strapwork, cut out lettering, interlace'));
   st.append(numRow('Opacity', P('opacity'), Q('opacity'), 0, 1, 0.01, ''));
   st.append(line(E('label', {}, 'Blend'), sel([['normal', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'], ['darken', 'Darken'], ['lighten', 'Lighten'], ['difference', 'Difference'], ['exclusion', 'Exclusion']], P('blend'), Q('blend'))));
   if (!isGeom) st.append(line(E('label', {}, 'Stacking'), sel([['none', 'As generated'], ['down', 'Lower rows on top'], ['up', 'Upper rows on top']], () => L.lay.stack || 'none', v => { L.lay.stack = v; })));
@@ -2862,7 +2896,8 @@ function buildLayout() {
       box.append(spacing(), numRow('Rows', P('rows'), Q('rows'), 1, 15, 1, ''), numRow('Row gap', P('rowGap'), Q('rowGap'), 0.5, 40, 0.1, 'mm'), align('Point copies along the path'), jitter());
       break;
     }
-    case 'hatch': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Angle', P('angle'), Q('angle'), -180, 180, 0.5, '°'), line(chk('Crosshatch', P('cross'), v => { lay.cross = v; buildLayout(); })), lay.cross ? numRow('Cross angle', P('crossAngle'), Q('crossAngle'), 5, 175, 0.5, '°') : ''); box.append(E('p', { class: 'hint' }, 'Turn on Size in Gradient response to thicken lines near controllers, and Spacing to bend them like a lens.')); break;
+    case 'hatch': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Angle', P('angle'), Q('angle'), -180, 180, 0.5, '°'), line(chk('Crosshatch', P('cross'), v => { lay.cross = v; buildLayout(); })), lay.cross ? numRow('Cross angle', P('crossAngle'), Q('crossAngle'), 5, 175, 0.5, '°') : '');
+      if (lay.cross) { box.append(line(chk('Weave over and under', P('weave'), v => { lay.weave = v; buildLayout(); }, 'Each line goes over one crossing and under the next, like woven cloth or strapwork'))); if (lay.weave) box.append(numRow('Weave gap', P('wgap'), Q('wgap'), 0, 5, 0.05, 'mm', 'Space left on each side where a line passes under')); } box.append(E('p', { class: 'hint' }, 'Turn on Size in Gradient response to thicken lines near controllers, and Spacing to bend them like a lens.')); break;
     case 'flow': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Direction', P('angle'), Q('angle'), -180, 180, 0.5, '°'), numRow('Bend', P('bend'), Q('bend'), -180, 180, 1, '°', 'How far gradients turn the lines'), numRow('Wave', P('wave'), Q('wave'), 0, 80, 0.5, '°'), numRow('Wavelength', P('waveLen'), Q('waveLen'), 2, 300, 1, 'mm'), numRow('Wave skew', P('waveSkew'), Q('waveSkew'), -2, 2, 0.01, '×', 'Tilts the wave fronts for moiré ripples')); break;
     case 'contour':
       box.append(numRow('Levels', P('levels'), Q('levels'), 1, 80, 1, '', 'How many contour lines between the lowest and highest value'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'));

@@ -129,7 +129,7 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `concentric` | Rings | `spacing`, `ringMode`: `circle` or `boundary` (follow the surface outline), `cx`, `cy`, `align`, `jitter` |
 | `circular` | Rosette: copies turned around a centre | `fold` (number of folds), `mirror` (add reflected copies), `offset` (° from the mirror line), `r0` (first ring radius), `ringGap`, `rings` (0 fills the surface), `even` (more copies on outer rings, a multiple of `fold`, about `spacing` apart), `twist` (° per ring), `centre` (a piece in the middle), `cx`, `cy`, `align` |
 | `fibonacci` | Sunflower packing | `spacing`, `cx`, `cy`, `align` (point copies outward), `jitter` |
-| `hatch` | Continuous lines; their width follows gradients | `spacing`, `width`, `angle`, `cross` (second direction), `crossAngle` |
+| `hatch` | Continuous lines; their width follows gradients | `spacing`, `width`, `angle`, `cross` (second direction), `crossAngle`, `weave` (over and under at the crossings), `wgap` (gap where a line passes under) |
 | `contour` | Isolines of all gradients combined (a built in noise when there are none) | `levels` (number of lines), `width`, `nscale` and `seed` for the built in noise |
 | `flow` | Lines that bend with gradients and can wave | `spacing`, `width`, `angle`, `bend`, `bendCentre`, `wave`, `waveLen`, `waveSkew` |
 | `voronoi` | Stones separated by cracks | `spacing` (stone size), `gap` (crack width), `corner` (corner radius in mm; large values give pebbles), `round` (extra smoothing, 0 to 4), `seed` |
@@ -173,6 +173,7 @@ If a layer gives none of `size`, `mx` and `my`, the motif is placed automaticall
 | `fill` | Colour | `#1f2a44` |
 | `strokeOn`, `stroke`, `sw` | Outline on/off, colour, width (mm; for line shapes this is the line width) | `false`, `#000000`, 0.6 |
 | `opacity`, `blend` | 0 to 1; `normal multiply screen overlay darken lighten difference exclusion` | 1, `normal` |
+| `casing`, `casingCol` | Outline band: a solid band this many mm wide around every piece, in this colour (default the background), drawn under the layer | 0 |
 | `useOrig` | Keep the colours inside a multi colour shape (from `svgShapes` `svg`) instead of filling it with `fill`. This is how to make motifs with several colours | `false` |
 | `colorMode`, `palette`, `paletteN` | `single`, or colour copies by `copy` (orientation), `flip`, `rows`, `cols`, `checker`, `random` using the first `paletteN` colours of `palette` (`random` follows `vary.seed`) | `single` |
 | `visible` | Show the layer | `true` |
