@@ -129,10 +129,11 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `circular` | Rosette: copies turned around a centre | `fold` (number of folds), `mirror` (add reflected copies), `offset` (° from the mirror line), `r0` (first ring radius), `ringGap`, `rings` (0 fills the surface), `even` (more copies on outer rings, a multiple of `fold`, about `spacing` apart), `twist` (° per ring), `centre` (a piece in the middle), `cx`, `cy`, `align` |
 | `fibonacci` | Sunflower packing | `spacing`, `cx`, `cy`, `align` (point copies outward), `jitter` |
 | `hatch` | Continuous lines; their width follows gradients | `spacing`, `width`, `angle`, `cross` (second direction), `crossAngle` |
+| `contour` | Isolines of all gradients combined (a built in noise when there are none) | `levels` (number of lines), `width`, `nscale` and `seed` for the built in noise |
 | `flow` | Lines that bend with gradients and can wave | `spacing`, `width`, `angle`, `bend`, `bendCentre`, `wave`, `waveLen`, `waveSkew` |
 | `voronoi` | Stones separated by cracks | `spacing` (stone size), `gap` (crack width), `corner` (corner radius in mm; large values give pebbles), `round` (extra smoothing, 0 to 4), `seed` |
 
-`hatch`, `flow` and `voronoi` draw their own geometry and ignore `shape`.
+`hatch`, `contour`, `flow` and `voronoi` draw their own geometry and ignore `shape`.
 
 The summary from the render script and `summary()` reports `openArea` as the real share of the whole surface covered by pieces (overlaps counted once), and `limitReached: true` when the 60,000 piece limit cut the pattern short.
 
@@ -203,7 +204,7 @@ To point an effect at particular gradients or layers, give those gradients and l
 | `rot` | `deg` | Turn pieces near gradients |
 | `align` | `off` (0 points at the source, 90 runs around it, 180 points away) | Face the source: every piece turns to point at the nearest point, line or curve gradient, or along a ramp |
 | `opacity` | `min` (far opacity), `w` (fade over, 0.05 to 1) | Fade. With `w` 1 the fade runs evenly across the gradient; lower values keep pieces solid and fade only the weak end, like a feathered edge |
-| `drop` | `mode` (`threshold` or `dither`), `t` | Remove pieces where the gradient is weak |
+| `drop` | `mode` (`threshold`, `dither` or `bands`), `t`; for `bands`: `n` (steps) and `w` (share of each step kept) | Remove pieces where the gradient is weak, or keep only bands of it |
 | `color` | `c2` (far colour) | Blend from `c2` to each layer's `fill` |
 | `morph` | `shape`, `steps` | Morph into another shape across the gradient |
 
@@ -219,7 +220,7 @@ Gradients are sources: each gives a value from 0 to 1 everywhere on the surface,
 | `line` | `x1`, `y1`, `x2`, `y2`, `radius` |
 | `curve` | `pts`: `[[x, y], …]` the points of a pen path, `radius`. Optional `hs`: one entry per point, `0` for a corner or `[inX, inY, outX, outY]` handles in mm. Without `hs` a smooth curve runs through the points |
 | `ramp` | `x1`, `y1` (value 0) to `x2`, `y2` (value 1) |
-| `noise` | `radius` (feature size), `seed` |
+| `noise` | `radius` (feature size), `seed`. Optional: `style` (`smooth`, `ridged`, `cells`), `octaves` (detail layers, 1 to 6), `rough` (0.2 to 0.85), `warp` (0 to 3, bends the noise by itself) |
 | `image` | `data` (an image data URL; dark = 1), `contrast` |
 
 All types also take `curve` (falloff: `linear smooth in out step`), `invert`, `weight` (strength 0 to 1) and `on`. `mix` combines several: `max` (default), `add`, `multiply`, `min`.

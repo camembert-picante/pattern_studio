@@ -1421,7 +1421,7 @@ const BUILTINS = [
 
 /* ================= State ================= */
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
-const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true });
+const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true });
 const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
 // Random variation per copy: turn (any angle within ±rot, or whole steps of `step` degrees), size (± share),
 // mirror, and a mix of extra shapes. The same seed always gives the same pattern.
@@ -1593,6 +1593,31 @@ function vnoise(x, y, seed) {
   const u = s(xf), w = s(yf);
   return (hh(xi, yi) * (1 - u) + hh(xi + 1, yi) * u) * (1 - w) + (hh(xi, yi + 1) * (1 - u) + hh(xi + 1, yi + 1) * u) * w;
 }
+// Cell (Worley) noise: distance to the nearest of one random point per grid square, 0 on the points.
+function cellNoise(x, y, seed) {
+  const xi = Math.floor(x), yi = Math.floor(y); let d = 9;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const cx = xi + dx + rnd01(xi + dx, yi + dy, seed), cy = yi + dy + rnd01(xi + dx, yi + dy, seed + 1); d = Math.min(d, Math.hypot(x - cx, y - cy)); }
+  return Math.min(1, d);
+}
+// A noise gradient. Without detail settings it keeps the original two layer value noise. With them: `octaves`
+// layers of detail, each `rough` times as strong, `warp` bends the noise by itself (marbled, flowing shapes), and
+// `style` smooth, ridged (sharp crests) or cells (rounded cells around random points).
+function noiseFn(c, R) {
+  const sd = c.seed || 1;
+  if (c.octaves == null && !c.warp && (!c.style || c.style === 'smooth')) return p => { const x = p[0] / R, y = p[1] / R; return (0.62 * vnoise(x, y, sd) + 0.38 * vnoise(x * 2.1 + 17.3, y * 2.1 + 5.1, sd + 9) - 0.12) / 0.76; };
+  const oct = clamp(Math.round(c.octaves == null ? 2 : c.octaves), 1, 6), ro = c.rough == null ? 0.5 : c.rough, wp = c.warp || 0, st = c.style || 'smooth';
+  const fbm = (x, y, s) => {
+    let a = 1, f = 1, sum = 0, norm = 0;
+    for (let o = 0; o < oct; o++) { let v = st === 'cells' ? cellNoise(x * f + o * 17.3, y * f + o * 5.1, s + o * 9) : vnoise(x * f + o * 17.3, y * f + o * 5.1, s + o * 9); if (st === 'ridged') v = 1 - Math.abs(2 * v - 1); sum += a * v; norm += a; a *= ro; f *= 2.03; }
+    return sum / norm;
+  };
+  return p => {
+    let x = p[0] / R, y = p[1] / R;
+    if (wp) { const qx = fbm(x + 3.1, y + 7.7, sd + 41), qy = fbm(x + 11.3, y + 2.9, sd + 73); x += wp * (qx - 0.5) * 2; y += wp * (qy - 0.5) * 2; }
+    const v = fbm(x, y, sd);
+    return st === 'cells' ? v * 1.25 : (v - 0.5) * (1.4 + 0.25 * oct) + 0.5;
+  };
+}
 let FIELD = null, fieldKey = '';
 function getField() {
   const key = JSON.stringify([S.ctrls, S.mix, S.region.W, S.region.H], (k, v) => k === 'data' ? (v ? v.length : 0) : v) + '|' + [...IMG.keys()].filter(k => IMG.get(k)).join();
@@ -1618,7 +1643,7 @@ function buildField(only) {
     else if (c.type === 'line') { const a = [c.x1, c.y1], b = [c.x2, c.y2]; raw = p => 1 - segDist(p, a, b).d / R; near = p => segDist(p, a, b).q; }
     else if (c.type === 'curve') { const pl = curvePts(c); raw = p => 1 - polyDist(p, pl, false).d / R; near = p => polyDist(p, pl, false).q; }
     else if (c.type === 'ramp') { const dx = c.x2 - c.x1, dy = c.y2 - c.y1, L2 = dx * dx + dy * dy || 1; raw = p => ((p[0] - c.x1) * dx + (p[1] - c.y1) * dy) / L2; }
-    else if (c.type === 'noise') { const sd = c.seed || 1; raw = p => { const x = p[0] / R, y = p[1] / R; return (0.62 * vnoise(x, y, sd) + 0.38 * vnoise(x * 2.1 + 17.3, y * 2.1 + 5.1, sd + 9) - 0.12) / 0.76; }; }
+    else if (c.type === 'noise') raw = noiseFn(c, R);
     else if (c.type === 'image') {
       const im = IMG.get(imgKey(c)), sc = Math.max(W / im.w, H / im.h), ox = (W - im.w * sc) / 2, oy = (H - im.h * sc) / 2, ct = c.contrast || 1;
       raw = p => {
@@ -1799,7 +1824,10 @@ function respond(L, F, R, reg, c, key) {
   for (let i = 0; i < fx.length; i++) {
     const e = fx[i], p = e.p; if (e.kind === 'spacing' || e.kind === 'align') continue;
     const v = e.F.v(c);
-    if (e.kind === 'drop') { if (p.mode === 'dither' ? rnd01(key[0], key[1], key[2] + 17 + e.n) > v : v < p.t) return null; }
+    if (e.kind === 'drop') {
+      if (p.mode === 'bands') { const q = v * Math.max(1, p.n || 6), f = q - Math.floor(q); if (f >= (p.w == null ? 0.5 : p.w)) return null; } // keep a band of width w in every step
+      else if (p.mode === 'dither' ? rnd01(key[0], key[1], key[2] + 17 + e.n) > v : v < p.t) return null;
+    }
     else if (e.kind === 'size') s *= p.min + (p.max - p.min) * v;
     else if (e.kind === 'opacity') { const w = p.w == null ? 1 : p.w; op *= p.min + (1 - p.min) * (w >= 1 ? v : CURVES.smooth(clamp(v / Math.max(0.01, w), 0, 1))); } // w < 1 fades only the weak end
     else if (e.kind === 'rot') rot += p.deg * v;
@@ -1851,16 +1879,17 @@ function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
 }
 
 /* ================= Layouts ================= */
-const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['circular', 'Circular pattern'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Crosshatch lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
+const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['circular', 'Circular pattern'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Crosshatch lines'], ['contour', 'Contour lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
 const LAYOUT_DESC = {
   wallpaper: 'Copies follow one of the 17 symmetry groups.', grid: 'Rows and columns. Row offset 0.5 gives a brick / staggered grid.',
   scatter: 'Even random spacing (Poisson disc). Gradients can make it denser or sparser.', path: 'Copies along a Curve or Line gradient (or a default curve), in one or more rows.',
   spiral: 'Copies along an Archimedean spiral from the centre.', concentric: 'Rings of copies around a centre, or following the surface outline.',
+  contour: 'Contour lines (isolines) of the gradients, like a topographic map. With no gradients they follow a built in noise.',
   circular: 'Copies turned around a centre in rings, with any number of folds (5, 8, 10, 12…) and optional mirrored copies, like a rosette or a mandala.',
   fibonacci: 'Golden angle sunflower packing. Very even, no visible rows.', hatch: 'Continuous lines whose width follows the gradients. Two directions make crosshatching.',
   voronoi: 'Stones separated by cracks. Gradients change stone size, so cracks open and close.', flow: 'Each line bends with the gradients and can wave. Size drives width, spacing drives density.'
 };
-const GEOM_LAYOUTS = { hatch: 1, flow: 1, voronoi: 1 };
+const GEOM_LAYOUTS = { hatch: 1, flow: 1, voronoi: 1, contour: 1 };
 const POINT_LAYOUTS = { scatter: 1, path: 1, spiral: 1, concentric: 1, circular: 1, fibonacci: 1 };
 const CENTRED = { spiral: 1, concentric: 1, circular: 1, fibonacci: 1 }; // layouts built around a centre you can drag
 function layoutName(L) { if (L.layout === 'wallpaper' || !L.layout) return eff(L).group; return (LAYOUTS.find(x => x[0] === L.layout) || [0, L.layout])[1]; }
@@ -2053,6 +2082,45 @@ function hatchLines(L, reg) {
   });
   return lines;
 }
+// Isolines of the combined gradient (or of a built in noise when there are none), found with marching squares
+// on a fine grid and joined into polylines. `levels` evenly spaced values between 0 and 1.
+function contourLines(L, reg, F) {
+  const lay = L.lay, n = clamp(Math.round(lay.levels || 12), 1, 200), pad = Math.max(1, lay.width * 2);
+  const f = F.active ? F.v : noiseFn({ seed: lay.seed || 1, octaves: 3, rough: 0.5 }, Math.max(2, lay.nscale || 40));
+  const x0 = reg.x0 - pad, y0 = reg.y0 - pad, w = reg.x1 - reg.x0 + 2 * pad, h = reg.y1 - reg.y0 + 2 * pad;
+  const st = Math.max(0.15, Math.max(w, h) / 320), nx = Math.ceil(w / st), ny = Math.ceil(h / st), V = new Float32Array((nx + 1) * (ny + 1));
+  for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) V[j * (nx + 1) + i] = f([x0 + i * st, y0 + j * st]);
+  const lines = [], H = (nx + 1) * (ny + 1), at = (i, j) => V[j * (nx + 1) + i];
+  for (let li = 0; li < n; li++) {
+    const t = (li + 0.5) / n, pts = new Map(), adj = new Map();
+    // the crossing point on an edge, keyed: horizontal edges first, then vertical ones
+    const pt = (id) => {
+      if (pts.has(id)) return id;
+      let p;
+      if (id < H) { const i = id % (nx + 1), j = (id / (nx + 1)) | 0, a = at(i, j), b = at(i + 1, j), u = (t - a) / (b - a); p = [x0 + (i + u) * st, y0 + j * st]; }
+      else { const k = id - H, i = k % (nx + 1), j = (k / (nx + 1)) | 0, a = at(i, j), b = at(i, j + 1), u = (t - a) / (b - a); p = [x0 + i * st, y0 + (j + u) * st]; }
+      pts.set(id, p); return id;
+    };
+    const link = (a, b) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); (adj.get(b) || adj.set(b, []).get(b)).push(a); };
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const c0 = at(i, j) >= t, c1 = at(i + 1, j) >= t, c2 = at(i + 1, j + 1) >= t, c3 = at(i, j + 1) >= t;
+      if (c0 === c1 && c1 === c2 && c2 === c3) continue;
+      const e = [], E0 = j * (nx + 1) + i, E1 = H + j * (nx + 1) + i + 1, E2 = (j + 1) * (nx + 1) + i, E3 = H + j * (nx + 1) + i;
+      if (c0 !== c1) e.push(E0); if (c1 !== c2) e.push(E1); if (c2 !== c3) e.push(E2); if (c3 !== c0) e.push(E3);
+      if (e.length === 2) link(pt(e[0]), pt(e[1]));
+      else if (e.length === 4) { // saddle: the middle decides which corners join
+        const mid = (at(i, j) + at(i + 1, j) + at(i + 1, j + 1) + at(i, j + 1)) / 4 >= t;
+        if (mid === c0) { link(pt(E0), pt(E1)); link(pt(E2), pt(E3)); } else { link(pt(E3), pt(E0)); link(pt(E1), pt(E2)); }
+      }
+    }
+    // walk the chains: open ones from their ends first, then the closed loops
+    const seen = new Set();
+    const walk = start => { const out = [pts.get(start)]; seen.add(start); let prev = -1, cur = start; for (;;) { const nb = (adj.get(cur) || []).find(x => x !== prev && !seen.has(x)); if (nb == null) { const back = (adj.get(cur) || []).find(x => x === start && x !== prev); if (back != null && out.length > 2) out.push(pts.get(start)); break; } seen.add(nb); out.push(pts.get(nb)); prev = cur; cur = nb; } return out; };
+    adj.forEach((nb, id) => { if (nb.length === 1 && !seen.has(id)) { const c = walk(id); if (c.length > 1) lines.push({ pts: c, j: li, di: 0 }); } });
+    adj.forEach((nb, id) => { if (!seen.has(id)) { const c = walk(id); if (c.length > 2) lines.push({ pts: c, j: li, di: 0 }); } });
+  }
+  return lines;
+}
 function flowLines(L, reg, F) {
   const lay = L.lay, sp = Math.max(0.3, lay.spacing), a0 = lay.angle * D2R, d0 = [Math.cos(a0), Math.sin(a0)], n0 = [-d0[1], d0[0]];
   const pad = sp + lay.width * 2, box = [reg.x0 - pad, reg.y0 - pad, reg.x1 + pad, reg.y1 + pad];
@@ -2221,7 +2289,7 @@ function layerOut(L, idx, R, reg, mode, F, budget) {
   if (GEOM_LAYOUTS[lay]) {
     let polys;
     if (lay === 'voronoi') polys = voronoiStones(L, idx, reg, F, R, mode);
-    else polys = strokesToPolys(L, idx, lay === 'hatch' ? hatchLines(L, reg) : flowLines(L, reg, F), F, R, reg, mode);
+    else polys = strokesToPolys(L, idx, lay === 'hatch' ? hatchLines(L, reg) : lay === 'contour' ? contourLines(L, reg, F) : flowLines(L, reg, F), F, R, reg, mode);
     const over = polys.length > budget; if (over) polys.length = Math.max(0, budget);
     return { kind: 'geom', polys: polys, over: over, count: polys.length };
   }
@@ -2727,6 +2795,11 @@ function buildLayout() {
     }
     case 'hatch': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Angle', P('angle'), Q('angle'), -180, 180, 0.5, '°'), line(chk('Crosshatch', P('cross'), v => { lay.cross = v; buildLayout(); })), lay.cross ? numRow('Cross angle', P('crossAngle'), Q('crossAngle'), 5, 175, 0.5, '°') : ''); box.append(E('p', { class: 'hint' }, 'Turn on Size in Gradient response to thicken lines near controllers, and Spacing to bend them like a lens.')); break;
     case 'flow': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Direction', P('angle'), Q('angle'), -180, 180, 0.5, '°'), numRow('Bend', P('bend'), Q('bend'), -180, 180, 1, '°', 'How far gradients turn the lines'), numRow('Wave', P('wave'), Q('wave'), 0, 80, 0.5, '°'), numRow('Wavelength', P('waveLen'), Q('waveLen'), 2, 300, 1, 'mm'), numRow('Wave skew', P('waveSkew'), Q('waveSkew'), -2, 2, 0.01, '×', 'Tilts the wave fronts for moiré ripples')); break;
+    case 'contour':
+      box.append(numRow('Levels', P('levels'), Q('levels'), 1, 80, 1, '', 'How many contour lines between the lowest and highest value'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'));
+      if (!(getField().active)) box.append(numRow('Noise scale', P('nscale'), Q('nscale'), 3, 300, 0.5, 'mm', 'Size of the hills of the built in noise'), seed());
+      box.append(E('p', { class: 'hint' }, getField().active ? 'The lines follow all gradients combined. A Noise gradient with Detail and Warp gives natural terrain; Size and Colour effects still work on the lines.' : 'No gradients yet, so the lines follow a built in noise. Add gradients (a Noise one makes terrain) under Effects to shape them.'));
+      break;
     case 'voronoi': box.append(spacing('Stone size'), numRow('Crack width', P('gap'), Q('gap'), 0, 20, 0.05, 'mm'), numRow('Corner radius', P('corner'), Q('corner'), 0, Math.max(10, Math.round(lay.spacing)), 0.1, 'mm', 'Rounds every corner. Turn it up for smooth pebbles'), numRow('Extra smoothing', P('round'), Q('round'), 0, 4, 1, 'steps'), seed()); break;
   }
 }
@@ -2759,7 +2832,7 @@ function fxChanged() { buildResponse(); renderLayers(); requestRender(); pushHis
 function fxWhat(e) {
   const p = e.p, pc = x => Math.round(x * 100) + '%';
   return e.kind === 'size' ? pc(p.min) + ' → ' + pc(p.max) : e.kind === 'spacing' ? (p.amt < 0 ? 'denser' : 'sparser') + ' ' + pc(Math.abs(p.amt)) : e.kind === 'rot' ? p.deg + '°' : e.kind === 'align' ? (p.off ? 'offset ' + p.off + '°' : 'pointing in')
-    : e.kind === 'opacity' ? pc(p.min) + ' far' + (p.w < 1 ? ', fade over ' + pc(p.w) : '') : e.kind === 'drop' ? (p.mode === 'dither' ? 'thinning' : 'below ' + pc(p.t)) : e.kind === 'color' ? 'from ' + p.c2 : e.kind === 'morph' ? 'to ' + ((SHAPES[p.shape] || {}).name || p.shape) : '';
+    : e.kind === 'opacity' ? pc(p.min) + ' far' + (p.w < 1 ? ', fade over ' + pc(p.w) : '') : e.kind === 'drop' ? (p.mode === 'dither' ? 'thinning' : p.mode === 'bands' ? (p.n || 6) + ' bands' : 'below ' + pc(p.t)) : e.kind === 'color' ? 'from ' + p.c2 : e.kind === 'morph' ? 'to ' + ((SHAPES[p.shape] || {}).name || p.shape) : '';
 }
 function buildResponse() {
   const box = $('#secResp'); box.innerHTML = '';
@@ -2797,7 +2870,11 @@ function buildResponse() {
       if (e.kind === 'rot') body.append(numRow('Turn near', P('deg'), Q('deg'), -360, 360, 1, '°'));
       if (e.kind === 'align') body.append(numRow('Turn offset', P('off'), Q('off'), -180, 180, 1, '°', '0 = point at the source, 90 = run around it, 180 = point away'));
       if (e.kind === 'opacity') body.append(numRow('Far opacity', P('min'), Q('min'), 0, 1, 0.01, ''), numRow('Fade over', P('w'), Q('w'), 0.05, 1, 0.01, '', '1 = fade evenly across the whole gradient. Lower values keep pieces solid and fade only the weak end, like a feathered edge'));
-      if (e.kind === 'drop') { body.append(line(E('label', {}, 'Mode'), sel([['threshold', 'Below a threshold'], ['dither', 'Random thinning (dither)']], P('mode'), v => { e.p.mode = v; buildResponse(); }))); if (e.p.mode === 'threshold') body.append(numRow('Threshold', P('t'), Q('t'), 0, 1, 0.01, '')); }
+      if (e.kind === 'drop') {
+        body.append(line(E('label', {}, 'Mode'), sel([['threshold', 'Below a threshold'], ['dither', 'Random thinning (dither)'], ['bands', 'Bands (like contour stripes)']], P('mode'), v => { e.p.mode = v; if (v === 'bands' && e.p.n == null) { e.p.n = 6; e.p.w = 0.5; } buildResponse(); fxChanged(); })));
+        if (e.p.mode === 'threshold') body.append(numRow('Threshold', P('t'), Q('t'), 0, 1, 0.01, ''));
+        if (e.p.mode === 'bands') body.append(numRow('Bands', () => e.p.n == null ? 6 : e.p.n, v => { e.p.n = v; }, 1, 40, 1, '', 'How many steps the gradient is cut into'), numRow('Band width', () => e.p.w == null ? 0.5 : e.p.w, v => { e.p.w = v; }, 0.05, 0.95, 0.01, '', 'Share of each step that keeps its pieces'));
+      }
       if (e.kind === 'color') body.append(line(E('label', {}, 'Far colour'), color(P('c2'), Q('c2')), E('span', { class: 'hint' }, '→ near = each layer’s fill colour')));
       if (e.kind === 'morph') {
         const closed = Object.values(SHAPES).filter(sh => mainLoop(sh) && usable(sh));
@@ -2835,7 +2912,13 @@ function buildGradients() {
   const P = k => () => c[k], Q = k => v => { c[k] = v; };
   box.append(E('div', { class: 'fam' }, 'Controller ' + (selCtrl + 1) + ' · ' + CTRL_NAMES[c.type]));
   if (c.type === 'point' || c.type === 'line' || c.type === 'curve') box.append(numRow('Reach', P('radius'), Q('radius'), 1, 600, 0.5, 'mm', 'Distance at which the effect fades to 0'));
-  if (c.type === 'noise') box.append(numRow('Scale', P('radius'), Q('radius'), 1, 400, 0.5, 'mm'), numRow('Seed', P('seed'), Q('seed'), 1, 500, 1, ''));
+  if (c.type === 'noise') {
+    box.append(numRow('Scale', P('radius'), Q('radius'), 1, 400, 0.5, 'mm'), numRow('Seed', P('seed'), Q('seed'), 1, 500, 1, ''));
+    box.append(line(E('label', {}, 'Style'), sel([['smooth', 'Smooth'], ['ridged', 'Ridged (sharp crests)'], ['cells', 'Cells (around random points)']], () => c.style || 'smooth', v => { c.style = v; if (c.octaves == null) c.octaves = 2; buildGradients(); requestRender(); pushHistory(); })));
+    box.append(numRow('Detail', () => c.octaves == null ? 2 : c.octaves, v => { c.octaves = v; }, 1, 6, 1, 'layers', 'More layers add finer detail on top'),
+      numRow('Roughness', () => c.rough == null ? 0.5 : c.rough, v => { c.rough = v; if (c.octaves == null) c.octaves = 2; }, 0.2, 0.85, 0.01, '', 'How strong each finer layer is'),
+      numRow('Warp', () => c.warp || 0, v => { c.warp = v; }, 0, 3, 0.05, '', 'Bends the noise by itself for marbled, flowing shapes'));
+  }
   if (c.type === 'image') box.append(numRow('Contrast', P('contrast'), Q('contrast'), 0.2, 4, 0.01, '×'), line(E('button', { class: 'mini', onclick: () => { imgTarget = c; $('#imgIn').click(); } }, 'Replace image…'), E('span', { class: 'hint' }, 'Dark areas = 1 (bigger holes).')));
   box.append(line(E('label', {}, 'Falloff'), sel([['linear', 'Linear'], ['smooth', 'Smooth'], ['in', 'Ease in'], ['out', 'Ease out'], ['step', 'Hard step']], P('curve'), Q('curve')), chk('Invert', P('invert'), v => { c.invert = v; buildGradients(); })));
   box.append(numRow('Strength', P('weight'), Q('weight'), 0, 1, 0.01, ''));

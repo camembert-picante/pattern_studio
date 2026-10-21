@@ -77,6 +77,7 @@ Every layout uses the same boundary, shapes and gradients, so switching between 
 | Circular pattern | Copies turned around a centre with any number of folds (5, 8, 10, 12…), like a rosette or mandala. Mirror copies adds a reflected copy beside each one; set the first ring, ring gap and number of rings, even spacing (outer rings get more copies, always a multiple of the folds), a twist per ring and a centre piece |
 | Fibonacci | Sunflower packing using the golden angle |
 | Crosshatch lines | Continuous lines whose width follows the gradient. A second direction gives moiré effects. |
+| Contour lines | Isolines of the gradients, like a topographic map: set how many levels and the line width. With no gradients they follow a built in noise; with a Noise gradient (Detail, Warp) they look like real terrain |
 | Voronoi stone cracks | Stones separated by cracks of a set width. **Corner radius** rounds the stones, up to smooth pebbles |
 | Flow lines | Each line bends with the gradient and can wave, giving ripples and contour map looks |
 
@@ -91,7 +92,7 @@ These are the sources: each gives a value from 0 to 1 across the surface. On the
 | Curve | Attractor along a pen path: drag its points and curve handles on the canvas, Alt/Option click a point to switch corner and curve, Alt/Option drag a handle to bend it on its own, or **Draw with pen** to draw it again (click for a corner, click and drag for a curve, Enter or a click on the last point to finish) |
 | Linear ramp | A gradient from 0 to 1 between two handles |
 | Image map | Halftone: an image's brightness drives the pattern, and dark areas give bigger pieces |
-| Noise | Organic variation |
+| Noise | Organic variation. **Style** smooth, ridged (sharp crests) or cells (rounded cells around random points); **Detail** adds finer layers, **Roughness** sets how strong they are, **Warp** bends the noise by itself for marbled shapes |
 
 Each controller has a reach, a falloff curve (linear, smooth, ease, step), invert and strength. On crosshatch and flow lines, opacity and colour effects fade smoothly along each line. You can combine several controllers by taking the strongest value, adding, multiplying or taking the weakest.
 
@@ -111,7 +112,7 @@ The effects are:
 * **Rotation**, which turns pieces more the closer they are.
 * **Face the source**, which turns every piece to point at the nearest gradient (or along a ramp). It shows nothing on round shapes like Dot.
 * **Opacity**, with **Fade over**: at 100% pieces fade evenly across the gradient; lower values keep them solid and fade only the weak end, so the gradient's edge dissolves like a feather. In the displacement map opacity becomes grey levels.
-* **Drop out**, either below a threshold or by random thinning (dither).
+* **Drop out**, either below a threshold, by random thinning (dither), or in **bands**: the gradient is cut into steps and only a band of each step keeps its pieces, for contour stripes, tone bands or Turing style stripes.
 * **Colour**, from a far colour to each layer's fill colour.
 * **Morph shape**, which blends one shape into another across the gradient (for example a square into a star).
 
