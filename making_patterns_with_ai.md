@@ -53,7 +53,9 @@ echo '{"layers":[{"shape":"dot","group":"p6","cellW":6}]}' | node tools/render.m
 | `--out dir` | Where to write files (default `out`) |
 | `--dpi n` | Resolution for png / jpg / webp / displacement maps |
 | `--relief mm`, `--base mm` | Relief height and base plate thickness for STL and STEP |
-| `--solid relief\|perforated` | STEP: raised pieces on a plate, or a plate with every piece cut through |
+| `--solid relief\|perforated` | STEP and STL: raised pieces on a plate, or a plate with every piece cut through |
+| `--merge` | DXF, STEP, STL: overlapping pieces become one outline |
+| `--offset mm` | DXF, STEP, STL: grow (plus) or shrink (minus) every outline, for kerf |
 | `--split n` (1 to 4) | STEP: split into n × n blocks (zipped) for heavy patterns |
 | `--no-expand` | SVG: keep copies as `<use>` references |
 | `--link` | Also print a share link for the pattern |
@@ -275,7 +277,7 @@ Define your own with `svgShapes`, then use the id like any other:
 
 ### Export settings: `exp`
 
-`dpi`, `expand` (SVG copies as paths), `reliefH`, `baseT`, `solid` (`relief` or `perforated`), `split`, `stepTol`, `jpgQ`. The render script's options set these for you.
+`dpi`, `expand` (SVG copies as paths), `reliefH`, `baseT`, `solid` (`relief` or `perforated`, for STEP and STL), `split`, `stepTol`, `jpgQ`, `merge` (unite overlapping pieces in DXF, STEP and STL), `offset` (mm, plus grows and minus shrinks every cut outline). The render script's options set these for you.
 
 ***
 

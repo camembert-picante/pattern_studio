@@ -152,10 +152,15 @@ All exports are in real millimetres.
 | SVG (whole surface or one seamless tile) | Illustrator, Figma, Inkscape, laser cutting, print |
 | PNG, JPG, WebP | Set the resolution in dpi |
 | Displacement map PNG | Blender Displace modifier, or a height/bump texture |
-| DXF (R12) | AutoCAD, Fusion, CNC, sheet metal and laser cutting. You get one DXF layer per pattern layer, plus the boundary. |
+| DXF (R12) | AutoCAD, Fusion, CNC, sheet metal and laser cutting. You get one DXF layer per pattern layer, plus the boundary. Dots export as true CIRCLE entities, and pieces are cut cleanly at any surface outline, including custom shapes. |
 | **STEP (.stp)** | Real solids for SolidWorks, Fusion, Rhino, CATIA and Inventor. Choose raised pieces on a plate, or a **perforated plate** with every piece cut through. **STP split** (2×2, 3×3 or 4×4 blocks, zipped) keeps dense patterns responsive in CAD. A tolerance setting trades accuracy for file size. |
-| STL | A relief on a base plate for 3D printing. Each piece is a watertight shell. |
+| STL | 3D printing: raised pieces on a base plate, or a **perforated plate** with every piece cut through as one watertight mesh (thousands of holes are fine). |
 | Project (.json) | Reopen and keep editing later |
+
+For DXF, STEP and STL:
+* **Merge overlapping pieces** turns pieces that overlap or touch (across all layers) into one outline, so a cutter never cuts inside a piece and a solid never has overlapping parts. Outlines that mix layers go on a MERGED layer. A perforated plate always merges its holes.
+* **Offset outlines** grows (plus) or shrinks (minus) every outline for kerf compensation. For holes cut by a laser, use minus half the kerf; for parts, plus half.
+* Round dots stay true circles: CIRCLE entities in DXF and true cylinders in STEP, which keeps files small (a perforated plate with 6,000 round holes is about 8 MB of STEP).
 
 If a STEP file won't open, switch the CAD import mode between Solid and Surface.
 
