@@ -3158,7 +3158,7 @@ function buildSurface() {
 function buildExport() {
   const X = S.exp, P = (k) => () => X[k], Q = (k) => (v) => { X[k] = v; };
   const ex = $('#secExport'); ex.innerHTML = '';
-  const fmts = [['svg', 'SVG: whole surface'], ['svgtile', 'SVG: one seamless tile'], ['png', 'PNG: whole surface'], ['pngtile', 'PNG: one seamless tile'], ['jpg', 'JPG: whole surface'], ['webp', 'WebP: whole surface'], ['disp', 'Displacement map PNG (white on black)'], ['disptile', 'Displacement map: seamless tile'], ['dxf', 'DXF: outlines for CAD / laser / CNC'], ['dxftile', 'DXF: one seamless tile'], ['step', 'STEP (.stp): solid for SolidWorks, Fusion, Rhino'], ['stl', 'STL: relief for 3D printing'], ['json', 'Project file (.json)']];
+  const fmts = [['svg', 'SVG: whole surface'], ['svgtile', 'SVG: one seamless tile'], ['png', 'PNG: whole surface'], ['pngtile', 'PNG: one seamless tile'], ['jpg', 'JPG: whole surface'], ['webp', 'WebP: whole surface'], ['disp', 'Displacement map PNG (white on black)'], ['disptile', 'Displacement map: seamless tile'], ['dxf', 'DXF: outlines for CAD / laser / CNC'], ['dxftile', 'DXF: one seamless tile'], ['step', 'STEP (.stp): solid for SolidWorks, Fusion, Rhino'], ['stl', 'STL: 3D printing (relief or perforated plate)'], ['json', 'Project file (.json)']];
   ex.append(line(sel(fmts, P('fmt'), v => { X.fmt = v; buildExport(); })));
   const f = X.fmt;
   if (f.startsWith('svg')) ex.append(line(chk('Expand copies (best for Fusion, Illustrator, laser software)', P('expand'), Q('expand'))));
