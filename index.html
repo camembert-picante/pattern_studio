@@ -1421,7 +1421,7 @@ const BUILTINS = [
 
 /* ================= State ================= */
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
-const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true });
+const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true });
 const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
 // Random variation per copy: turn (any angle within ±rot, or whole steps of `step` degrees), size (± share),
 // mirror, and a mix of extra shapes. The same seed always gives the same pattern.
@@ -1870,8 +1870,8 @@ function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
     const m = morph ? Math.round(r.v * (morph.length - 1)) : -1;
     const hull = m >= 0 ? morph[m].hull : (vsh || sh).hull;
     if (mode === 'inside') { let ok = true; for (let h = 0; h < hull.length; h++) if (!reg.contains(Af.ap(T2, hull[h]))) { ok = false; break; } if (!ok) continue; }
-    else if (!reg.contains(c, rad * r.s)) continue;
-    if (exclHit(L, c, rad * r.s)) continue;
+    else if (!reg.contains(c, (it.R || rad) * r.s)) continue;
+    if (exclHit(L, c, (it.R || rad) * r.s)) continue;
     out.push({ T: T2, i: it.i, j: it.j, k: it.k, neg: Af.det(T2) < 0, op: r.op, col: r.col, m: m, sh: vsh });
     if (out.length >= budget) { out.over = true; break; }
   }
@@ -1879,18 +1879,19 @@ function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
 }
 
 /* ================= Layouts ================= */
-const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['circular', 'Circular pattern'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Crosshatch lines'], ['contour', 'Contour lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
+const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['circular', 'Circular pattern'], ['pack', 'Circle packing'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Crosshatch lines'], ['contour', 'Contour lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
 const LAYOUT_DESC = {
   wallpaper: 'Copies follow one of the 17 symmetry groups.', grid: 'Rows and columns. Row offset 0.5 gives a brick / staggered grid.',
   scatter: 'Even random spacing (Poisson disc). Gradients can make it denser or sparser.', path: 'Copies along a Curve or Line gradient (or a default curve), in one or more rows.',
   spiral: 'Copies along an Archimedean spiral from the centre.', concentric: 'Rings of copies around a centre, or following the surface outline.',
+  pack: 'Circles of many sizes packed without touching, largest first, filling the surface around keep-out areas. Gradients can make them bigger.',
   contour: 'Contour lines (isolines) of the gradients, like a topographic map. With no gradients they follow a built in noise.',
   circular: 'Copies turned around a centre in rings, with any number of folds (5, 8, 10, 12…) and optional mirrored copies, like a rosette or a mandala.',
   fibonacci: 'Golden angle sunflower packing. Very even, no visible rows.', hatch: 'Continuous lines whose width follows the gradients. Two directions make crosshatching.',
   voronoi: 'Stones separated by cracks. Gradients change stone size, so cracks open and close.', flow: 'Each line bends with the gradients and can wave. Size drives width, spacing drives density.'
 };
 const GEOM_LAYOUTS = { hatch: 1, flow: 1, voronoi: 1, contour: 1 };
-const POINT_LAYOUTS = { scatter: 1, path: 1, spiral: 1, concentric: 1, circular: 1, fibonacci: 1 };
+const POINT_LAYOUTS = { scatter: 1, path: 1, spiral: 1, concentric: 1, circular: 1, fibonacci: 1, pack: 1 };
 const CENTRED = { spiral: 1, concentric: 1, circular: 1, fibonacci: 1 }; // layouts built around a centre you can drag
 function layoutName(L) { if (L.layout === 'wallpaper' || !L.layout) return eff(L).group; return (LAYOUTS.find(x => x[0] === L.layout) || [0, L.layout])[1]; }
 function pathPolyline(L) {
@@ -1944,6 +1945,62 @@ function scatterPoints(lay, box, F, amt, seed) {
   void rmax;
   return pts;
 }
+// Circle packing: circles from the largest size down, each placed at random where it touches nothing (other
+// circles plus the gap, the outline, keep-out areas). With gradients the largest size allowed follows them.
+const SOLVED = new Map(); // layer id -> last packing / relaxation, reused while its inputs stay the same
+function solvedOnce(L, kind, key, make) { const k = L.id + kind, c = SOLVED.get(k); if (c && c.key === key) return c.v; const v = make(); SOLVED.set(k, { key: key, v: v }); return v; }
+function packCircles(L, reg, F) {
+  return solvedOnce(L, 'pack', JSON.stringify([L.lay.pmin, L.lay.pmax, L.lay.pgap, L.lay.pfield, L.lay.seed, reg.x0, reg.y0, reg.x1, reg.y1, S.region, F.active ? fieldKey : '', S.excl]), () => packNow(L, reg, F));
+}
+function packNow(L, reg, F) {
+  const lay = L.lay, rmin = Math.max(0.15, (lay.pmin || 2) / 2), rmax = Math.max(rmin, (lay.pmax || 16) / 2), g = Math.max(0, lay.pgap || 0), rr = rng((lay.seed || 1) * 104729 + 3);
+  const bx = reg.x0, by = reg.y0, bw = reg.x1 - reg.x0, bh = reg.y1 - reg.y0, cs = Math.max(0.5, 2 * rmin + g), gw = Math.ceil(bw / cs) + 1, gh = Math.ceil(bh / cs) + 1;
+  if (gw * gh > 4e6) return [];
+  const cells = new Array(gw * gh), out = [], useF = F.active && lay.pfield !== false;
+  const cellsOf = (x, y, r, fn) => { for (let j = Math.max(0, Math.floor((y - r - by) / cs)); j <= Math.min(gh - 1, Math.floor((y + r - by) / cs)); j++) for (let i = Math.max(0, Math.floor((x - r - bx) / cs)); i <= Math.min(gw - 1, Math.floor((x + r - bx) / cs)); i++) if (fn(j * gw + i) === false) return false; return true; };
+  const area = Math.max(1, reg.area());
+  for (let r = rmax; r >= rmin * 0.999 && out.length < MAX_INST; r *= 0.9) {
+    const tries = clamp(Math.round(area / (r * r) * 1.5), 300, 120000);
+    for (let t = 0; t < tries && out.length < MAX_INST; t++) {
+      const p = [bx + rr() * bw, by + rr() * bh];
+      if (useF && r > rmin + (rmax - rmin) * F.v(p) + 1e-9) continue;
+      if (reg.edgeDist(p) < r) continue;
+      if (exclHit(L, p, r)) continue;
+      const ok = cellsOf(p[0], p[1], r + g, k => { const c = cells[k]; if (!c) return; for (const q of c) if (Math.hypot(q[0] - p[0], q[1] - p[1]) < r + q[2] + g) return false; });
+      if (!ok) continue;
+      const c = [p[0], p[1], r]; out.push(c);
+      cellsOf(p[0], p[1], r, k => { (cells[k] || (cells[k] = [])).push(c); });
+    }
+  }
+  return out;
+}
+// Lloyd relaxation: each point moves to the middle of the area closest to it, weighted by the wanted density,
+// so a scatter evens out (or, with a Density effect, gathers smoothly like stippling).
+function relaxPoints(pts, box, rOf, iters) {
+  const n = pts.length; if (!n || iters <= 0) return pts;
+  const bw = box[2] - box[0], bh = box[3] - box[1], area = bw * bh, h = Math.sqrt(area / Math.min(120000, n * 14)), cs = Math.sqrt(area / n) * 1.5;
+  const gw = Math.ceil(bw / cs) + 1, gh = Math.ceil(bh / cs) + 1;
+  let P = pts.map(p => p.slice());
+  for (let it = 0; it < iters; it++) {
+    const cells = new Array(gw * gh);
+    P.forEach((p, i) => { const k = clamp(Math.floor((p[1] - box[1]) / cs), 0, gh - 1) * gw + clamp(Math.floor((p[0] - box[0]) / cs), 0, gw - 1); (cells[k] || (cells[k] = [])).push(i); });
+    const sx = new Float64Array(n), sy = new Float64Array(n), sw = new Float64Array(n);
+    for (let y = box[1] + h / 2; y < box[3]; y += h) for (let x = box[0] + h / 2; x < box[2]; x += h) {
+      const ci = Math.floor((x - box[0]) / cs), cj = Math.floor((y - box[1]) / cs); let best = -1, bd = Infinity;
+      const look = (i, j) => { if (i < 0 || j < 0 || i >= gw || j >= gh) return; const c = cells[j * gw + i]; if (!c) return; for (const q of c) { const d = (P[q][0] - x) * (P[q][0] - x) + (P[q][1] - y) * (P[q][1] - y); if (d < bd) { bd = d; best = q; } } };
+      for (let ring = 0; ring < Math.max(gw, gh); ring++) {
+        if (!ring) look(ci, cj);
+        else { for (let i = ci - ring; i <= ci + ring; i++) { look(i, cj - ring); look(i, cj + ring); } for (let j = cj - ring + 1; j <= cj + ring - 1; j++) { look(ci - ring, j); look(ci + ring, j); } }
+        if (best >= 0 && ring * cs > Math.sqrt(bd) + cs) break;
+      }
+      if (best < 0) continue;
+      const r = rOf([x, y]), w = 1 / (r * r);
+      sx[best] += x * w; sy[best] += y * w; sw[best] += w;
+    }
+    P = P.map((p, i) => sw[i] > 0 ? [sx[i] / sw[i], sy[i] / sw[i]] : p);
+  }
+  return P;
+}
 function pointBase(L, idx, reg, F) {
   const lay = L.lay, sp = Math.max(0.2, lay.spacing), W = S.region.W, H = S.region.H;
   const mo = motifShape(SHAPES[L.shape] || SHAPES.comma, L.aspect), pad = sp + 0.6 * L.size * Math.max(1, L.aspect);
@@ -1954,8 +2011,14 @@ function pointBase(L, idx, reg, F) {
   const cap = MAX_INST * 2, pts = [], al = lay.align;
   const add = (p, ang, i, j, ref) => { if (inBox(p) && pts.length < cap) pts.push({ p: p, ang: ang, i: i, j: j, ref: ref }); };
   if (L.layout === 'scatter') {
-    const sp = fxKind(L, 'spacing')[0];
-    scatterPoints(lay, box, sp ? sp.F : F, sp ? sp.p.amt : 0, (lay.seed || 1) * 7919 + idx).forEach((p, i) => add(p, 0, i, 0));
+    const sp = fxKind(L, 'spacing')[0], fF = sp ? sp.F : F, amt = sp ? sp.p.amt : 0;
+    let sc = scatterPoints(lay, box, fF, amt, (lay.seed || 1) * 7919 + idx);
+    if (lay.relax > 0) { const sc0 = sc; sc = solvedOnce(L, 'relax', JSON.stringify([lay.spacing, lay.seed, lay.relax, box, amt, fF.active ? fieldKey + (sp ? JSON.stringify(S.fx[sp.n].src) : '') : '', sc0.length]), () => relaxPoints(sc0, box, p => Math.max(0.2, lay.spacing) * Math.max(0.15, 1 + amt * (fF.active ? fF.v(p) : 0)), Math.round(lay.relax))); }
+    sc.forEach((p, i) => add(p, 0, i, 0));
+  } else if (L.layout === 'pack') {
+    // each circle holds one copy, scaled so the motif's outermost point touches the circle
+    const sh0 = mo.sh, cr = Math.max(1e-6, ...sh0.hull.map(q => Math.hypot(q[0] * Math.abs(mo.ax), q[1])));
+    packCircles(L, reg, F).forEach((c, i) => { const n0 = pts.length; add([c[0], c[1]], 0, i, 0); if (pts.length > n0) { pts[n0].sc = c[2] / (cr * L.size * mo.sc); pts[n0].R = c[2]; } });
   } else if (L.layout === 'spiral') {
     const n = Math.max(1, Math.round(lay.arms)), pitch = Math.max(0.3, lay.pitch);
     add(C.slice(), 0, 0, 0);
@@ -2014,10 +2077,11 @@ function pointBase(L, idx, reg, F) {
   const s = L.size * mo.sc, asp = mo.ax, fl = L.flip ? -1 : 1, jit = lay.jitter || 0, jr = rng((lay.seed || 1) * 31 + 7);
   return pts.map(pt => {
     const a = (pt.ang + L.mrot + (jit ? (jr() * 2 - 1) * jit : 0)) * D2R, cs = Math.cos(a), sn = Math.sin(a);
-    let T = [cs * s * asp * fl, sn * s * asp * fl, -sn * s, cs * s, pt.p[0], pt.p[1]];
+    const ps = s * (pt.sc || 1);
+    let T = [cs * ps * asp * fl, sn * ps * asp * fl, -sn * ps, cs * ps, pt.p[0], pt.p[1]];
     // a mirrored copy: its partner's orientation reflected across the mirror line at angle `ref`
     if (pt.ref != null) { const c2 = Math.cos(2 * pt.ref), s2 = Math.sin(2 * pt.ref); T = Af.mul([c2, s2, s2, -c2, 0, 0], T.slice(0, 4).concat([0, 0])); T[4] = pt.p[0]; T[5] = pt.p[1]; }
-    return { T: T, i: pt.i, j: pt.j, k: 0, warp: L.layout !== 'scatter' };
+    return { T: T, i: pt.i, j: pt.j, k: 0, warp: L.layout !== 'scatter' && L.layout !== 'pack', R: pt.R };
   });
 }
 
@@ -2773,7 +2837,12 @@ function buildLayout() {
   const seed = () => numRow('Seed', P('seed'), Q('seed'), 1, 500, 1, '');
   switch (L.layout) {
     case 'grid': box.append(numRow('Row offset', P('rowOff'), Q('rowOff'), 0, 1, 0.01, '×', '0 = square grid, 0.5 = brick / staggered')); break;
-    case 'scatter': box.append(spacing('Min spacing'), seed(), jitter()); break;
+    case 'scatter': box.append(spacing('Min spacing'), numRow('Relax', P('relax'), Q('relax'), 0, 12, 1, 'steps', 'Evens out the dots step by step (Lloyd relaxation). With a Density effect the dots gather smoothly, like stippling'), seed(), jitter()); break;
+    case 'pack':
+      box.append(numRow('Smallest', P('pmin'), Q('pmin'), 0.3, 50, 0.1, 'mm', 'Diameter of the smallest circles'), numRow('Largest', P('pmax'), Q('pmax'), 0.5, 200, 0.5, 'mm', 'Diameter of the largest circles'), numRow('Gap', P('pgap'), Q('pgap'), 0, 10, 0.05, 'mm', 'Space kept between circles'));
+      box.append(line(chk('Gradients set the size', P('pfield'), Q('pfield'), 'Where gradients are weak only smaller circles fit')), seed(), jitter());
+      box.append(E('p', { class: 'hint' }, 'Each circle holds one copy of the motif, scaled so it fits inside. Use Dot for plain circles.'));
+      break;
     case 'spiral': box.append(spacing(), numRow('Turn gap', P('pitch'), Q('pitch'), 0.5, 60, 0.1, 'mm', 'Distance between spiral turns'), numRow('Arms', P('arms'), Q('arms'), 1, 12, 1, ''), ...centre(), align(), jitter()); break;
     case 'concentric': box.append(spacing(), line(E('label', {}, 'Rings'), sel([['circle', 'Circles'], ['boundary', 'Follow the surface outline']], P('ringMode'), Q('ringMode'))), ...centre(), align(), jitter()); break;
     case 'fibonacci': box.append(spacing(), ...centre(), align('Point copies outward'), jitter()); break;

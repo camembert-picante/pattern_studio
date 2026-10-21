@@ -123,7 +123,8 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `layout` | What it does | Settings in `lay` |
 |---|---|---|
 | `wallpaper` (default) | One of the 17 symmetry groups, set by `group` | `stack`: `none`, `down`, `up` (which rows overlap which) |
-| `scatter` | Random but evenly spaced (Poisson disc) | `spacing` (min distance), `seed`, `jitter` (random turn ±°) |
+| `scatter` | Random but evenly spaced (Poisson disc) | `spacing` (min distance), `seed`, `jitter` (random turn ±°), `relax` (0 to 12 Lloyd steps: even blue noise, or stippling with a `spacing` effect) |
+| `pack` | Circle packing: circles of many sizes that never touch, largest first | `pmin`, `pmax` (smallest and largest diameter), `pgap` (gap), `pfield` (gradients decide where big circles fit), `seed`. Each circle holds one copy of the motif, scaled to fit |
 | `spiral` | Archimedean spiral | `spacing`, `pitch` (gap between turns), `arms`, `cx`, `cy` (centre, % of W/H), `align`, `jitter` |
 | `concentric` | Rings | `spacing`, `ringMode`: `circle` or `boundary` (follow the surface outline), `cx`, `cy`, `align`, `jitter` |
 | `circular` | Rosette: copies turned around a centre | `fold` (number of folds), `mirror` (add reflected copies), `offset` (° from the mirror line), `r0` (first ring radius), `ringGap`, `rings` (0 fills the surface), `even` (more copies on outer rings, a multiple of `fold`, about `spacing` apart), `twist` (° per ring), `centre` (a piece in the middle), `cx`, `cy`, `align` |

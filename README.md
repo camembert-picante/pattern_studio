@@ -71,7 +71,8 @@ Every layout uses the same boundary, shapes and gradients, so switching between 
 | Layout | Notes |
 |---|---|
 | Wallpaper group (17) | p1 … p6m symmetry groups. Cells start square. Drag the cell's corner handles on the canvas to resize or slant it, or use the Square, Rectangle, Hex 60° and Slanted buttons under Spacing. Plain, brick and hex grids are p1 with the right side lengths and angle. |
-| Random scatter | Poisson disc spacing, so pieces are random but evenly spaced. Gradients can make it denser or sparser. |
+| Random scatter | Poisson disc spacing, so pieces are random but evenly spaced. Gradients can make it denser or sparser. **Relax** evens the dots out step by step; with a Density effect they gather smoothly, like stippling |
+| Circle packing | Circles of many sizes packed without touching, largest first, around keep-out areas and inside the outline. Set the smallest and largest diameter and the gap; gradients can decide where big circles fit. Each circle holds one copy of the motif |
 | Spiral | Archimedean spiral; arms and turn gap are adjustable |
 | Concentric | Rings around a centre, or rings that follow the surface outline |
 | Circular pattern | Copies turned around a centre with any number of folds (5, 8, 10, 12…), like a rosette or mandala. Mirror copies adds a reflected copy beside each one; set the first ring, ring gap and number of rings, even spacing (outer rings get more copies, always a multiple of the folds), a twist per ring and a centre piece |
