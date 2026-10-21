@@ -149,6 +149,11 @@ body.draggingShape #layerList::after{content:'+ Drop here for a new layer';displ
 .flyHead{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px;font-weight:650}
 .flyHead button{min-height:28px;width:28px}
 .flyout .shapes{grid-template-columns:repeat(5,minmax(0,1fr))}
+.varyBox{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+.mixShapes{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin:2px 0 6px}
+.mixShape{aspect-ratio:1;padding:3px;min-height:0;border-radius:6px;color:var(--muted)}
+.mixShape svg{width:100%;height:100%;display:block}
+.mixShape.on{background:var(--sel);border-color:var(--accent);color:var(--ink)}
 .flySec{font-size:11px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:12px 0 6px;padding-top:10px;border-top:1px solid var(--line)}
 .flyHead+.flySec{border-top:0;padding-top:0;margin-top:0}
 .curShape{align-items:center;margin:0 0 4px}
@@ -617,7 +622,7 @@ function eff(L) {
   const i = S.layers.indexOf(L);
   if (i > 0 && L.link && S.layers[0]) {
     const B = S.layers[0];
-    return Object.assign({}, L, { cellW: B.cellW, cellH: B.cellH, bLen: B.bLen, angle: B.angle, rot: B.rot });
+    return Object.assign({}, L, { cellW: B.cellW, cellH: B.cellH, bLen: B.bLen, angle: B.angle, rot: B.rot, repeat: B.repeat });
   }
   return L;
 }
@@ -626,8 +631,10 @@ function geom(L0, groupOverride) {
   let Lm;
   if (p.layout === 'grid' && !groupOverride) { const B0 = [OBL.a[0], OBL.a[1], OBL.b[0], OBL.b[1], 0, 0]; Lm = Af.mul([p.cellW, 0, (p.lay ? p.lay.rowOff : 0) * p.cellW, p.cellH, 0, 0], Af.inv(B0)); }
   else if (g.fam === 0) {
-    const th = p.angle * D2R, B0 = [OBL.a[0], OBL.a[1], OBL.b[0], OBL.b[1], 0, 0];
-    Lm = Af.mul([p.cellW, 0, p.bLen * Math.cos(th), p.bLen * Math.sin(th), 0, 0], Af.inv(B0));
+    // half drop: each column slides down half a cell; half brick: each row slides across half a cell
+    const th = p.angle * D2R, B0 = [OBL.a[0], OBL.a[1], OBL.b[0], OBL.b[1], 0, 0], ch = p.cellH || p.cellW;
+    const cell = p.repeat === 'halfdrop' ? [p.cellW, ch / 2, 0, ch, 0, 0] : p.repeat === 'brick' ? [p.cellW, 0, p.cellW / 2, ch, 0, 0] : [p.cellW, 0, p.bLen * Math.cos(th), p.bLen * Math.sin(th), 0, 0];
+    Lm = Af.mul(cell, Af.inv(B0));
   } else if (g.fam === 1 || g.fam === 2) Lm = [p.cellW, 0, 0, p.cellH / 0.9, 0, 0];
   else Lm = [p.cellW, 0, 0, p.cellW, 0, 0];
   const G = Af.mul(Af.T(p.sx, p.sy), Af.R(p.rot));
@@ -874,7 +881,7 @@ function commonTile() {
   if (!vis.length) return null;
   if (vis.some(L => L.layout && L.layout !== 'wallpaper' && L.layout !== 'grid')) return null;
   if (S.region.featherOn && S.region.featherW > 0) return null;
-  if (vis.some(L => fxFor(L).length)) return null;
+  if (vis.some(L => fxFor(L).length || varies(L) || L.colorMode === 'random')) return null;
   const ts = vis.map(L => rectTileOf(geom(L)));
   if (ts.some(t => !t)) return null;
   const w = lcmFloat(ts.map(t => t.w)), h = lcmFloat(ts.map(t => t.h));
@@ -1416,6 +1423,10 @@ const BUILTINS = [
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
 const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none' });
 const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
+// Random variation per copy: turn (any angle within ±rot, or whole steps of `step` degrees), size (± share),
+// mirror, and a mix of extra shapes. The same seed always gives the same pattern.
+const VARY0 = () => ({ rot: 0, step: 0, size: 0, flip: false, shapes: [], seed: 1 });
+const varies = L => { const V = L.vary; return !!V && (V.rot > 0 || V.step > 0 || V.size > 0 || V.flip || (V.shapes || []).length > 0); };
 function newLayer(over) {
   over = over || {};
   const L = Object.assign({
@@ -1426,6 +1437,7 @@ function newLayer(over) {
     colorMode: 'single', palette: PALETTES[0].slice(), paletteN: 2
   }, over);
   L.lay = Object.assign(LAY0(), over.lay || {});
+  L.vary = Object.assign(VARY0(), over.vary || {}); L.vary.shapes = (L.vary.shapes || []).slice();
   const m0 = MOD0(), mo = over.mod || {};
   L.mod = {}; Object.keys(m0).forEach(k => { L.mod[k] = Object.assign(m0[k], mo[k] || {}); });
   // Grid and Along a path layouts were retired. A grid is exactly a p1 wallpaper whose second side is (row offset × width, row height).
@@ -1805,20 +1817,34 @@ function respond(L, F, R, reg, c, key) {
 }
 function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
   const out = [], warps = fxKind(L, 'spacing').length > 0, al = fxKind(L, 'align')[0];
+  const V = varies(L) ? L.vary : null, vsd = V ? (V.seed || 1) * 7919 + 13 : 0;
+  // shapes in the mix, with the scale that turns the layer's motif size into theirs
+  let mix = null;
+  if (V && V.shapes.length && !morph) {
+    const b0 = motifShape(SHAPES[L.shape] || SHAPES.comma, L.aspect);
+    mix = [null].concat(V.shapes.filter(id => SHAPES[id] && id !== L.shape).map(id => { const m = motifShape(SHAPES[id], L.aspect); return { sh: m.sh, fx: (m.sc * Math.abs(m.ax)) / (b0.sc * Math.abs(b0.ax)), fy: m.sc / b0.sc }; }));
+  }
   for (let q = 0; q < base.length; q++) {
     const it = base[q], T = it.T; let c = [T[4], T[5]];
     if (warps && it.warp !== false) c = fxWarp(L, c);
     const r = respond(L, F, R, reg, c, [it.i, it.j, it.k]); if (!r) continue;
-    let A = [T[0] * r.s, T[1] * r.s, T[2] * r.s, T[3] * r.s], rot = r.rot;
+    let A = [T[0] * r.s, T[1] * r.s, T[2] * r.s, T[3] * r.s], rot = r.rot, vsh = null;
+    if (V) {
+      const rr = n => rnd01(it.i + vsd, it.j * 3 + n, it.k * 7 + n * 101);
+      if (V.step > 0) rot += Math.floor(rr(1) * Math.max(1, Math.round(360 / V.step))) * V.step; else if (V.rot) rot += (rr(1) * 2 - 1) * V.rot;
+      if (V.size) { const f = Math.max(0.05, 1 + V.size * (rr(2) * 2 - 1)); A = A.map(v => v * f); }
+      if (V.flip && rr(3) < 0.5) A = [-A[0], -A[1], A[2], A[3]];
+      if (mix) { const pk = mix[Math.floor(rr(4) * mix.length) % mix.length]; if (pk) { vsh = pk.sh; A = [A[0] * pk.fx, A[1] * pk.fx, A[2] * pk.fy, A[3] * pk.fy]; } }
+    }
     if (al) { const g = al.F.dir(c); if (g) rot += (Math.atan2(g[1], g[0]) - Math.atan2(A[1], A[0])) / D2R + al.p.off; }
     if (rot) A = Af.mul(Af.R(rot), A.concat([0, 0])).slice(0, 4);
     const T2 = [A[0], A[1], A[2], A[3], c[0], c[1]];
     const m = morph ? Math.round(r.v * (morph.length - 1)) : -1;
-    const hull = m >= 0 ? morph[m].hull : sh.hull;
+    const hull = m >= 0 ? morph[m].hull : (vsh || sh).hull;
     if (mode === 'inside') { let ok = true; for (let h = 0; h < hull.length; h++) if (!reg.contains(Af.ap(T2, hull[h]))) { ok = false; break; } if (!ok) continue; }
     else if (!reg.contains(c, rad * r.s)) continue;
     if (exclHit(L, c, rad * r.s)) continue;
-    out.push({ T: T2, i: it.i, j: it.j, k: it.k, neg: Af.det(T2) < 0, op: r.op, col: r.col, m: m });
+    out.push({ T: T2, i: it.i, j: it.j, k: it.k, neg: Af.det(T2) < 0, op: r.op, col: r.col, m: m, sh: vsh });
     if (out.length >= budget) { out.over = true; break; }
   }
   return out;
@@ -2267,11 +2293,11 @@ function layerSVG(lo, L, idx, o) {
   const parts = [];
   for (let q = 0; q < lo.items.length; q++) {
     const it = lo.items[q], c = disp ? null : (it.col || pickPal(it.i, it.j, it.k, it.neg));
-    const mo = it.m >= 0 ? lo.morph[it.m] : null, href = mo ? '#' + mo.id : '#sh_' + sh.id + '_' + v;
+    const mo = it.m >= 0 ? lo.morph[it.m] : null, ish = it.sh || sh, href = mo ? '#' + mo.id : '#sh_' + ish.id + '_' + v;
     let ca = c ? ' fill="' + c + '"' + (L.strokeOn ? '' : ' color="' + c + '"') : '';
     if (it.op < 0.995) ca += ' opacity="' + fmt(it.op) + '"';
     if (mo && sh.k !== 1) ca += ' stroke-width="' + fmt(swMorph) + '"';
-    if (o.expand) parts.push('<g transform="' + Af.str(it.T) + '"' + ca + '>' + (mo ? mo.inner.m : sh.inner[v]) + '</g>');
+    if (o.expand) parts.push('<g transform="' + Af.str(it.T) + '"' + ca + '>' + (mo ? mo.inner.m : ish.inner[v]) + '</g>');
     else parts.push('<use' + (o.xlink ? ' xlink:href="' + href + '"' : '') + ' href="' + href + '" transform="' + Af.str(it.T) + '"' + ca + '/>');
   }
   return '<g data-layer="' + idx + '"' + at + '>' + parts.join('') + '</g>';
@@ -2297,7 +2323,7 @@ function patternBody(R, o) {
     if (!shown(L)) return;
     const lo = layerOut(L, idx, R, reg, mode, F, Math.max(0, budget));
     budget -= lo.count; count += lo.count; over = over || lo.over;
-    if (lo.kind === 'inst') { used.add(lo.sh.id); lo.items.forEach(it => { if (it.m >= 0) morphUsed.set(lo.morph[it.m].id, lo.morph[it.m]); }); }
+    if (lo.kind === 'inst') { used.add(lo.sh.id); lo.items.forEach(it => { if (it.m >= 0) morphUsed.set(lo.morph[it.m].id, lo.morph[it.m]); if (it.sh) used.add(it.sh.id); }); }
     out.push(layerSVG(lo, L, idx, o)); los.push(lo);
     area += openArea(lo);
   });
@@ -2571,9 +2597,16 @@ function buildLayerControls() {
     else {
       const mm = 'mm';
       if (fam === 0) {
-        const cellAs = (ang, ratio) => { L.angle = ang; L.bLen = +(L.cellW * ratio).toFixed(2); buildLayerControls(); changed(); commit(); };
-        sp.append(line(E('label', {}, 'Cell'), E('button', { class: 'mini', onclick: () => cellAs(90, 1) }, 'Square'), E('button', { class: 'mini', onclick: () => cellAs(90, 0.6) }, 'Rectangle'), E('button', { class: 'mini', title: 'Rhombus with 60° corners: rows pack like a honeycomb', onclick: () => cellAs(60, 1) }, 'Hex 60°'), E('button', { class: 'mini', onclick: () => cellAs(70, 1) }, 'Slanted')));
-        sp.append(numRow('Side a', P('cellW'), Q('cellW'), 2, 150, 0.1, mm), numRow('Side b', P('bLen'), Q('bLen'), 2, 150, 0.1, mm), numRow('Angle', P('angle'), Q('angle'), 10, 170, 0.5, '°'));
+        const rp = L.repeat === 'halfdrop' || L.repeat === 'brick' ? L.repeat : 'custom';
+        sp.append(line(E('label', {}, 'Repeat'), sel([['custom', 'Cell (sides and angle)'], ['halfdrop', 'Half drop'], ['brick', 'Half brick']], () => rp, v => { if (v !== 'custom' && !(L.cellH > 0)) L.cellH = L.cellW; L.repeat = v; buildLayerControls(); changed(); commit(); })));
+        if (rp === 'custom') {
+          const cellAs = (ang, ratio) => { L.angle = ang; L.bLen = +(L.cellW * ratio).toFixed(2); buildLayerControls(); changed(); commit(); };
+          sp.append(line(E('label', {}, 'Cell'), E('button', { class: 'mini', onclick: () => cellAs(90, 1) }, 'Square'), E('button', { class: 'mini', onclick: () => cellAs(90, 0.6) }, 'Rectangle'), E('button', { class: 'mini', title: 'Rhombus with 60° corners: rows pack like a honeycomb', onclick: () => cellAs(60, 1) }, 'Hex 60°'), E('button', { class: 'mini', onclick: () => cellAs(70, 1) }, 'Slanted')));
+          sp.append(numRow('Side a', P('cellW'), Q('cellW'), 2, 150, 0.1, mm), numRow('Side b', P('bLen'), Q('bLen'), 2, 150, 0.1, mm), numRow('Angle', P('angle'), Q('angle'), 10, 170, 0.5, '°'));
+        } else {
+          sp.append(numRow('Width', P('cellW'), Q('cellW'), 2, 150, 0.1, mm), numRow('Height', P('cellH'), Q('cellH'), 2, 150, 0.1, mm));
+          sp.append(E('p', { class: 'hint' }, rp === 'halfdrop' ? 'Each column of the repeat slides down by half its height, like most wallpapers and fabrics.' : 'Each row slides across by half its width, like brickwork.'));
+        }
       }
       else if (fam === 1 || fam === 2) {
         sp.append(numRow(lay === 'grid' ? 'Column gap' : 'Width', P('cellW'), Q('cellW'), 1, 150, 0.1, mm, fam === 2 ? 'Width of the centered rectangle' : ''), numRow(lay === 'grid' ? 'Row gap' : 'Height', P('cellH'), Q('cellH'), 1, 150, 0.1, mm));
@@ -2594,6 +2627,7 @@ function buildLayerControls() {
     numRow('Stretch', P('aspect'), Q('aspect'), 0.2, 4, 0.01, '×', 'Width multiplier'),
     line(chk('Flip motif', P('flip'), Q('flip')), isLat ? E('span', { class: 'hint' }, 'Tip: drag the motif box on the canvas to move it.') : '')
   );
+  mo.append(buildVary(L));
   const pl = $('#secPlace'); pl.innerHTML = '';
   pl.append(numRow('Shift x', P('sx'), Q('sx'), -Math.max(span, S.region.W), Math.max(span, S.region.W), 0.1, 'mm', 'Moves the whole layer. You can also drag the cell on the canvas.'), numRow('Shift y', P('sy'), Q('sy'), -Math.max(span, S.region.H), Math.max(span, S.region.H), 0.1, 'mm'));
   pl.append(E('p', { class: 'hint' }, 'Shift slides this layer against the others. Rotation lives under Spacing.'));
@@ -2619,6 +2653,24 @@ function buildLayerControls() {
   buildResponse();
   markGroup();
   buildTraceBox();
+}
+// Random variation per copy, so a layer does not have to look stamped: turn, size, mirror, mixed shapes and colours.
+function buildVary(L) {
+  const V = L.vary, P = k => () => V[k], Q = k => v => { V[k] = v; };
+  const box = E('div', { class: 'varyBox' }, E('div', { class: 'fam' }, 'Random variation'));
+  box.append(numRow('Turn', P('rot'), v => { V.rot = v; if (v) V.step = 0; }, 0, 180, 1, '±°', 'Each copy turns by a random angle up to this'));
+  box.append(line(E('label', {}, 'Or turn in steps'), sel([['0', 'Off'], ['45', '45°'], ['60', '60°'], ['90', '90° (Truchet)'], ['120', '120°'], ['180', '180°']], () => String(V.step || 0), v => { V.step = +v; if (V.step) V.rot = 0; buildLayerControls(); changed(); commit(); })));
+  box.append(numRow('Size', P('size'), Q('size'), 0, 0.9, 0.01, '±', 'Each copy is randomly bigger or smaller by up to this share'));
+  box.append(line(chk('Mirror at random', P('flip'), Q('flip')), chk('Colour at random', () => L.colorMode === 'random', v => { L.colorMode = v ? 'random' : 'single'; if (v && L.paletteN < 2) L.paletteN = 3; buildLayerControls(); }, 'Picks from the layer colours under Style')));
+  // mix in other shapes: click thumbnails to add or remove them
+  const mixRow = E('div', { class: 'mixShapes', title: 'Copies pick at random between the layer shape and these' });
+  Object.values(SHAPES).filter(sh => usable(sh) && sh.id !== L.shape && sh.kind === 'vector').forEach(sh => {
+    const on = V.shapes.includes(sh.id), b = E('button', { class: 'mixShape' + (on ? ' on' : ''), title: sh.name, 'aria-pressed': on ? 'true' : 'false', onclick: () => { V.shapes = on ? V.shapes.filter(x => x !== sh.id) : V.shapes.concat([sh.id]); buildLayerControls(); changed(); commit(); } });
+    b.innerHTML = shapeThumb(sh); mixRow.append(b);
+  });
+  box.append(E('div', { class: 'line' }, E('label', {}, 'Mix shapes')), mixRow);
+  if (varies(L) || L.colorMode === 'random') box.append(numRow('Seed', P('seed'), Q('seed'), 1, 500, 1, '', 'Another seed gives another random arrangement'));
+  return box;
 }
 function buildLayout() {
   const L = cur(), lay = L.lay, P = k => () => lay[k], Q = k => v => { lay[k] = v; };
@@ -3937,6 +3989,7 @@ function dragCell(key, w, snap) {
   const L = cur(), T = L.link && S.layers.indexOf(L) > 0 ? S.layers[0] : L, g = geom(L), fam = g.g.fam;
   const toLocal = v => Af.lin(Af.R(-T.rot), v), q = toLocal([w[0] - L.sx, w[1] - L.sy]), ar = toLocal(g.a), br = toLocal(g.b);
   if (key === 'cellA') { if (ar[0] > 0.01) T.cellW = +clamp(T.cellW * q[0] / ar[0], 1, 400).toFixed(2); }
+  else if (fam === 0 && (T.repeat === 'halfdrop' || T.repeat === 'brick')) { if (q[1] > 0.01) T.cellH = +clamp(q[1], 1, 400).toFixed(2); }
   else if (fam === 0) {
     let ang = Math.atan2(q[1], q[0]) / D2R; if (snap) ang = Math.round(ang / 15) * 15;
     T.angle = +clamp(ang, 10, 170).toFixed(1); T.bLen = +clamp(Math.hypot(q[0], q[1]), 1, 400).toFixed(2);

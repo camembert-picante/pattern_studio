@@ -139,7 +139,7 @@ The summary from the render script and `summary()` reports `openArea` as the rea
 
 | `group` | Cell | Cell fields |
 |---|---|---|
-| `p1`, `p2` | oblique | `cellW` (side a), `bLen` (side b), `angle` between them: 90 rectangle/square, 60 hexagonal |
+| `p1`, `p2` | oblique | `cellW` (side a), `bLen` (side b), `angle` between them: 90 rectangle/square, 60 hexagonal. Or `repeat`: `halfdrop` (each column slides down half a cell) or `brick` (each row slides across half a cell) with `cellW`, `cellH` |
 | `pm`, `pg`, `pmm`, `pmg`, `pgg` | rectangular | `cellW`, `cellH` |
 | `cm`, `cmm` | centred rectangular | `cellW`, `cellH` |
 | `p4`, `p4m`, `p4g` | square | `cellW` |
@@ -159,6 +159,7 @@ The summary from the render script and `summary()` reports `openArea` as the rea
 | `size` | Longest side of the motif | 12 |
 | `mx`, `my` | Motif offset from the cell origin (wallpaper only) | -5.7, -8.7 |
 | `mrot`, `aspect`, `flip` | Turn (°), width multiplier, mirror | 0, 1, `false` |
+| `vary` | Random variation per copy: `rot` (random turn up to ±°), `step` (instead, a random whole number of turns of this many degrees, e.g. 90 for Truchet tiles), `size` (± share, 0 to 0.9), `flip` (mirror at random), `shapes` (extra shape ids; each copy picks between the layer's shape and these), `seed` | all off |
 
 If a layer gives none of `size`, `mx` and `my`, the motif is placed automatically to suit its cell or spacing, the same as the **Reset motif** button. For groups with rotations or mirrors, keep the motif off the cell origin, or its copies pile up on one spot.
 
@@ -170,7 +171,7 @@ If a layer gives none of `size`, `mx` and `my`, the motif is placed automaticall
 | `strokeOn`, `stroke`, `sw` | Outline on/off, colour, width (mm; for line shapes this is the line width) | `false`, `#000000`, 0.6 |
 | `opacity`, `blend` | 0 to 1; `normal multiply screen overlay darken lighten difference exclusion` | 1, `normal` |
 | `useOrig` | Keep the colours inside a multi colour shape (from `svgShapes` `svg`) instead of filling it with `fill`. This is how to make motifs with several colours | `false` |
-| `colorMode`, `palette`, `paletteN` | `single`, or colour copies by `copy` (orientation), `flip`, `rows`, `cols`, `checker`, `random` using the first `paletteN` colours of `palette` | `single` |
+| `colorMode`, `palette`, `paletteN` | `single`, or colour copies by `copy` (orientation), `flip`, `rows`, `cols`, `checker`, `random` using the first `paletteN` colours of `palette` (`random` follows `vary.seed`) | `single` |
 | `visible` | Show the layer | `true` |
 
 ### Effects: `fx[]`
