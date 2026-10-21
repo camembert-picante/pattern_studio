@@ -133,6 +133,8 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 
 `hatch`, `flow` and `voronoi` draw their own geometry and ignore `shape`.
 
+The summary from the render script and `summary()` reports `openArea` as the real share of the whole surface covered by pieces (overlaps counted once), and `limitReached: true` when the 60,000 piece limit cut the pattern short.
+
 **Wallpaper group and cell** (for `wallpaper`)
 
 | `group` | Cell | Cell fields |
@@ -167,6 +169,7 @@ If a layer gives none of `size`, `mx` and `my`, the motif is placed automaticall
 | `fill` | Colour | `#1f2a44` |
 | `strokeOn`, `stroke`, `sw` | Outline on/off, colour, width (mm; for line shapes this is the line width) | `false`, `#000000`, 0.6 |
 | `opacity`, `blend` | 0 to 1; `normal multiply screen overlay darken lighten difference exclusion` | 1, `normal` |
+| `useOrig` | Keep the colours inside a multi colour shape (from `svgShapes` `svg`) instead of filling it with `fill`. This is how to make motifs with several colours | `false` |
 | `colorMode`, `palette`, `paletteN` | `single`, or colour copies by `copy` (orientation), `flip`, `rows`, `cols`, `checker`, `random` using the first `paletteN` colours of `palette` | `single` |
 | `visible` | Show the layer | `true` |
 
@@ -246,7 +249,7 @@ Red areas where pieces are removed (screw holes, logos, clear bands). Coordinate
 
 Built in ids:
 * **Organic:** `comma` `leaf` `drop` `crescent` `seigaiha` (wave scale)
-* **Geometric:** `dot` `ellipse` `pill` `square` `tri` `hex` `star` `ring` `plus` `ell` (`bar` is retired: it still loads, but use `pill` with `aspect` instead)
+* **Geometric:** `dot` `ellipse` `pill` (stretching it with `aspect` keeps the ends round, so it doubles as a slot) `square` `tri` `hex` `star` `ring` `plus` `ell` (`bar` is retired: it still loads, but use `pill` with `aspect` instead)
 * **Lines:** `line` `wave` `arc` `hook`. These are drawn as strokes; their thickness is `sw`.
 * **Surface outlines:** `insole`
 

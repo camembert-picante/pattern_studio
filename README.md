@@ -118,11 +118,12 @@ The effects are:
 * **Your own outline:** under Surface, **Draw outline** draws the boundary on the canvas with the pen tool, right where you want it, and **Upload outline…** takes an SVG or DXF (or an image, which is traced). The pattern then only lives inside that outline. SVG and DXF files keep their real size (from the SVG's width in mm, cm, in, pt or px, or the DXF's units), and if the outline is bigger than the surface, the surface grows to fit it. With **Actual size** you can move the outline with Outline x and y, and **Fit surface to outline** trims the surface to the outline plus the margin. Keep proportions and Stretch to fill still fit any outline into the surface.
 * **Margin**, and what happens at the edge: cut pieces, keep only whole pieces, or let whole pieces overhang.
 * **Feather edges:** set a width and an effect (shrink, fade, shrink + fade, or thin out). A dotted line on the canvas marks where the feather starts.
-* **Open area:** the status bar shows roughly how much of the surface is open, which is useful for vents and grilles.
+* **Open area:** the status bar shows how much of the whole surface the pieces cover (the open area of a vent or grille), measured on a fine grid so overlapping pieces count once and pieces are cut at the outline.
+* **Piece limit:** a pattern draws and exports at most 60,000 pieces. When it hits that, the status bar and a message say so, because part of the pattern is missing.
 
 ## Shapes
 
-* 19 built in shapes under **Shapes** on the left tool rail: **Organic** (comma, leaf, drop, crescent, wave scale), **Geometric** (dot, ellipse, pill, square, triangle, hexagon, star, ring, plus, L) and **Lines** (line, wave, arc, hook). For a bar, use a pill with Stretch, or a line.
+* 19 built in shapes under **Shapes** on the left tool rail: **Organic** (comma, leaf, drop, crescent, wave scale), **Geometric** (dot, ellipse, pill, square, triangle, hexagon, star, ring, plus, L) and **Lines** (line, wave, arc, hook). Stretching a pill keeps its ends round, so a stretched pill is a slot or a bar.
 * **Edit any shape:** open it in the pen tool with **Edit shape outline** (Motif tab) or the **Edit** button in a shape family. Curves and arcs become editable points and handles. Every shape edits in place and updates everywhere it is used, built in ones included; an edited built in shape gets a small dot and a **Reset** button that brings back the original. Holes and extra parts are kept as they are.
 * **Delete any shape:** hover a shape under Shapes and click ✕ (on a phone, select it first), or use Delete at the top of the panel. Layers that used it switch to another shape. Undo brings it back. Deleted built in shapes are only hidden, so presets and saved patterns that use them still work, and **Restore** in their group brings them back.
 * Hover a shape for ✎ to open it straight in the pen tool.

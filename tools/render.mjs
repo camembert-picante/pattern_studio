@@ -66,5 +66,6 @@ try {
   const result = { ...summary, files };
   if (args.link) result.link = await page.evaluate(() => window.PatternStudio.link());
   if (errors.length) result.pageErrors = errors;
+  if (result.limitReached) console.error('Warning: the 60,000 piece limit was reached, so part of the pattern is missing. Use bigger pieces, wider spacing or a smaller surface.');
   console.log(JSON.stringify(result, null, 2));
 } finally { await browser.close(); }

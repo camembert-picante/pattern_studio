@@ -634,12 +634,28 @@ function geom(L0, groupOverride) {
   const W = Af.mul(G, Lm), Wi = Af.inv(W);
   const els = g.els.map(E => Af.mul(Af.mul(W, E), Wi));
   const a = Af.lin(W, g.lat.a), b = Af.lin(W, g.lat.b);
-  const sh = SHAPES[p.shape] || SHAPES.comma;
+  const mo = motifShape(SHAPES[p.shape] || SHAPES.comma, p.aspect), sh = mo.sh, sz = p.size * mo.sc;
   const fl = p.flip ? -1 : 1;
-  const Mp = Af.mul(Af.T(p.mx, p.my), Af.mul(Af.R(p.mrot), Af.S(p.size * p.aspect * fl, p.size)));
+  const Mp = Af.mul(Af.T(p.mx, p.my), Af.mul(Af.R(p.mrot), Af.S(sz * mo.ax * fl, sz)));
   const M = Af.mul(G, Mp);
-  const rad = 0.5 * Math.hypot(sh.w * p.aspect, sh.h) * p.size;
+  const rad = 0.5 * Math.hypot(sh.w * mo.ax, sh.h) * sz;
   return { p: p, g: g, els: els, a: a, b: b, M: M, Mp: Mp, G: G, sh: sh, rad: rad, origin: [p.sx, p.sy] };
+}
+
+// Shapes marked `ends` (the pill) keep their round ends when stretched: the stretch lengthens the straight part,
+// so a stretched pill is a true slot. Each length is its own shape, made once.
+const VARIANTS = {};
+function motifShape(sh, a) {
+  if (!sh.ends || Math.abs(a - 1) < 1e-3) return { sh: sh, ax: a, sc: 1 };
+  const W0 = sh.w * Math.abs(a), H0 = sh.h, D = Math.max(W0, H0), w = +(W0 / D).toFixed(3), h = +(H0 / D).toFixed(3), id = 'v_' + sh.id + '_' + w + 'x' + h;
+  if (!VARIANTS[id]) {
+    const r = Math.min(w, h) / 2 * 100, X = w * 100, Y = h * 100;
+    const d = w >= h ? 'M' + fmt(r) + ' 0H' + fmt(X - r) + 'A' + fmt(r) + ' ' + fmt(r) + ' 0 0 1 ' + fmt(X - r) + ' ' + fmt(Y) + 'H' + fmt(r) + 'A' + fmt(r) + ' ' + fmt(r) + ' 0 0 1 ' + fmt(r) + ' 0Z'
+      : 'M0 ' + fmt(r) + 'A' + fmt(r) + ' ' + fmt(r) + ' 0 0 1 ' + fmt(X) + ' ' + fmt(r) + 'V' + fmt(Y - r) + 'A' + fmt(r) + ' ' + fmt(r) + ' 0 0 1 0 ' + fmt(Y - r) + 'Z';
+    VARIANTS[id] = processSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + fmt(X) + ' ' + fmt(Y) + '"><path d="' + d + '"/></svg>', sh.name, { id: id, builtin: true });
+    morphDirty = true;
+  }
+  return { sh: VARIANTS[id], ax: a < 0 ? -1 : 1, sc: D };
 }
 
 /* ================= Surface region ================= */
@@ -844,9 +860,11 @@ function rectTileOf(geo) {
   }
   return hx && vy ? { w: hx, h: vy } : null;
 }
+// The shortest length every period divides. It is a multiple of the longest period, so the order of layers does not matter.
 function lcmFloat(vals) {
-  for (let n = 1; n <= 40; n++) {
-    const X = vals[0] * n;
+  const big = Math.max.apply(null, vals);
+  for (let n = 1; n <= 400 && big * n <= 5000; n++) {
+    const X = big * n;
     if (vals.every(v => { const q = X / v; return Math.abs(q - Math.round(q)) < 1e-4 * Math.max(1, q); })) return X;
   }
   return null;
@@ -1871,7 +1889,7 @@ function scatterPoints(lay, box, F, amt, seed) {
 }
 function pointBase(L, idx, reg, F) {
   const lay = L.lay, sp = Math.max(0.2, lay.spacing), W = S.region.W, H = S.region.H;
-  const sh = SHAPES[L.shape] || SHAPES.comma, pad = sp + 0.6 * L.size * Math.max(1, L.aspect);
+  const mo = motifShape(SHAPES[L.shape] || SHAPES.comma, L.aspect), pad = sp + 0.6 * L.size * Math.max(1, L.aspect);
   const box = [reg.x0 - pad, reg.y0 - pad, reg.x1 + pad, reg.y1 + pad];
   const inBox = p => p[0] >= box[0] && p[0] <= box[2] && p[1] >= box[1] && p[1] <= box[3];
   const C = [lay.cx / 100 * W, lay.cy / 100 * H];
@@ -1920,10 +1938,10 @@ function pointBase(L, idx, reg, F) {
       resample(line, sp, false, cap).forEach((s, q) => add(s.p, al ? s.ang : 0, q, ri));
     }
   }
-  const s = L.size, fl = L.flip ? -1 : 1, jit = lay.jitter || 0, jr = rng((lay.seed || 1) * 31 + 7);
+  const s = L.size * mo.sc, asp = mo.ax, fl = L.flip ? -1 : 1, jit = lay.jitter || 0, jr = rng((lay.seed || 1) * 31 + 7);
   return pts.map(pt => {
     const a = (pt.ang + L.mrot + (jit ? (jr() * 2 - 1) * jit : 0)) * D2R, cs = Math.cos(a), sn = Math.sin(a);
-    return { T: [cs * s * L.aspect * fl, sn * s * L.aspect * fl, -sn * s, cs * s, pt.p[0], pt.p[1]], i: pt.i, j: pt.j, k: 0, warp: L.layout !== 'scatter' };
+    return { T: [cs * s * asp * fl, sn * s * asp * fl, -sn * s, cs * s, pt.p[0], pt.p[1]], i: pt.i, j: pt.j, k: 0, warp: L.layout !== 'scatter' };
   });
 }
 
@@ -2176,10 +2194,39 @@ function shapeArea(sh) {
   sol.faces.forEach(f => { a += Math.abs(polyArea(f.outer)); f.holes.forEach(h => { a -= Math.abs(polyArea(h)); }); });
   sh.area = a; return a;
 }
+// The share of the whole surface that pieces cover, overlaps counted once and only inside the outline. Measured by
+// testing a fine grid of points against every piece (with holes), so it is exact to a fraction of a percent.
+function exactOpen(pb) {
+  const reg = pb.reg, cell = Math.max(0.05, Math.sqrt(Math.max(1, (reg.x1 - reg.x0) * (reg.y1 - reg.y0)) / 160000)), B = cell * 12;
+  const gx = Math.ceil((reg.x1 - reg.x0) / B) + 1, gy = Math.ceil((reg.y1 - reg.y0) / B) + 1, buckets = new Map();
+  const addPiece = loops => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    loops.forEach(l => l.forEach(p => { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }));
+    const pc = { loops: loops, b: [x0, y0, x1, y1] };
+    for (let j = Math.max(0, Math.floor((y0 - reg.y0) / B)); j <= Math.min(gy - 1, Math.floor((y1 - reg.y0) / B)); j++)
+      for (let i = Math.max(0, Math.floor((x0 - reg.x0) / B)); i <= Math.min(gx - 1, Math.floor((x1 - reg.x0) / B)); i++) { const k = j * gx + i; (buckets.get(k) || buckets.set(k, []).get(k)).push(pc); }
+  };
+  (pb.los || []).forEach(lo => {
+    if (lo.kind === 'geom') { lo.polys.forEach(pg => addPiece([pg.pts])); return; }
+    lo.items.forEach(it => {
+      const sh = itemShape(lo, it), loops = sh.polys.filter(pl => pl.closed && pl.filled !== false && pl.pts.length > 2);
+      if (loops.length) addPiece(loops.map(pl => pl.pts.map(q => Af.ap(it.T, q))));
+    });
+  });
+  let hit = 0;
+  for (let y = reg.y0 + cell / 2; y < reg.y1; y += cell) for (let x = reg.x0 + cell / 2; x < reg.x1; x += cell) {
+    const q = [x, y]; if (!reg.contains(q)) continue;
+    const list = buckets.get(Math.floor((y - reg.y0) / B) * gx + Math.floor((x - reg.x0) / B)); if (!list) continue;
+    for (let k = 0; k < list.length; k++) { const pc = list[k], b = pc.b; if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue; if (pipAll(q, pc.loops)) { hit++; break; } }
+  }
+  return hit * cell * cell / Math.max(1e-9, regionInfo(Object.assign({}, S.region, { margin: 0 })).area());
+}
+// The shape one copy uses: a morph step, a shape picked from the layer's set, or the layer's shape.
+const itemShape = (lo, it) => it.m >= 0 ? lo.morph[it.m] : it.sh || lo.sh;
 function openArea(lo) {
   let a = 0;
   if (lo.kind === 'geom') lo.polys.forEach(p => { a += Math.abs(polyArea(p.pts)); });
-  else lo.items.forEach(it => { a += shapeArea(it.m >= 0 ? lo.morph[it.m] : lo.sh) * Math.abs(Af.det(it.T)); });
+  else lo.items.forEach(it => { a += shapeArea(itemShape(lo, it)) * Math.abs(Af.det(it.T)); });
   return a;
 }
 function layerSVG(lo, L, idx, o) {
@@ -2233,7 +2280,7 @@ function layerSVG(lo, L, idx, o) {
 /* ================= Rendering ================= */
 let shapesDirty = true;
 function shapeDefs(ids, xlink) {
-  return ids.map(id => { const s = SHAPES[id]; if (!s) return ''; return '<g id="sh_' + id + '_o">' + s.inner.o + '</g><g id="sh_' + id + '_m">' + s.inner.m + '</g>'; }).join('');
+  return ids.map(id => { const s = SHAPES[id] || VARIANTS[id]; if (!s) return ''; return '<g id="sh_' + id + '_o">' + s.inner.o + '</g><g id="sh_' + id + '_m">' + s.inner.m + '</g>'; }).join('');
 }
 function fxDefs(layers, disp) {
   let f = '<filter id="toWhite" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0"/></filter>';
@@ -2245,16 +2292,16 @@ function patternBody(R, o) {
   o = o || {};
   const reg = regionInfo(R), mode = R.edge, F = getField();
   let budget = o.budget || MAX_INST, count = 0, over = false, area = 0;
-  const used = new Set(), morphUsed = new Map(), out = [];
+  const used = new Set(), morphUsed = new Map(), out = [], los = [];
   S.layers.forEach((L, idx) => {
     if (!shown(L)) return;
     const lo = layerOut(L, idx, R, reg, mode, F, Math.max(0, budget));
     budget -= lo.count; count += lo.count; over = over || lo.over;
     if (lo.kind === 'inst') { used.add(lo.sh.id); lo.items.forEach(it => { if (it.m >= 0) morphUsed.set(lo.morph[it.m].id, lo.morph[it.m]); }); }
-    out.push(layerSVG(lo, L, idx, o));
+    out.push(layerSVG(lo, L, idx, o)); los.push(lo);
     area += openArea(lo);
   });
-  return { reg: reg, body: out.join(''), count: count, over: over, used: used, morphUsed: morphUsed, open: area / Math.max(1e-9, reg.area()) };
+  return { reg: reg, body: out.join(''), count: count, over: over, used: used, morphUsed: morphUsed, los: los, open: area / Math.max(1e-9, reg.area()) };
 }
 function morphDefs(map) { let s = ''; map.forEach(m => { s += '<g id="' + m.id + '">' + m.inner.m + '</g>'; }); return s; }
 function buildSVG(R, o) {
@@ -2286,11 +2333,12 @@ function fieldOverlay() {
   }
   return '<image href="' + fieldImg.url + '" x="0" y="0" width="' + fmt(R.W) + '" height="' + fmt(R.H) + '" preserveAspectRatio="none"/>';
 }
+let openT = 0, wasOver = false;
 function render() {
   const stage = $('#stage');
   if (shapesDirty || morphDirty) {
     let m = ''; Object.values(MORPHS).forEach(set => { if (set) set.forEach(r => { m += '<g id="' + r.id + '">' + r.inner.m + '</g>'; }); });
-    $('#shapeDefs').innerHTML = shapeDefs(Object.keys(SHAPES)) + m; shapesDirty = false; morphDirty = false;
+    $('#shapeDefs').innerHTML = shapeDefs(Object.keys(SHAPES).concat(Object.keys(VARIANTS))) + m; shapesDirty = false; morphDirty = false;
   }
   $('#fxDefs').innerHTML = fxDefs(S.layers, false) + '<clipPath id="regionClipP">' + regionInfo(S.region).svg() + '</clipPath>';
   const R = S.region, reg = regionInfo(R);
@@ -2299,14 +2347,17 @@ function render() {
   drawRulers();
   $('#paperG').innerHTML = '<rect x="0" y="0" width="' + fmt(R.W) + '" height="' + fmt(R.H) + '" fill="' + (R.bgOn ? esc(R.bg) : 'url(#chk)') + '" stroke="rgba(0,0,0,.25)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
   const pb = patternBody(R, {});
-  if (morphDirty) { morphDirty = false; let m = ''; Object.values(MORPHS).forEach(set => { if (set) set.forEach(r => { m += '<g id="' + r.id + '">' + r.inner.m + '</g>'; }); }); $('#shapeDefs').innerHTML = shapeDefs(Object.keys(SHAPES)) + m; }
+  if (morphDirty) { morphDirty = false; let m = ''; Object.values(MORPHS).forEach(set => { if (set) set.forEach(r => { m += '<g id="' + r.id + '">' + r.inner.m + '</g>'; }); }); $('#shapeDefs').innerHTML = shapeDefs(Object.keys(SHAPES).concat(Object.keys(VARIANTS))) + m; }
   if (R.edge === 'clip') $('#pat').setAttribute('clip-path', 'url(#regionClipP)'); else $('#pat').removeAttribute('clip-path');
   $('#pat').innerHTML = pb.body;
   drawOverlays(reg);
   const L = cur(), tile = commonTile(), isWP = !L.layout || L.layout === 'wallpaper';
   const g = GBY[eff(L).group];
   const tileTxt = tile ? fmt(tile.w) + ' × ' + fmt(tile.h) + ' mm' : 'none';
-  $('#status').innerHTML = '<span>' + (isWP ? 'Group <b>' + g.id + '</b> · ' + g.order + ' copies per cell' : 'Layout <b>' + layoutName(L) + '</b>') + '</span><span>Pieces <b>' + pb.count.toLocaleString() + '</b>' + (pb.over ? ' <span class="warn">(limit reached: increase spacing)</span>' : '') + '</span><span>Open area <b>' + (pb.open > 1 ? 'pieces overlap' : '≈ ' + (pb.open * 100).toFixed(1) + '%') + '</b></span><span>Seamless tile <b>' + tileTxt + '</b></span><span>Surface <b>' + fmt(R.W) + ' × ' + fmt(R.H) + ' mm</b></span>';
+  $('#status').innerHTML = '<span>' + (isWP ? 'Group <b>' + g.id + '</b> · ' + g.order + ' copies per cell' : 'Layout <b>' + layoutName(L) + '</b>') + '</span><span>Pieces <b>' + pb.count.toLocaleString() + '</b>' + (pb.over ? ' <span class="warn">limit of ' + MAX_INST.toLocaleString() + ' reached: part of the pattern is missing</span>' : '') + '</span><span title="Share of the whole surface covered by pieces (the holes, for a perforated part). Overlaps count once.">Open area <b id="openVal">…</b></span><span>Seamless tile <b>' + tileTxt + '</b></span><span>Surface <b>' + fmt(R.W) + ' × ' + fmt(R.H) + ' mm</b></span>';
+  clearTimeout(openT); openT = setTimeout(() => { const el = $('#openVal'); if (el) el.textContent = (exactOpen(pb) * 100).toFixed(1) + '%'; }, drag ? 600 : 250);
+  if (pb.over && !wasOver) toast('Piece limit reached (' + MAX_INST.toLocaleString() + '): part of the pattern is not drawn or exported. Use bigger pieces, wider spacing or a smaller surface.', 6500);
+  wasOver = pb.over;
   $('#gName').textContent = isWP ? g.id : '';
   $('#gDesc').textContent = g.d;
 }
@@ -3316,7 +3367,7 @@ function exportParts(R, forSolid) {
     const lname = ('L' + (idx + 1) + '_' + layoutName(L)).replace(/[^A-Za-z0-9_]+/g, '_');
     if (lo.kind === 'inst') {
       if (!lo.sh.polys.length && !lo.morph) { skipped++; return; }
-      lo.items.forEach(it => parts.push({ layer: lname, sh: it.m >= 0 ? lo.morph[it.m] : lo.sh, T: it.T }));
+      lo.items.forEach(it => parts.push({ layer: lname, sh: itemShape(lo, it), T: it.T }));
     } else lo.polys.forEach(pg => parts.push({ layer: lname, pts: pg.pts }));
   });
   return { parts: parts, reg: reg, skipped: skipped, mode: mode };
@@ -4521,7 +4572,7 @@ $('#stage').insertAdjacentHTML('afterbegin', '<defs><pattern id="chk" width="10"
 BUILTINS.forEach(b => {
   const isLine = !!b[3] || !!b[4];
   const body = b[4] ? b[4] : isLine ? '<path d="' + b[2] + '" fill="none" stroke="#000" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>' : '<path d="' + b[2] + '" fill="#000" fill-rule="evenodd"/>';
-  try { const rec = processSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' + body + '</svg>', b[1], { id: b[0], builtin: true, inheritSW: isLine }); SHAPES[rec.id] = ORIG[rec.id] = rec; }
+  try { const rec = processSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' + body + '</svg>', b[1], { id: b[0], builtin: true, inheritSW: isLine }); if (b[0] === 'pill') rec.ends = true; SHAPES[rec.id] = ORIG[rec.id] = rec; }
   catch (e) { console.error('builtin', b[0], e); }
 });
 buildGroupPick(); buildPresets();
@@ -4569,7 +4620,7 @@ $('#linkCopy').onclick = async () => { try { await navigator.clipboard.writeText
 const EXPORT_FORMATS = ['svg', 'svgtile', 'png', 'pngtile', 'jpg', 'webp', 'disp', 'disptile', 'dxf', 'dxftile', 'step', 'stl', 'json'];
 function summary() {
   const pb = patternBody(S.region, {}), t = commonTile();
-  return { layers: S.layers.map((L, i) => 'Layer ' + (i + 1) + ': ' + (L.empty ? 'empty' : layoutName(L) + (GEOM_LAYOUTS[L.layout] ? '' : ' · ' + (SHAPES[L.shape] || {}).name))), pieces: pb.count, limitReached: !!pb.over, openArea: pb.open > 1 ? null : +(pb.open * 100).toFixed(1), surface: { W: S.region.W, H: S.region.H, shape: S.region.shape }, seamlessTile: t ? { w: +t.w.toFixed(3), h: +t.h.toFixed(3) } : null, gradients: S.ctrls.length };
+  return { layers: S.layers.map((L, i) => 'Layer ' + (i + 1) + ': ' + (L.empty ? 'empty' : layoutName(L) + (GEOM_LAYOUTS[L.layout] ? '' : ' · ' + (SHAPES[L.shape] || {}).name))), pieces: pb.count, limitReached: !!pb.over, openArea: +(exactOpen(pb) * 100).toFixed(1), surface: { W: S.region.W, H: S.region.H, shape: S.region.shape }, seamlessTile: t ? { w: +t.w.toFixed(3), h: +t.h.toFixed(3) } : null, gradients: S.ctrls.length };
 }
 window.PatternStudio = {
   version: 1,
