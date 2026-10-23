@@ -1505,7 +1505,7 @@ function defaultState() {
   return {
     layers: [newLayer()], sel: 0, ctrls: [], mix: 'max', fx: [], excl: [],
     region: { W: 200, H: 150, shape: 'rect', margin: 0, radius: 12, edge: 'clip', bgOn: true, bg: '#f7f3ea', boundary: false, shapeId: '', fit: 'contain', featherOn: false, featherW: 10, featherMode: 'size', featherCurve: 'smooth', featherMin: 0 },
-    exp: { fmt: 'svg', expand: true, dpi: 300, reliefH: 1.0, baseT: 2.0, jpgQ: 0.92, solid: 'relief', split: 1, stepTol: 0.01, merge: false, offset: 0 }
+    exp: { fmt: 'svg', expand: true, dpi: 300, reliefH: 1.0, baseT: 2.0, jpgQ: 0.92, solid: 'relief', split: 1, stepTol: 0.01, merge: false, mergeLayers: false, offset: 0 }
   };
 }
 let S = defaultState();
@@ -3182,7 +3182,8 @@ function buildExport() {
   }
   if (f.startsWith('dxf')) ex.append(E('p', { class: 'hint' }, 'Closed paths in real millimetres, one DXF layer per pattern layer. Dots export as true circles. Line shapes export as centre lines. Images and text are skipped.'));
   if (f.startsWith('dxf') || f === 'step' || f === 'stl') {
-    ex.append(line(chk('Merge overlapping pieces', P('merge'), Q('merge'), 'Overlapping or touching pieces become one outline, so a cutter does not cut inside them (perforated plates always merge)')));
+    ex.append(line(chk('Merge overlapping pieces', P('merge'), v => { X.merge = v; buildExport(); }, 'Overlapping or touching pieces become one outline, so a cutter does not cut inside them (perforated plates always merge)')));
+    if (X.merge) ex.append(line(chk('Across layers', P('mergeLayers'), Q('mergeLayers'), 'Off: each layer merges only its own pieces and keeps its DXF layer. On: pieces from different layers merge too; outlines that mix layers go on a MERGED layer')));
     ex.append(numRow('Offset outlines', () => +X.offset || 0, v => { X.offset = v; }, -2, 2, 0.01, 'mm', 'Kerf compensation: plus grows every outline, minus shrinks it. For holes cut by a laser, use minus half the kerf; for parts, plus half'));
   }
   if (f.endsWith('tile')) { const t = commonTile(); ex.append(E('p', { class: t ? 'hint' : 'warn' }, t ? 'Tile: ' + fmt(t.w) + ' × ' + fmt(t.h) + ' mm. Edges match when tiled side by side.' : 'No seamless tile: needs wallpaper layouts, rotation 0/90°, and no gradients or feather.')); }
@@ -3740,8 +3741,8 @@ function cutFaces(R, o) {
   const ep = exportParts(R, !!o.forSolid), reg = ep.reg, off = +o.offset || 0, faces = [], open = [];
   const regPaths = o.clip ? reg.loops().map(l => toC(l)) : null, byLayer = new Map();
   ep.parts.forEach(pt => {
-    // merging works across layers (the cut file must not collide anywhere); otherwise each layer stays apart
-    const gk = o.merge ? '*' : pt.layer; let G = byLayer.get(gk); if (!G) byLayer.set(gk, G = []);
+    // pieces merge within their own layer, or across all layers when asked (a perforated plate always does)
+    const gk = o.merge && o.across ? '*' : pt.layer; let G = byLayer.get(gk); if (!G) byLayer.set(gk, G = []);
     if (pt.sh) pt.sh.polys.forEach(pl => { if (!pl.closed && pl.pts.length > 1) open.push({ layer: pt.layer, pts: pl.pts.map(q => Af.ap(pt.T, q)) }); });
     const circle = o.circles === false ? null : pieceCircle(pt);
     const fs = circle ? null : pieceFaces(pt.sh ? pt.sh.polys.filter(pl => pl.closed && pl.filled !== false && pl.pts.length > 2).map(pl => pl.pts.map(q => Af.ap(pt.T, q))) : [pt.pts]);
@@ -3865,7 +3866,7 @@ function collectOutlines(R) {
   return { list: out, skipped: ep.skipped, reg: reg };
 }
 function buildDXF(R) {
-  const X = S.exp, cf = cutFaces(R, { merge: !!X.merge, offset: +X.offset || 0, clip: R.edge === 'clip' }), H = R.H, L = [];
+  const X = S.exp, cf = cutFaces(R, { merge: !!X.merge, across: !!X.mergeLayers, offset: +X.offset || 0, clip: R.edge === 'clip' }), H = R.H, L = [];
   const co = { list: [], reg: cf.reg, skipped: cf.skipped }, circles = [];
   cf.faces.forEach(f => { if (f.circle) circles.push(f); else [f.outer].concat(f.holes).forEach(l => co.list.push({ layer: f.layer, pts: l, closed: true })); });
   cf.open.forEach(ol => co.list.push({ layer: ol.layer, pts: ol.pts, closed: false }));
@@ -3924,7 +3925,7 @@ function shapeSolid(sh) {
 // boundary, are merged where they overlap and offset for kerf. Isolated round holes stay circles (for STEP).
 function perforatedPlate(R, tol) {
   const X = S.exp, C = CL(), t = X.baseT > 0 ? X.baseT : X.reliefH;
-  const cf = cutFaces(Object.assign({}, R, { edge: 'inside' }), { forSolid: true, merge: true, offset: +X.offset || 0, clip: false });
+  const cf = cutFaces(Object.assign({}, R, { edge: 'inside' }), { forSolid: true, merge: true, across: true, offset: +X.offset || 0, clip: false });
   const base = regionInfo(Object.assign({}, R, { margin: 0 })), basePaths = base.loops().map(l => toC(l));
   const circles = cf.faces.filter(f => f.circle && base.edgeDist([f.circle[0], f.circle[1]]) > f.circle[2] + 1e-3), polys = cf.faces.filter(f => !circles.includes(f));
   let faces = treeFaces(cRun(C.ClipType.ctDifference, basePaths, facePaths(polys.map(f => f.circle ? { outer: circlePts(f.circle, tol || 0.005), holes: [] } : f)), C.PolyFillType.pftNonZero));
@@ -3959,7 +3960,7 @@ function buildSTL(R) {
     plate.faces.forEach(f => emit(faceSolid(f), null, 0, plate.t));
     skipped = plate.skipped; count = plate.holes;
   } else {
-    const cf = cutFaces(R, { forSolid: true, merge: !!X.merge, offset: +X.offset || 0, clip: R.edge === 'clip' });
+    const cf = cutFaces(R, { forSolid: true, merge: !!X.merge, across: !!X.mergeLayers, offset: +X.offset || 0, clip: R.edge === 'clip' });
     cf.faces.forEach(f => emit(faceSolid(f), null, z0, z1));
     if (X.baseT > 0) emit(loopsSolid(regionInfo(Object.assign({}, R, { margin: 0 })).loops()), null, 0, X.baseT);
     skipped = cf.skipped; count = cf.faces.length;
@@ -4071,7 +4072,7 @@ function stepSolids(R) {
     const plate = pl.faces.map(f => Object.assign(fixFace(f.outer, f.holes), { z0: 0, z1: pl.t })).map((p, i) => { (pl.faces[i].circleHoles || []).forEach(c => p.holes.push(upC(c))); return p; });
     return { plate: plate, motifs: [], skipped: pl.skipped, count: pl.holes };
   }
-  const cf = cutFaces(R, { forSolid: true, merge: !!X.merge, offset: +X.offset || 0, clip: R.edge === 'clip' });
+  const cf = cutFaces(R, { forSolid: true, merge: !!X.merge, across: !!X.mergeLayers, offset: +X.offset || 0, clip: R.edge === 'clip' });
   const pieces = cf.faces.map(f => f.circle ? { outer: upC(f.circle), holes: [] } : fixFace(f.outer, f.holes)).filter(p => p.outer.circle || (p.outer.length > 2 && Math.abs(polyArea(p.outer)) > 1e-6));
   const base = regionInfo(Object.assign({}, R, { margin: 0 })).loops().map(l => l.map(up));
   base.sort((a, b) => Math.abs(polyArea(b)) - Math.abs(polyArea(a)));

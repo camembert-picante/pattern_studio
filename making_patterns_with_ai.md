@@ -54,7 +54,8 @@ echo '{"layers":[{"shape":"dot","group":"p6","cellW":6}]}' | node tools/render.m
 | `--dpi n` | Resolution for png / jpg / webp / displacement maps |
 | `--relief mm`, `--base mm` | Relief height and base plate thickness for STL and STEP |
 | `--solid relief\|perforated` | STEP and STL: raised pieces on a plate, or a plate with every piece cut through |
-| `--merge` | DXF, STEP, STL: overlapping pieces become one outline |
+| `--merge` | DXF, STEP, STL: overlapping pieces become one outline, within each layer |
+| `--merge-layers` | With `--merge`: merge across layers too |
 | `--offset mm` | DXF, STEP, STL: grow (plus) or shrink (minus) every outline, for kerf |
 | `--split n` (1 to 4) | STEP: split into n × n blocks (zipped) for heavy patterns |
 | `--no-expand` | SVG: keep copies as `<use>` references |
@@ -277,7 +278,7 @@ Define your own with `svgShapes`, then use the id like any other:
 
 ### Export settings: `exp`
 
-`dpi`, `expand` (SVG copies as paths), `reliefH`, `baseT`, `solid` (`relief` or `perforated`, for STEP and STL), `split`, `stepTol`, `jpgQ`, `merge` (unite overlapping pieces in DXF, STEP and STL), `offset` (mm, plus grows and minus shrinks every cut outline). The render script's options set these for you.
+`dpi`, `expand` (SVG copies as paths), `reliefH`, `baseT`, `solid` (`relief` or `perforated`, for STEP and STL), `split`, `stepTol`, `jpgQ`, `merge` (unite overlapping pieces in DXF, STEP and STL, within each layer), `mergeLayers` (with `merge`: across layers too), `offset` (mm, plus grows and minus shrinks every cut outline). The render script's options set these for you.
 
 ***
 

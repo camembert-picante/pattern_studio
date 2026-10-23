@@ -158,7 +158,7 @@ All exports are in real millimetres.
 | Project (.json) | Reopen and keep editing later |
 
 For DXF, STEP and STL:
-* **Merge overlapping pieces** turns pieces that overlap or touch (across all layers) into one outline, so a cutter never cuts inside a piece and a solid never has overlapping parts. Outlines that mix layers go on a MERGED layer. A perforated plate always merges its holes.
+* **Merge overlapping pieces** turns pieces that overlap or touch into one outline, so a cutter never cuts inside a piece and a solid never has overlapping parts. By default each layer merges only its own pieces and keeps its own DXF layer; tick **Across layers** to merge pieces from different layers too (outlines that mix layers go on a MERGED layer). A perforated plate always merges all its holes.
 * **Offset outlines** grows (plus) or shrinks (minus) every outline for kerf compensation. For holes cut by a laser, use minus half the kerf; for parts, plus half.
 * Round dots stay true circles: CIRCLE entities in DXF and true cylinders in STEP, which keeps files small (a perforated plate with 6,000 round holes is about 8 MB of STEP).
 

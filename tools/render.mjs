@@ -26,7 +26,8 @@ function parseArgs(argv) {
     else if (a === '--solid') o.opts.solid = v();          // STEP: relief | perforated
     else if (a === '--split') o.opts.split = +v();         // STEP: 1, 2, 3 or 4 (blocks per side)
     else if (a === '--no-expand') o.opts.expand = false;   // SVG: keep <use> copies instead of expanded paths
-    else if (a === '--merge') o.opts.merge = true;         // DXF / STEP / STL: overlapping pieces become one outline
+    else if (a === '--merge') o.opts.merge = true;         // DXF / STEP / STL: overlapping pieces become one outline, per layer
+    else if (a === '--merge-layers') { o.opts.merge = true; o.opts.mergeLayers = true; } // ... and across layers
     else if (a === '--offset') o.opts.offset = +v();       // DXF / STEP / STL: grow (+) or shrink (-) every outline, mm (kerf)
     else if (a === '-h' || a === '--help') { console.log('Usage: node tools/render.mjs <pattern.json | link | -> [--format svg,png,dxf,step,stl,...] [--out dir] [--dpi 300] [--solid relief|perforated] [--merge] [--offset mm] [--link]'); process.exit(0); }
     else if (!o.input) o.input = a;
