@@ -1477,7 +1477,7 @@ const BUILTINS = [
 
 /* ================= State ================= */
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
-const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', draw: 'lines', level: 0.5, weave: false, wgap: 0.4, pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true });
+const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', draw: 'lines', level: 0.5, weave: false, wgap: 0.4, pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true, wobble: 0, wscale: 0, vstretch: 1, vang: 0, nucleus: 0, bstart: 'bottom', breach: 4, btip: 0.25, loops: 0, curl: 0.3, gstart: 'one', gseeds: 5, gfill: 0.7 });
 const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
 // Random variation per copy: turn (any angle within ±rot, or whole steps of `step` degrees), size (± share),
 // mirror, and a mix of extra shapes. The same seed always gives the same pattern.
@@ -1793,9 +1793,11 @@ function turingFn(c, g) {
 }
 // Images and Turing patterns arrive later; whenReady() waits for them (the API uses it so renders are complete).
 const readyWaiters = [];
-const pendingSources = () => turingBusy > 0 || [...IMG.values()].some(v => v === null);
+const pendingSources = () => turingBusy > 0 || growBusy > 0 || [...IMG.values()].some(v => v === null);
 function settleReady() { if (pendingSources()) return; while (readyWaiters.length) readyWaiters.shift()(); }
 function whenReady() { getField(); return pendingSources() ? new Promise(res => readyWaiters.push(res)) : Promise.resolve(); }
+// Growth layouts only start growing when they are drawn, so draw, wait, and draw again until nothing is pending.
+async function settleAll() { for (let k = 0; k < 30; k++) { await whenReady(); render(); if (!pendingSources()) return; } }
 let FIELD = null, fieldKey = '';
 function getField() {
   const key = JSON.stringify([S.ctrls, S.mix, S.region.W, S.region.H], (k, v) => k === 'data' ? (v ? v.length : 0) : v) + '|' + [...IMG.keys()].filter(k => IMG.get(k)).join() + '|' + [...TURING.keys()].filter(k => TURING.get(k)).length;
@@ -1952,6 +1954,7 @@ const FX_KINDS = {
   opacity: { label: 'Opacity', desc: 'Fades pieces where the gradient is weak; set how far the fade reaches', p: { min: 0.2, w: 1 }, icon: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 20 20 4" opacity=".5"/>' },
   drop: { label: 'Drop out', desc: 'Removes pieces where the gradient is weak', p: { mode: 'threshold', t: 0.3 }, icon: '<circle cx="7" cy="12" r="2.5"/><circle cx="17" cy="12" r="2.5" stroke-dasharray="2 2"/>' },
   color: { label: 'Colour', desc: 'Blends from a far colour to each layer’s own colour', p: { c2: '#e8b04a' }, icon: '<path d="M12 4a8 8 0 1 0 0 16c1 0 1.5-.7 1.5-1.4 0-1.2-1.1-1.3-1.1-2.5 0-.9.7-1.4 1.6-1.4H16a4 4 0 0 0 4-4C20 7 16.4 4 12 4z"/>' },
+  melt: { label: 'Melt', desc: 'Fuses nearby pieces into soft liquid blobs and rounds every corner, like ink, wax or cells. Works without a gradient', p: { r: 1.5, t: 0.5, min: 1 }, free: true, icon: '<path d="M5 9a4 4 0 0 1 7-2.6A4 4 0 1 1 15 14c-.5 2.5 1 4 1 6M5 9c0 2 1.3 3.4 3 3.8.3 2.4-1.2 4-1 6"/>' },
   morph: { label: 'Morph shape', desc: 'Turns one shape into another across the gradient', p: { shape: 'star', steps: 10 }, shapes: true, icon: '<rect x="3" y="8" width="7" height="7" rx="1"/><path d="M17 6l1.5 3.2 3.5.4-2.6 2.3.7 3.4-3.1-1.7-3.1 1.7.7-3.4L12 9.6l3.5-.4z"/>' }
 };
 // Older "feather" effects were opacity that only fades the weak end of the gradient.
@@ -1977,7 +1980,7 @@ function migrateMods() {
 }
 const fxTargets = (e, L) => e.layers === 'all' || e.layers.includes(L.id);
 // The effects that act on a layer right now, each with its own field.
-function fxFor(L) { return (S.fx || []).map((e, n) => ({ kind: e.kind, p: e.p, n: n, on: e.on, F: e.on && fxTargets(e, L) ? fieldFor(e.src) : null })).filter(e => e.F && e.F.active); }
+function fxFor(L) { return (S.fx || []).map((e, n) => ({ kind: e.kind, p: e.p, n: n, on: e.on, F: e.on && fxTargets(e, L) ? fieldFor(e.src) : null })).filter(e => e.F && (e.F.active || FX_KINDS[e.kind].free)); }
 const FXC = new WeakMap(); // layer -> effects, refreshed for every render
 const fxOf = L => FXC.get(L) || [];
 const fxKind = (L, k) => fxOf(L).filter(e => e.kind === k);
@@ -2002,7 +2005,7 @@ function respond(L, F, R, reg, c, key) {
   let s = 1, op = 1, col = null, rot = 0, mv = 1;
   const fx = fxOf(L);
   for (let i = 0; i < fx.length; i++) {
-    const e = fx[i], p = e.p; if (e.kind === 'spacing' || e.kind === 'align') continue;
+    const e = fx[i], p = e.p; if (e.kind === 'spacing' || e.kind === 'align' || e.kind === 'melt') continue;
     const v = e.F.v(c);
     if (e.kind === 'drop') {
       if (p.mode === 'bands') { const q = v * Math.max(1, p.n || 6), f = q - Math.floor(q); if (f >= (p.w == null ? 0.5 : p.w)) return null; } // keep a band of width w in every step
@@ -2059,7 +2062,7 @@ function modulate(L, base, F, R, reg, mode, sh, rad, budget, morph) {
 }
 
 /* ================= Layouts ================= */
-const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['circular', 'Circular pattern'], ['pack', 'Circle packing'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Crosshatch lines'], ['contour', 'Contour lines'], ['voronoi', 'Voronoi stone cracks'], ['flow', 'Flow lines']];
+const LAYOUTS = [['wallpaper', 'Wallpaper group (17)'], ['scatter', 'Random scatter'], ['spiral', 'Spiral'], ['concentric', 'Concentric'], ['circular', 'Circular pattern'], ['pack', 'Circle packing'], ['fibonacci', 'Fibonacci (sunflower)'], ['hatch', 'Crosshatch lines'], ['contour', 'Contour lines'], ['voronoi', 'Voronoi cells and stones'], ['flow', 'Flow lines'], ['branch', 'Branching growth'], ['growth', 'Differential growth']];
 const LAYOUT_DESC = {
   wallpaper: 'Copies follow one of the 17 symmetry groups.', grid: 'Rows and columns. Row offset 0.5 gives a brick / staggered grid.',
   scatter: 'Even random spacing (Poisson disc). Gradients can make it denser or sparser.', path: 'Copies along a Curve or Line gradient (or a default curve), in one or more rows.',
@@ -2068,11 +2071,13 @@ const LAYOUT_DESC = {
   contour: 'Contour lines (isolines) of the gradients, like a topographic map. With no gradients they follow a built in noise.',
   circular: 'Copies turned around a centre in rings, with any number of folds (5, 8, 10, 12…) and optional mirrored copies, like a rosette or a mandala.',
   fibonacci: 'Golden angle sunflower packing. Very even, no visible rows.', hatch: 'Continuous lines whose width follows the gradients. Two directions make crosshatching.',
-  voronoi: 'Stones separated by cracks. Gradients change stone size, so cracks open and close.', flow: 'Each line bends with the gradients and can wave. Size drives width, spacing drives density.'
+  voronoi: 'Cells or stones separated by cracks. Wobble, stretch and a nucleus make living cells; gradients change cell size, so cracks open and close.', flow: 'Each line bends with the gradients and can wave. Size drives width, spacing drives density.',
+  branch: 'Veins grow from a start point towards the open space, like leaf veins, roots, coral or rivers, thick at the trunk and fine at the tips. Join tips back for the closed loops of real leaves.',
+  growth: 'One line keeps growing and folds on itself without ever crossing, like brain coral, lettuce edges or intestines. Great for single stroke cutting and plotting.'
 };
-const GEOM_LAYOUTS = { hatch: 1, flow: 1, voronoi: 1, contour: 1 };
+const GEOM_LAYOUTS = { hatch: 1, flow: 1, voronoi: 1, contour: 1, branch: 1, growth: 1 };
 const POINT_LAYOUTS = { scatter: 1, path: 1, spiral: 1, concentric: 1, circular: 1, fibonacci: 1, pack: 1 };
-const CENTRED = { spiral: 1, concentric: 1, circular: 1, fibonacci: 1 }; // layouts built around a centre you can drag
+const CENTRED = { spiral: 1, concentric: 1, circular: 1, fibonacci: 1, branch: 1, growth: 1 }; // layouts built around a centre you can drag
 function layoutName(L) { if (L.layout === 'wallpaper' || !L.layout) return eff(L).group; return (LAYOUTS.find(x => x[0] === L.layout) || [0, L.layout])[1]; }
 function pathPolyline(L) {
   const c = (S.ctrls || []).find(q => q.id === L.lay.pathId && (q.type === 'curve' || q.type === 'line' || q.type === 'ramp'));
@@ -2505,8 +2510,15 @@ function strokesToPolys(L, idx, lines, F, R, reg, mode) {
 }
 function voronoiStones(L, idx, reg, F, R, mode) {
   const spe = fxKind(L, 'spacing')[0], lay = L.lay, sp = Math.max(0.8, lay.spacing), amt = spe ? spe.p.amt : 0;
-  const pad = sp * 2, box = [reg.x0 - pad, reg.y0 - pad, reg.x1 + pad, reg.y1 + pad];
-  const seeds = scatterPoints(lay, box, spe ? spe.F : F, amt, (lay.seed || 1) * 104729 + idx);
+  // Stretched cells (plant tissue, wood grain): the cells are worked out in a space squeezed along the direction,
+  // then pulled back out, so each one ends up that many times longer than wide.
+  const st = Math.max(1, lay.vstretch || 1), va = (lay.vang || 0) * D2R, ca = Math.cos(va), sa = Math.sin(va);
+  const fwd = st === 1 ? q => q : q => { const u = (q[0] * ca + q[1] * sa) / st, w = -q[0] * sa + q[1] * ca; return [u * ca - w * sa, u * sa + w * ca]; };
+  const back = st === 1 ? q => q : q => { const u = (q[0] * ca + q[1] * sa) * st, w = -q[0] * sa + q[1] * ca; return [u * ca - w * sa, u * sa + w * ca]; };
+  const pad0 = sp * 2 * st, corners = [[reg.x0 - pad0, reg.y0 - pad0], [reg.x1 + pad0, reg.y0 - pad0], [reg.x1 + pad0, reg.y1 + pad0], [reg.x0 - pad0, reg.y1 + pad0]].map(fwd);
+  const box = [Math.min(...corners.map(q => q[0])), Math.min(...corners.map(q => q[1])), Math.max(...corners.map(q => q[0])), Math.max(...corners.map(q => q[1]))];
+  const SF0 = spe ? spe.F : F, SF = st === 1 ? SF0 : { active: SF0.active, v: q => SF0.v(back(q)) };
+  const seeds = scatterPoints(lay, box, SF, amt, (lay.seed || 1) * 104729 + idx);
   const cs = sp * (1 + Math.abs(amt)) * 1.2, gw = Math.ceil((box[2] - box[0]) / cs) + 1, gh = Math.ceil((box[3] - box[1]) / cs) + 1, cells = new Array(gw * gh);
   seeds.forEach((p, i) => { const k = (((p[1] - box[1]) / cs) | 0) * gw + (((p[0] - box[0]) / cs) | 0); (cells[k] || (cells[k] = [])).push(i); });
   const gap = Math.max(0, lay.gap), out = [], rings = 3;
@@ -2529,16 +2541,32 @@ function voronoiStones(L, idx, reg, F, R, mode) {
         poly = np; if (poly.length < 3) return;
       }
     }
+    if (st !== 1) poly = poly.map(back);
     let cx = 0, cy = 0; poly.forEach(v => { cx += v[0]; cy += v[1]; }); cx /= poly.length; cy /= poly.length;
     const r = respond(L, F, R, reg, [cx, cy], [i, 0, idx]); if (!r) return;
     if (r.s !== 1) poly = poly.map(v => [cx + (v[0] - cx) * r.s, cy + (v[1] - cy) * r.s]);
     if (lay.corner > 0) poly = filletPoly(poly, lay.corner * r.s);
     for (let it = 0; it < (lay.round | 0); it++) { const q2 = []; for (let k = 0; k < poly.length; k++) { const A = poly[k], B = poly[(k + 1) % poly.length]; q2.push([0.75 * A[0] + 0.25 * B[0], 0.75 * A[1] + 0.25 * B[1]], [0.25 * A[0] + 0.75 * B[0], 0.25 * A[1] + 0.75 * B[1]]); } poly = q2; }
+    // a nucleus: a round hole in the middle of the cell, sized against the nearest wall
+    let holes = [];
+    if (lay.nucleus > 0) {
+      let dmin = Infinity; for (let k = 0; k < poly.length; k++) dmin = Math.min(dmin, segDist([cx, cy], poly[k], poly[(k + 1) % poly.length]).d);
+      const nr = dmin * Math.min(0.9, lay.nucleus); if (nr > 0.05) { const h = []; for (let k = 0; k < 24; k++) { const a = -k / 24 * TAU; h.push([cx + nr * Math.cos(a), cy + nr * Math.sin(a)]); } holes.push(h); }
+    }
+    // Wobble: every point is pushed by the same smooth random field, so neighbouring walls bend together and the
+    // gap between them keeps its width while the cells look grown instead of cut.
+    if (lay.wobble > 0) {
+      const ws = Math.max(0.3, lay.wscale > 0 ? lay.wscale : sp), wo = lay.wobble, sd = (lay.seed || 1) * 31 + idx;
+      const n2 = (x, y, k) => (vnoise(x, y, sd + k) - 0.5) * 2 + (vnoise(x * 2.3 + 7, y * 2.3 + 3, sd + k + 50) - 0.5);
+      const warp = q => [q[0] + wo * n2(q[0] / ws, q[1] / ws, 1), q[1] + wo * n2(q[0] / ws, q[1] / ws, 2)];
+      const dens = l => { const d = densify(l.concat([l[0]]), Math.max(0.15, ws / 10)); d.pop(); return d.map(warp); };
+      poly = dens(poly); holes = holes.map(dens);
+    }
     let srad = 0; poly.forEach(v => { srad = Math.max(srad, Math.hypot(v[0] - cx, v[1] - cy)); });
     if (mode === 'inside') { if (!poly.every(v => reg.contains(v))) return; }
     else if (!reg.contains([cx, cy], srad)) return;
     if (exclHit(L, [cx, cy], srad)) return;
-    out.push({ pts: poly, j: i, col: r.col, op: r.op });
+    out.push(holes.length ? { pts: poly, holes: holes, j: i, col: r.col, op: r.op } : { pts: poly, j: i, col: r.col, op: r.op });
   });
   return out;
 }
@@ -2598,12 +2626,300 @@ function getMorph(L) {
 
 /* ---------- one layer → copies or outlines ---------- */
 const shown = L => L.visible && !L.empty; // an empty layer (after Clear everything) has nothing on it until a shape or layout is picked
+/* ---------- growth: branching veins and differential growth ---------- */
+// The panel hint for a growing layout; it says "Growing…" until the job is done, without rebuilding the panel.
+function growHint(L, text) {
+  let tries = 0; const el = E('p', { class: 'hint' }), upd = () => { const j = GROW.get(L.id), busy = !j || !j.done; el.textContent = (j && busy ? 'Growing… ' : '') + text; if (busy && (el.isConnected || tries++ < 4)) setTimeout(upd, 500); };
+  upd(); return el;
+}
+// Both are simulations that take a moment. They grow in the background in short slices; every slice shows the
+// pattern so far, and whenReady() waits for the end. One job per layer: changing a setting starts a new one.
+const GROW = new Map(); let growBusy = 0;
+function growJob(L, key, make) {
+  const j0 = GROW.get(L.id); if (j0 && j0.key === key) return j0;
+  if (j0 && !j0.done) j0.cancel = true;
+  const j = { key: key, done: false, res: null, n: 0 }; GROW.set(L.id, j); growBusy++;
+  const w = make(); j.res = w.snap(); let shown = performance.now();
+  const tick = () => {
+    if (j.cancel) { growBusy--; settleReady(); return; }
+    const t0 = performance.now(); let fin = false;
+    while (!fin && performance.now() - t0 < 50) fin = w.step();
+    if (fin) { j.res = w.snap(); j.n++; j.done = true; growBusy--; requestRender(); settleReady(); return; }
+    // the pattern so far is shown a few times a second; drawing it every slice would cost more than growing it
+    if (performance.now() - shown > 600) { j.res = w.snap(); j.n++; requestRender(); shown = performance.now(); }
+    setTimeout(tick, 0);
+  };
+  setTimeout(tick, 0);
+  return j;
+}
+// A simple grid of points for "who is near here" questions.
+function pointGrid(cs) {
+  const m = new Map(), k = (x, y) => x * 73856093 ^ y * 19349663;
+  return {
+    add(i, x, y) { const kk = k(Math.floor(x / cs), Math.floor(y / cs)); (m.get(kk) || m.set(kk, []).get(kk)).push(i); },
+    near(x, y, r, fn) { const x0 = Math.floor((x - r) / cs), x1 = Math.floor((x + r) / cs), y0 = Math.floor((y - r) / cs), y1 = Math.floor((y + r) / cs); for (let gx = x0; gx <= x1; gx++) for (let gy = y0; gy <= y1; gy++) { const c = m.get(k(gx, gy)); if (c) for (let q = 0; q < c.length; q++) fn(c[q]); } }
+  };
+}
+// The same for many points at once, held in flat arrays (counting sort into cells): no allocation per query.
+function fastGrid(X, Y, n, cs) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < n; i++) { if (X[i] < x0) x0 = X[i]; if (X[i] > x1) x1 = X[i]; if (Y[i] < y0) y0 = Y[i]; if (Y[i] > y1) y1 = Y[i]; }
+  const gw = Math.max(1, Math.floor((x1 - x0) / cs) + 1), gh = Math.max(1, Math.floor((y1 - y0) / cs) + 1), cell = new Int32Array(n), start = new Int32Array(gw * gh + 1), idx = new Int32Array(n);
+  for (let i = 0; i < n; i++) { const c = Math.floor((X[i] - x0) / cs) + Math.floor((Y[i] - y0) / cs) * gw; cell[i] = c; start[c + 1]++; }
+  for (let c = 0; c < gw * gh; c++) start[c + 1] += start[c];
+  const fill = start.slice(0, gw * gh); for (let i = 0; i < n; i++) idx[fill[cell[i]]++] = i;
+  return {
+    each(x, y, r, fn) {
+      const ax = Math.max(0, Math.floor((x - r - x0) / cs)), bx = Math.min(gw - 1, Math.floor((x + r - x0) / cs)), ay = Math.max(0, Math.floor((y - r - y0) / cs)), by = Math.min(gh - 1, Math.floor((y + r - y0) / cs));
+      for (let gy = ay; gy <= by; gy++) for (let gx = ax; gx <= bx; gx++) { const c = gy * gw + gx; for (let p = start[c]; p < start[c + 1]; p++) fn(idx[p]); }
+    }
+  };
+}
+const centreOf = L => [L.lay.cx / 100 * S.region.W, L.lay.cy / 100 * S.region.H];
+// Space colonisation (Runions et al.): food points fill the surface; every vein tip within reach of a food point
+// grows one step towards it, and food is eaten once a vein comes close. Veins branch where food pulls two ways.
+function branchSim(L, idx, reg, F) {
+  const lay = L.lay, sp = Math.max(0.4, lay.spacing), step = sp / 3, reach = sp * Math.max(1.5, lay.breach || 4), kill = sp;
+  const spe = fxKind(L, 'spacing')[0], amt = spe ? spe.p.amt : 0, rr = rng((lay.seed || 1) * 7717 + idx);
+  const ok = q => reg.contains(q) && !exclHit(L, q, 0);
+  const food = scatterPoints({ spacing: sp }, [reg.x0, reg.y0, reg.x1, reg.y1], spe ? spe.F : F, amt, (lay.seed || 1) * 104729 + idx + 5).filter(ok);
+  const X = [], Y = [], par = [], kids = [], ng = pointGrid(reach);
+  const addNode = (x, y, pi) => { const i = X.length; X.push(x); Y.push(y); par.push(pi); kids.push(0); if (pi >= 0) kids[pi]++; ng.add(i, x, y); return i; };
+  const C0 = centreOf(L);
+  if (lay.bstart === 'edge') {
+    // roots all around the outline, a little inside it
+    reg.loops().forEach(l => { const d = densify(l.concat([l[0]]), sp * 3); for (let k = 0; k < d.length - 1; k++) { const a = d[k], b = d[k + 1], tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1; for (const sgn of [1, -1]) { const q = [a[0] - ty / tl * sgn * step, a[1] + tx / tl * sgn * step]; if (ok(q)) { addNode(q[0], q[1], -1); break; } } } });
+  } else if (lay.bstart === 'centre') { if (ok(C0)) addNode(C0[0], C0[1], -1); }
+  else {
+    // bottom: straight below the start handle, at the lowest point still inside the surface
+    let y = reg.y1 - 0.01; while (y > reg.y0 && !ok([C0[0], y])) y -= step / 2;
+    if (y > reg.y0) addNode(C0[0], y, -1);
+  }
+  if (!X.length) { const c = [(reg.x0 + reg.x1) / 2, (reg.y0 + reg.y1) / 2]; addNode(c[0], c[1], -1); }
+  // with no food in reach yet, the roots first grow straight towards the nearest food
+  let alive = food.map((q, i) => i), stall = 0;
+  const fx = new Float64Array(200000), fy = new Float64Array(200000), fc = new Int32Array(200000);
+  const curl = clamp(lay.curl == null ? 0.3 : lay.curl, 0, 1);
+  const step1 = () => {
+    if (!alive.length || X.length > 60000) return true;
+    const touched = [];
+    alive.forEach(a => {
+      const q = food[a]; let best = -1, bd = reach * reach;
+      ng.near(q[0], q[1], reach, i => { const dx = q[0] - X[i], dy = q[1] - Y[i], d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } });
+      if (best < 0) return;
+      const d = Math.sqrt(bd) || 1; if (!fc[best]) touched.push(best);
+      fx[best] += (q[0] - X[best]) / d; fy[best] += (q[1] - Y[best]) / d; fc[best]++;
+    });
+    if (!touched.length) {
+      // nothing in reach: the closest root or vein reaches out towards the nearest food
+      let bi = -1, bf = -1, bd = Infinity;
+      for (let a = 0; a < alive.length; a += Math.max(1, (alive.length / 400) | 0)) { const q = food[alive[a]]; for (let i = Math.max(0, X.length - 2000); i < X.length; i++) { const d = (q[0] - X[i]) ** 2 + (q[1] - Y[i]) ** 2; if (d < bd) { bd = d; bi = i; bf = alive[a]; } } }
+      if (bi < 0 || ++stall > 400) return true;
+      const q = food[bf], d = Math.sqrt(bd) || 1; fx[bi] = (q[0] - X[bi]) / d; fy[bi] = (q[1] - Y[bi]) / d; fc[bi] = 1; touched.push(bi);
+    }
+    const added = [];
+    touched.forEach(i => {
+      let dx = fx[i], dy = fy[i]; const l = Math.hypot(dx, dy); fx[i] = fy[i] = 0; fc[i] = 0;
+      if (l < 1e-9) { dx = rr() - 0.5; dy = rr() - 0.5; } else { dx /= l; dy /= l; }
+      // keep some of the vein's own heading so it curves instead of zigzagging, plus a little wander
+      const pi = par[i]; if (pi >= 0) { const hx = X[i] - X[pi], hy = Y[i] - Y[pi], hl = Math.hypot(hx, hy) || 1; dx = dx * (1 - curl) + hx / hl * curl; dy = dy * (1 - curl) + hy / hl * curl; }
+      const a = (rr() - 0.5) * 0.35, c = Math.cos(a), s2 = Math.sin(a), ux = dx * c - dy * s2, uy = dx * s2 + dy * c, ul = Math.hypot(ux, uy) || 1;
+      const nxp = X[i] + ux / ul * step, nyp = Y[i] + uy / ul * step;
+      if (!ok([nxp, nyp])) return;
+      let clash = false; ng.near(nxp, nyp, step * 0.6, k => { if ((X[k] - nxp) ** 2 + (Y[k] - nyp) ** 2 < step * step * 0.3) clash = true; });
+      if (!clash) added.push(addNode(nxp, nyp, i));
+    });
+    if (added.length) {
+      const g = pointGrid(kill); added.forEach(i => g.add(i, X[i], Y[i]));
+      alive = alive.filter(a => { const q = food[a]; let eaten = false; g.near(q[0], q[1], kill, i => { if ((X[i] - q[0]) ** 2 + (Y[i] - q[1]) ** 2 < kill * kill) eaten = true; }); return !eaten; });
+      stall = 0;
+    } else if (++stall > 30) return true;
+    return false;
+  };
+  return { step: step1, snap: () => ({ X: X.slice(), Y: Y.slice(), par: par.slice() }) };
+}
+// Differential growth: closed lines of points. Each point is pulled towards the middle of its neighbours and
+// pushed away from every other point nearby; long sides split in two, so the line grows and has to fold.
+function diffSim(L, idx, reg, F) {
+  const lay = L.lay, R0 = Math.max(0.3, lay.spacing), maxE = R0 * 0.5, rr = rng((lay.seed || 1) * 4111 + idx);
+  const spe = fxKind(L, 'spacing')[0], amt = spe ? spe.p.amt : 0, RF = spe ? q => R0 * Math.max(0.25, 1 + amt * spe.F.v(q)) : () => R0;
+  const margin = Math.max(lay.width, 0.1) / 2 + R0 * 0.25, ok = q => reg.edgeDist(q) > margin && !exclHit(L, q, margin);
+  let loops = [];
+  const ring = (c, r) => { const n = Math.max(8, Math.ceil(TAU * r / (maxE * 0.8))), l = []; for (let k = 0; k < n; k++) { const a = k / n * TAU; l.push([c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)]); } return l.filter(ok); };
+  if (lay.gstart === 'edge') reg.loops().forEach(l => { const d = densify(l.concat([l[0]]), maxE * 0.8); d.pop(); const inn = d.map((q, k) => { const a = d[(k - 1 + d.length) % d.length], b = d[(k + 1) % d.length], tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1, m = margin + R0 * 0.6, c1 = [q[0] - ty / tl * m, q[1] + tx / tl * m]; return ok(c1) ? c1 : [q[0] + ty / tl * m, q[1] - tx / tl * m]; }).filter(ok); if (inn.length > 8) loops.push(inn); });
+  else if (lay.gstart === 'many') { const n = clamp(Math.round(lay.gseeds || 5), 2, 60); for (let k = 0, tries = 0; k < n && tries < n * 50; tries++) { const c = [reg.x0 + rr() * (reg.x1 - reg.x0), reg.y0 + rr() * (reg.y1 - reg.y0)]; if (reg.edgeDist(c) > R0 * 3 && !loops.some(l => Math.hypot(l[0][0] - c[0], l[0][1] - c[1]) < R0 * 6)) { const l = ring(c, R0 * 1.2); if (l.length > 7) { loops.push(l); k++; } } } }
+  if (!loops.length) { const l = ring(ok(centreOf(L)) ? centreOf(L) : [(reg.x0 + reg.x1) / 2, (reg.y0 + reg.y1) / 2], R0 * 1.2); if (l.length > 7) loops.push(l); }
+  const area = Math.abs(reg.loops().reduce((a, l) => a + polyArea(l), 0)), target = Math.min(60000, clamp(lay.gfill == null ? 0.7 : lay.gfill, 0.05, 1) * area / (R0 * maxE * 0.62));
+  let iter = 0;
+  const dmin = Math.max(Math.max(lay.width, 0.05) * 1.3, R0 * 0.55), Rmax = R0 * Math.max(1, 1 + Math.abs(amt));
+  const step1 = () => {
+    let n = 0; loops.forEach(l => { n += l.length; });
+    if (!loops.length || n >= target || iter++ > 9000) return true;
+    // all points in flat arrays: X, Y, which loop (LI), place in it (KI) and that loop's length (LN)
+    const X = new Float64Array(n), Y = new Float64Array(n), LI = new Int32Array(n), KI = new Int32Array(n), LN = new Int32Array(n), B0 = [];
+    let o = 0; loops.forEach((l, li) => { B0.push(o); l.forEach((q, k) => { X[o] = q[0]; Y[o] = q[1]; LI[o] = li; KI[o] = k; LN[o] = l.length; o++; }); });
+    const near = (a, b) => { if (LI[a] !== LI[b]) return false; const d = Math.abs(KI[a] - KI[b]); return Math.min(d, LN[a] - d) <= 3; };
+    let G = fastGrid(X, Y, n, Rmax);
+    const NX = new Float64Array(n), NY = new Float64Array(n), crowd = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      const b = B0[LI[i]], m = LN[i], ia = b + (KI[i] - 1 + m) % m, ib = b + (KI[i] + 1) % m, R = RF([X[i], Y[i]]);
+      let dx = ((X[ia] + X[ib]) / 2 - X[i]) * 0.15, dy = ((Y[ia] + Y[ib]) / 2 - Y[i]) * 0.15, cnt = 0;
+      G.each(X[i], Y[i], R, j => {
+        if (j === i || j === ia || j === ib) return;
+        const ex = X[i] - X[j], ey = Y[i] - Y[j], d = Math.hypot(ex, ey); if (d >= R || d < 1e-9) return;
+        const f = (R - d) / R; dx += ex / d * f * R * 0.35; dy += ey / d * f * R * 0.35; if (!near(i, j)) cnt++;
+      });
+      crowd[i] = Math.min(255, cnt);
+      const ml = Math.hypot(dx, dy), cap = R0 * 0.2; if (ml > cap) { dx *= cap / ml; dy *= cap / ml; }
+      const nq = [X[i] + dx, Y[i] + dy]; if (ok(nq)) { NX[i] = nq[0]; NY[i] = nq[1]; } else { NX[i] = X[i]; NY[i] = Y[i]; }
+    }
+    // a hard floor: points of different stretches of line closer than the line width plus a margin are pushed
+    // apart directly, so the line never touches itself however crowded it gets
+    G = fastGrid(NX, NY, n, dmin);
+    for (let i = 0; i < n; i++) G.each(NX[i], NY[i], dmin, j => {
+      if (j <= i || near(i, j)) return;
+      const ex = NX[i] - NX[j], ey = NY[i] - NY[j], d = Math.hypot(ex, ey); if (d >= dmin || d < 1e-9) return;
+      const push = (dmin - d) / 2 / d, a = [NX[i] + ex * push, NY[i] + ey * push], c = [NX[j] - ex * push, NY[j] - ey * push];
+      if (ok(a)) { NX[i] = a[0]; NY[i] = a[1]; } if (ok(c)) { NX[j] = c[0]; NY[j] = c[1]; }
+    });
+    // split long sides, and now and then a random one where there is room (few other points close by), so the
+    // line spreads instead of jamming
+    loops = loops.map((l, li) => {
+      const out = [], b = B0[li], m = l.length;
+      for (let k = 0; k < m; k++) {
+        const ia = b + k, ib = b + (k + 1) % m; out.push([NX[ia], NY[ia]]);
+        const d = Math.hypot(NX[ib] - NX[ia], NY[ib] - NY[ia]);
+        if (d > maxE || (d > maxE * 0.4 && crowd[ia] < 3 && crowd[ib] < 3 && rr() < 0.05)) out.push([(NX[ia] + NX[ib]) / 2 + (rr() - 0.5) * 1e-3, (NY[ia] + NY[ib]) / 2 + (rr() - 0.5) * 1e-3]);
+      }
+      return out;
+    });
+    return false;
+  };
+  return { step: step1, snap: () => ({ loops: loops.map(l => l.slice()) }) };
+}
+// The grown veins or lines as filled outlines: tapered ribbons, joined into one clean shape (with holes where
+// veins close into loops), so they cut and print as single parts.
+function grownPolys(L, idx, reg, F, R) {
+  const lay = L.lay, br = L.layout === 'branch';
+  const key = JSON.stringify([L.layout, lay.spacing, lay.seed, lay.cx, lay.cy, br ? [lay.bstart, lay.breach, lay.curl] : [lay.gstart, lay.gseeds, lay.gfill, lay.width], reg.x0, reg.y0, reg.x1, reg.y1, S.region, S.excl, L.excl, fxKind(L, 'spacing').length ? fieldKey + JSON.stringify(fxKind(L, 'spacing').map(e => e.p)) : '', idx]);
+  const job = growJob(L, key, () => br ? branchSim(L, idx, reg, F) : diffSim(L, idx, reg, F)), res = job.res; if (!res) return [];
+  const sz = fxKind(L, 'size').length > 0;
+  return solvedOnce(L, 'grow', JSON.stringify([key, job.n, job.done, lay.width, lay.btip, lay.loops, sz ? fieldKey + JSON.stringify(fxKind(L, 'size').map(e => e.p)) : '']), () => {
+    const runs = [], sOf = (q, k) => { if (!sz) return 1; const r = respond(L, F, R, reg, q, [k, 0, idx]); return r ? r.s : 1; };
+    const chaikin = run => { if (run.length < 3) return run; const o = [run[0]]; for (let k = 0; k < run.length - 1; k++) { const a = run[k], b = run[k + 1]; o.push([[0.75 * a[0][0] + 0.25 * b[0][0], 0.75 * a[0][1] + 0.25 * b[0][1]], 0.75 * a[1] + 0.25 * b[1]], [[0.25 * a[0][0] + 0.75 * b[0][0], 0.25 * a[0][1] + 0.75 * b[0][1]], 0.25 * a[1] + 0.75 * b[1]]); } o.push(run[run.length - 1]); return o; };
+    if (br) {
+      const X = res.X, Y = res.Y, par = res.par, n = X.length; if (n < 2) return [];
+      const kids = Array.from({ length: n }, () => []), load = new Float64Array(n);
+      for (let i = 0; i < n; i++) if (par[i] >= 0) kids[par[i]].push(i);
+      for (let i = n - 1; i >= 0; i--) { if (!kids[i].length) load[i] += 1; if (par[i] >= 0) load[par[i]] += load[i]; }
+      let maxL = 1; for (let i = 0; i < n; i++) maxL = Math.max(maxL, load[i]);
+      const tw = Math.max(0.02, lay.width), tip = Math.max(0.02, Math.min(tw, lay.btip == null ? 0.25 : lay.btip));
+      const wOf = i => (tip + (tw - tip) * Math.pow(load[i] / maxL, 0.5)) * sOf([X[i], Y[i]], i);
+      // a chain follows the heaviest child; every other child starts its own chain at the fork
+      const chains = [], todo = [];
+      for (let i = 0; i < n; i++) if (par[i] < 0) todo.push([i]);
+      while (todo.length) {
+        const ch = todo.pop(); let cur = ch[ch.length - 1];
+        for (;;) { const ks = kids[cur]; if (!ks.length) break; ks.sort((a, b) => load[b] - load[a]); for (let k = 1; k < ks.length; k++) todo.push([cur, ks[k]]); cur = ks[0]; ch.push(cur); }
+        // side twigs only a step or two long (food eaten before they got going) read as thorns: left out
+        if (ch.length > 6 || (ch.length > 1 && par[ch[0]] < 0)) chains.push(ch);
+      }
+      const drawn = new Uint8Array(n); chains.forEach(ch => { ch.forEach(i => { drawn[i] = 1; }); runs.push(chaikin(chaikin(ch.map(i => [[X[i], Y[i]], wOf(i)])))); });
+      // closed venation: some tips join the nearest vein that is not their own
+      const lp = clamp(lay.loops || 0, 0, 1);
+      if (lp > 0) {
+        const g = pointGrid(lay.spacing * 2), rr = rng((lay.seed || 1) * 99 + 3); for (let i = 0; i < n; i++) g.add(i, X[i], Y[i]);
+        for (let i = 0; i < n; i++) {
+          if (kids[i].length || !drawn[i] || rr() > lp) continue;
+          const anc = new Set(); for (let a = i, k = 0; a >= 0 && k < 40; a = par[a], k++) anc.add(a);
+          let best = -1, bd = (lay.spacing * 1.8) ** 2; g.near(X[i], Y[i], lay.spacing * 1.8, k => { if (anc.has(k) || !drawn[k]) return; const d = (X[k] - X[i]) ** 2 + (Y[k] - Y[i]) ** 2; if (d < bd) { bd = d; best = k; } });
+          if (best >= 0) { const w = wOf(i), d = Math.sqrt(bd), mid = [(X[i] + X[best]) / 2 + (Y[best] - Y[i]) * 0.15, (Y[i] + Y[best]) / 2 - (X[best] - X[i]) * 0.15]; void d; runs.push(chaikin(chaikin([[[X[i], Y[i]], w], [mid, w], [[X[best], Y[best]], Math.max(w, wOf(best) * 0.8)]]))); }
+        }
+      }
+    } else {
+      const w = Math.max(0.02, lay.width);
+      res.loops.forEach((l, li) => { if (l.length < 4) return; const run = l.map((q, k) => [q, w * sOf(q, li * 1e6 + k)]); const sm = chaikin(chaikin(run.concat([run[0], run[1]]))); runs.push(sm); });
+    }
+    if (!runs.length) return [];
+    const C = CL(), c = new C.Clipper(), tr = new C.PolyTree(), NZ = C.PolyFillType.pftNonZero;
+    runs.forEach(run => { if (run.length > 1) c.AddPath(toC(orientPos(ribbon(run, true, true))), C.PolyType.ptSubject, true); });
+    c.AddPaths(reg.loops().map(l => toC(l)), C.PolyType.ptClip, true);
+    c.Execute(C.ClipType.ctIntersection, tr, NZ, C.PolyFillType.pftEvenOdd);
+    const out = [];
+    treeFaces(tr).forEach(fc => { const o = dropStraight(fc.outer); if (o.length > 2) out.push({ pts: o, holes: fc.holes.map(dropStraight).filter(h => h.length > 2), j: 0, op: 1 }); });
+    return out;
+  });
+}
+// A layer's output, melted when a Melt effect acts on it.
 function layerOut(L, idx, R, reg, mode, F, budget) {
+  const lo = layerOutRaw(L, idx, R, reg, mode, F, budget), m = fxKind(L, 'melt')[0];
+  if (!m || !lo.count || !(m.p.r > 0)) return lo;
+  const polys = meltLayer(L, lo, reg, m);
+  return { kind: 'geom', polys: polys, over: lo.over, count: polys.length, melted: true };
+}
+// Melt: every piece is painted on a fine grid, blurred, and traced again where the blur crosses a level (the
+// "gooey" blur and threshold trick). Nearby pieces join with soft necks, corners round, small bits dissolve.
+function meltLayer(L, lo, reg, e) {
+  const p = e.p, r = Math.max(0.05, p.r), t = clamp(p.t == null ? 0.5 : p.t, 0.05, 0.95), mn = clamp(p.min == null ? 1 : p.min, 0, 1), F = e.F;
+  // a fingerprint of the pieces, so the melt is only worked out again when something changed
+  let h1 = 0x811c9dc5, h2 = 0; const mix = v => { const q = Math.round(v * 1000); h1 = Math.imul(h1 ^ q, 16777619); h2 = (h2 + q * 31) | 0; };
+  if (lo.kind === 'inst') lo.items.forEach(it => { it.T.forEach(mix); mix(it.m); mix(it.sh ? 1 : 0); });
+  else lo.polys.forEach(pg => { pg.pts.forEach(q => { mix(q[0]); mix(q[1]); }); (pg.holes || []).forEach(hh => mix(hh.length)); });
+  const key = JSON.stringify([h1, h2, lo.count, r, t, mn, F.active ? fieldKey : '', reg.x0, reg.y0, reg.x1, reg.y1, S.region]);
+  return solvedOnce(L, 'melt', key, () => {
+    const pad = r * 2 + 1, x0 = reg.x0 - pad, y0 = reg.y0 - pad, w = reg.x1 - reg.x0 + 2 * pad, hgt = reg.y1 - reg.y0 + 2 * pad;
+    const fine = mn < 1 && F.active ? Math.max(r * mn, r * 0.2) : r, st = Math.max(fine / 7, Math.sqrt(w * hgt / 3.5e6), 0.02), nx = Math.ceil(w / st) + 1, ny = Math.ceil(hgt / st) + 1;
+    const cv = document.createElement('canvas'); cv.width = nx; cv.height = ny;
+    const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.fillStyle = '#fff'; ctx.setTransform(1 / st, 0, 0, 1 / st, -x0 / st, -y0 / st);
+    const loopTo = (path, l) => { path.moveTo(l[0][0], l[0][1]); for (let k = 1; k < l.length; k++) path.lineTo(l[k][0], l[k][1]); path.closePath(); };
+    if (lo.kind === 'inst') lo.items.forEach(it => {
+      const sh = itemShape(lo, it), T = it.T, path = new Path2D();
+      sh.polys.forEach(pl => { if (pl.closed && pl.filled !== false && pl.pts.length > 2) loopTo(path, pl.pts); });
+      ctx.save(); ctx.transform(T[0], T[1], T[2], T[3], T[4], T[5]); ctx.fill(path, 'evenodd'); ctx.restore();
+    });
+    else lo.polys.forEach(pg => { const path = new Path2D(); loopTo(path, pg.pts); (pg.holes || []).forEach(hh => loopTo(path, hh)); ctx.fill(path, 'evenodd'); });
+    const px = ctx.getImageData(0, 0, nx, ny).data, A = new Float32Array(nx * ny);
+    for (let i = 0; i < A.length; i++) A[i] = px[i * 4] / 255;
+    // Gaussian blur as three box passes each way; sigma half the melt distance
+    const blur = (src, sig) => {
+      const out = Float32Array.from(src), tmp = new Float32Array(src.length), b = Math.max(0, Math.round((Math.sqrt(4 * sig * sig + 1) - 1) / 2));
+      if (!b) return out;
+      const pass = (a, o, len, n, stride, step) => {
+        for (let l = 0; l < n; l++) {
+          const base = l * stride; let acc = 0;
+          for (let k = -b; k <= b; k++) acc += a[base + clamp(k, 0, len - 1) * step];
+          for (let k = 0; k < len; k++) { o[base + k * step] = acc / (2 * b + 1); acc += a[base + Math.min(len - 1, k + b + 1) * step] - a[base + Math.max(0, k - b) * step]; }
+        }
+      };
+      for (let it = 0; it < 3; it++) { pass(out, tmp, nx, ny, nx, 1); pass(tmp, out, ny, nx, 1, nx); }
+      return out;
+    };
+    let B = blur(A, r / 2 / st);
+    if (mn < 1 && F.active) {
+      // less melt where the gradient is weak: blend towards a smaller blur, with the gradient read on a coarse grid
+      const B2 = blur(A, Math.max(0.01, r * mn) / 2 / st), g = 8, gx = Math.ceil(nx / g) + 1, gy = Math.ceil(ny / g) + 1, G = new Float32Array(gx * gy);
+      for (let j = 0; j < gy; j++) for (let i = 0; i < gx; i++) G[j * gx + i] = clamp(F.v([x0 + i * g * st, y0 + j * g * st]), 0, 1);
+      for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+        const fx = i / g, fy = j / g, i0 = Math.min(gx - 2, fx | 0), j0 = Math.min(gy - 2, fy | 0), tx = fx - i0, ty = fy - j0;
+        const v = (G[j0 * gx + i0] * (1 - tx) + G[j0 * gx + i0 + 1] * tx) * (1 - ty) + (G[(j0 + 1) * gx + i0] * (1 - tx) + G[(j0 + 1) * gx + i0 + 1] * tx) * ty, k = j * nx + i;
+        B[k] = B2[k] + (B[k] - B2[k]) * v;
+      }
+    }
+    const C = CL(), EO = C.PolyFillType.pftEvenOdd, P = (x, y) => ({ X: Math.round((x0 + x * st) * CK), Y: Math.round((y0 + y * st) * CK) });
+    const loops = isoLoops((i, j) => B[j * nx + i], nx - 1, ny - 1, t, P), c = new C.Clipper(), tr = new C.PolyTree();
+    c.AddPaths(loops, C.PolyType.ptSubject, true); c.AddPaths(reg.loops().map(l => toC(l)), C.PolyType.ptClip, true); c.Execute(C.ClipType.ctIntersection, tr, EO, EO);
+    const simp = l => { let q = rdp(l.concat([l[0]]), st * 0.15); q.pop(); return q; }, out = [];
+    treeFaces(tr).forEach(fc => { const o = simp(fc.outer); if (o.length > 2 && Math.abs(polyArea(o)) > st * st) out.push({ pts: o, holes: fc.holes.map(simp).filter(hh => hh.length > 2 && Math.abs(polyArea(hh)) > st * st), j: 0, op: 1 }); });
+    return out;
+  });
+}
+function layerOutRaw(L, idx, R, reg, mode, F, budget) {
   FXC.set(L, fxFor(L));
   const lay = L.layout || 'wallpaper';
   if (GEOM_LAYOUTS[lay]) {
     let polys;
     if (lay === 'voronoi') polys = voronoiStones(L, idx, reg, F, R, mode);
+    else if (lay === 'branch' || lay === 'growth') polys = grownPolys(L, idx, reg, F, R);
     else if (lay === 'contour' && (L.lay.draw === 'fill' || L.lay.draw === 'bands')) polys = contourFills(L, reg, F).slice();
     else polys = strokesToPolys(L, idx, lay === 'hatch' ? hatchLines(L, reg) : lay === 'contour' ? contourLines(L, reg, F) : flowLines(L, reg, F), F, R, reg, mode);
     const over = polys.length > budget; if (over) polys.length = Math.max(0, budget);
@@ -2627,30 +2943,27 @@ function shapeArea(sh) {
 }
 // The share of the whole surface that pieces cover, overlaps counted once and only inside the outline. Measured by
 // testing a fine grid of points against every piece (with holes), so it is exact to a fraction of a percent.
+// Open area: every piece painted on a canvas about a megapixel big, inside the surface outline, and the covered
+// pixels added up (edge pixels count by how much they are covered). Overlaps count once, and one huge outline
+// (a grown line, a melted layer) costs no more than many small ones.
+const SHAPE_PATHS = new WeakMap();
 function exactOpen(pb) {
-  const reg = pb.reg, cell = Math.max(0.05, Math.sqrt(Math.max(1, (reg.x1 - reg.x0) * (reg.y1 - reg.y0)) / 160000)), B = cell * 12;
-  const gx = Math.ceil((reg.x1 - reg.x0) / B) + 1, gy = Math.ceil((reg.y1 - reg.y0) / B) + 1, buckets = new Map();
-  const addPiece = loops => {
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    loops.forEach(l => l.forEach(p => { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }));
-    const pc = { loops: loops, b: [x0, y0, x1, y1] };
-    for (let j = Math.max(0, Math.floor((y0 - reg.y0) / B)); j <= Math.min(gy - 1, Math.floor((y1 - reg.y0) / B)); j++)
-      for (let i = Math.max(0, Math.floor((x0 - reg.x0) / B)); i <= Math.min(gx - 1, Math.floor((x1 - reg.x0) / B)); i++) { const k = j * gx + i; (buckets.get(k) || buckets.set(k, []).get(k)).push(pc); }
-  };
+  const reg = pb.reg, w = reg.x1 - reg.x0, h = reg.y1 - reg.y0, cell = Math.max(0.01, Math.sqrt(Math.max(1e-6, w * h) / 1e6));
+  const nx = Math.max(1, Math.ceil(w / cell)), ny = Math.max(1, Math.ceil(h / cell)), cv = document.createElement('canvas'); cv.width = nx; cv.height = ny;
+  const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.setTransform(1 / cell, 0, 0, 1 / cell, -reg.x0 / cell, -reg.y0 / cell);
+  const loopTo = (path, l) => { path.moveTo(l[0][0], l[0][1]); for (let k = 1; k < l.length; k++) path.lineTo(l[k][0], l[k][1]); path.closePath(); };
+  const rp = new Path2D(); reg.loops().forEach(l => { if (l.length > 2) loopTo(rp, l); }); ctx.clip(rp, 'evenodd'); ctx.fillStyle = '#000';
   (pb.los || []).forEach(lo => {
-    if (lo.kind === 'geom') { lo.polys.forEach(pg => addPiece([pg.pts].concat(pg.holes || []))); return; }
+    if (lo.kind === 'geom') { lo.polys.forEach(pg => { const path = new Path2D(); loopTo(path, pg.pts); (pg.holes || []).forEach(hh => { if (hh.length > 2) loopTo(path, hh); }); ctx.fill(path, 'evenodd'); }); return; }
     lo.items.forEach(it => {
-      const sh = itemShape(lo, it), loops = sh.polys.filter(pl => pl.closed && pl.filled !== false && pl.pts.length > 2);
-      if (loops.length) addPiece(loops.map(pl => pl.pts.map(q => Af.ap(it.T, q))));
+      const sh = itemShape(lo, it); let path = SHAPE_PATHS.get(sh);
+      if (!path) { path = new Path2D(); sh.polys.forEach(pl => { if (pl.closed && pl.filled !== false && pl.pts.length > 2) loopTo(path, pl.pts); }); SHAPE_PATHS.set(sh, path); }
+      const T = it.T; ctx.save(); ctx.transform(T[0], T[1], T[2], T[3], T[4], T[5]); ctx.fill(path, 'evenodd'); ctx.restore();
     });
   });
-  let hit = 0;
-  for (let y = reg.y0 + cell / 2; y < reg.y1; y += cell) for (let x = reg.x0 + cell / 2; x < reg.x1; x += cell) {
-    const q = [x, y]; if (!reg.contains(q)) continue;
-    const list = buckets.get(Math.floor((y - reg.y0) / B) * gx + Math.floor((x - reg.x0) / B)); if (!list) continue;
-    for (let k = 0; k < list.length; k++) { const pc = list[k], b = pc.b; if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue; if (pipAll(q, pc.loops)) { hit++; break; } }
-  }
-  return hit * cell * cell / Math.max(1e-9, regionInfo(Object.assign({}, S.region, { margin: 0 })).area());
+  const px = ctx.getImageData(0, 0, nx, ny).data; let sum = 0;
+  for (let k = 3; k < px.length; k += 4) sum += px[k];
+  return sum / 255 * cell * cell / Math.max(1e-9, regionInfo(Object.assign({}, S.region, { margin: 0 })).area());
 }
 // The shape one copy uses: a morph step, a shape picked from the layer's set, or the layer's shape.
 const itemShape = (lo, it) => it.m >= 0 ? lo.morph[it.m] : it.sh || lo.sh;
@@ -2787,6 +3100,9 @@ function render() {
   stage.setAttribute('viewBox', [view.cx - W / 2 / view.scale, view.cy - H / 2 / view.scale, W / view.scale, H / view.scale].map(fmt).join(' '));
   drawRulers();
   $('#paperG').innerHTML = '<rect x="0" y="0" width="' + fmt(R.W) + '" height="' + fmt(R.H) + '" fill="' + (R.bgOn ? esc(R.bg) : 'url(#chk)') + '" stroke="rgba(0,0,0,.25)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+  // while a Turing pattern is still growing, drawing would show the pattern without it (often far heavier, since
+  // nothing is dropped yet), so wait: the finished pattern draws itself
+  if (turingBusy > 0) { $('#status').innerHTML = '<span>Growing the Turing pattern…</span>'; return; }
   const pb = patternBody(R, {});
   if (morphDirty) { morphDirty = false; let m = ''; Object.values(MORPHS).forEach(set => { if (set) set.forEach(r => { m += '<g id="' + r.id + '">' + r.inner.m + '</g>'; }); }); $('#shapeDefs').innerHTML = shapeDefs(Object.keys(SHAPES).concat(Object.keys(VARIANTS))) + m; }
   if (R.edge === 'clip') $('#pat').setAttribute('clip-path', 'url(#regionClipP)'); else $('#pat').removeAttribute('clip-path');
@@ -3136,7 +3452,29 @@ function buildLayout() {
       if (!(getField().active)) box.append(numRow('Noise scale', P('nscale'), Q('nscale'), 3, 300, 0.5, 'mm', 'Size of the hills of the built in noise'), seed());
       box.append(E('p', { class: 'hint' }, getField().active ? 'The lines follow all gradients combined. A Noise gradient with Detail and Warp gives natural terrain; Size and Colour effects still work on the lines.' : 'No gradients yet, so the lines follow a built in noise. Add gradients (a Noise one makes terrain) under Effects to shape them.'));
       break;
-    case 'voronoi': box.append(spacing('Stone size'), numRow('Crack width', P('gap'), Q('gap'), 0, 20, 0.05, 'mm'), numRow('Corner radius', P('corner'), Q('corner'), 0, Math.max(10, Math.round(lay.spacing)), 0.1, 'mm', 'Rounds every corner. Turn it up for smooth pebbles'), numRow('Extra smoothing', P('round'), Q('round'), 0, 4, 1, 'steps'), seed()); break;
+    case 'voronoi': box.append(spacing('Stone size'), numRow('Crack width', P('gap'), Q('gap'), 0, 20, 0.05, 'mm'), numRow('Corner radius', P('corner'), Q('corner'), 0, Math.max(10, Math.round(lay.spacing)), 0.1, 'mm', 'Rounds every corner. Turn it up for smooth pebbles'), numRow('Extra smoothing', P('round'), Q('round'), 0, 4, 1, 'steps'), seed(),
+      E('div', { class: 'fam' }, 'Organic cells'),
+      numRow('Wobble', P('wobble'), Q('wobble'), 0, Math.max(3, Math.round(lay.spacing / 2)), 0.05, 'mm', 'Bends every wall with a smooth random flow, so cells look grown rather than cut'),
+      numRow('Wobble size', () => lay.wscale > 0 ? lay.wscale : lay.spacing, Q('wscale'), 0.5, 100, 0.1, 'mm', 'Size of the bends: small gives wavy walls, large gives gently curved cells'),
+      numRow('Stretch', () => lay.vstretch || 1, Q('vstretch'), 1, 6, 0.05, '×', 'Makes cells longer than wide, like plant tissue or wood'), numRow('Direction', () => lay.vang || 0, Q('vang'), -90, 90, 1, '°'),
+      numRow('Nucleus', P('nucleus'), Q('nucleus'), 0, 0.9, 0.01, '', 'A round hole in every cell, as a share of the room inside it')); break;
+    case 'branch': {
+      box.append(spacing('Vein spacing'), line(E('label', {}, 'Grows from'), sel([['bottom', 'Bottom, below the start point'], ['centre', 'The start point'], ['edge', 'All around the outline']], () => lay.bstart || 'bottom', v => { lay.bstart = v; buildLayout(); requestRender(); pushHistory(); })),
+        numRow('Trunk width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Tip width', () => lay.btip == null ? 0.25 : lay.btip, Q('btip'), 0.02, 10, 0.01, 'mm'),
+        numRow('Reach', () => lay.breach || 4, Q('breach'), 1.5, 12, 0.1, '× spacing', 'How far a vein can sense open space. Low gives many short side veins, high gives long sweeping ones'),
+        numRow('Smoothness', () => lay.curl == null ? 0.3 : lay.curl, Q('curl'), 0, 0.9, 0.01, '', 'How much each vein keeps its heading, so it curves instead of zigzagging'),
+        numRow('Join into loops', P('loops'), Q('loops'), 0, 1, 0.01, '', 'Share of vein tips that join a neighbouring vein, for the closed net of real leaves'), ...centre(), seed());
+      box.append(growHint(L, 'Drag the + on the canvas to move the start. Use a leaf outline (Surface → Draw or Upload outline) and grow from the bottom for leaf veins. Size effects thicken veins, Density effects pack them closer.'));
+      break;
+    }
+    case 'growth': {
+      box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'),
+        line(E('label', {}, 'Starts as'), sel([['one', 'One small loop at the start point'], ['many', 'Several small loops'], ['edge', 'The outline, growing inwards']], () => lay.gstart || 'one', v => { lay.gstart = v; buildLayout(); requestRender(); pushHistory(); })));
+      if (lay.gstart === 'many') box.append(numRow('Loops', () => lay.gseeds || 5, Q('gseeds'), 2, 60, 1, ''));
+      box.append(numRow('Growth', () => lay.gfill == null ? 0.7 : lay.gfill, Q('gfill'), 0.05, 1, 0.01, '', 'How far the line grows, as a share of the surface it could fill'), ...centre(), seed());
+      box.append(growHint(L, 'The line never crosses itself or comes closer than the line spacing. Density effects make it fold tighter near a gradient, Size effects make it thicker.'));
+      break;
+    }
   }
 }
 // The Effects panel: a stack of effects, each driven by some or all gradients and applied to some or all layers.
@@ -3148,7 +3486,7 @@ function fxSummary(e) {
 }
 function addFx(kind) {
   // an effect needs something to follow: the first one brings a point gradient along
-  if (!S.ctrls.length) { S.ctrls.push(newCtrl('point')); selCtrl = 0; show.grad = true; $('#oGrad').classList.add('on'); buildGradients(); toast('Added a point gradient in the middle to drive it. Drag it on the canvas.', 4200); }
+  if (!S.ctrls.length && !FX_KINDS[kind].free) { S.ctrls.push(newCtrl('point')); selCtrl = 0; show.grad = true; $('#oGrad').classList.add('on'); buildGradients(); toast('Added a point gradient in the middle to drive it. Drag it on the canvas.', 4200); }
   const e = { id: newFxId(), kind: kind, on: true, p: Object.assign({}, FX_KINDS[kind].p), src: 'all', layers: 'all' };
   S.fx.push(e); fxOpen.add(e.id); buildResponse(); renderLayers(); requestRender(); pushHistory();
 }
@@ -3168,7 +3506,7 @@ function fxChanged() { buildResponse(); renderLayers(); requestRender(); pushHis
 function fxWhat(e) {
   const p = e.p, pc = x => Math.round(x * 100) + '%';
   return e.kind === 'size' ? pc(p.min) + ' → ' + pc(p.max) : e.kind === 'spacing' ? (p.amt < 0 ? 'denser' : 'sparser') + ' ' + pc(Math.abs(p.amt)) : e.kind === 'rot' ? p.deg + '°' : e.kind === 'align' ? (p.off ? 'offset ' + p.off + '°' : 'pointing in')
-    : e.kind === 'opacity' ? pc(p.min) + ' far' + (p.w < 1 ? ', fade over ' + pc(p.w) : '') : e.kind === 'drop' ? (p.mode === 'dither' ? 'thinning' : p.mode === 'bands' ? (p.n || 6) + ' bands' : 'below ' + pc(p.t)) : e.kind === 'color' ? 'from ' + p.c2 : e.kind === 'morph' ? 'to ' + ((SHAPES[p.shape] || {}).name || p.shape) : '';
+    : e.kind === 'opacity' ? pc(p.min) + ' far' + (p.w < 1 ? ', fade over ' + pc(p.w) : '') : e.kind === 'drop' ? (p.mode === 'dither' ? 'thinning' : p.mode === 'bands' ? (p.n || 6) + ' bands' : 'below ' + pc(p.t)) : e.kind === 'color' ? 'from ' + p.c2 : e.kind === 'morph' ? 'to ' + ((SHAPES[p.shape] || {}).name || p.shape) : e.kind === 'melt' ? fmt(p.r) + ' mm' : '';
 }
 function buildResponse() {
   const box = $('#secResp'); box.innerHTML = '';
@@ -3210,6 +3548,12 @@ function buildResponse() {
         body.append(line(E('label', {}, 'Mode'), sel([['threshold', 'Below a threshold'], ['dither', 'Random thinning (dither)'], ['bands', 'Bands (like contour stripes)']], P('mode'), v => { e.p.mode = v; if (v === 'bands' && e.p.n == null) { e.p.n = 6; e.p.w = 0.5; } buildResponse(); fxChanged(); })));
         if (e.p.mode === 'threshold') body.append(numRow('Threshold', P('t'), Q('t'), 0, 1, 0.01, ''));
         if (e.p.mode === 'bands') body.append(numRow('Bands', () => e.p.n == null ? 6 : e.p.n, v => { e.p.n = v; }, 1, 40, 1, '', 'How many steps the gradient is cut into'), numRow('Band width', () => e.p.w == null ? 0.5 : e.p.w, v => { e.p.w = v; }, 0.05, 0.95, 0.01, '', 'Share of each step that keeps its pieces'));
+      }
+      if (e.kind === 'melt') {
+        body.append(numRow('Melt', P('r'), Q('r'), 0.1, 20, 0.05, 'mm', 'Pieces closer than about this fuse, and corners round off this much'),
+          numRow('Thin ← → fat', () => 1 - e.p.t, v => { e.p.t = 1 - v; }, 0.15, 0.85, 0.01, '', 'Higher swells the blobs so more of them join; lower thins them and lets small pieces dissolve'));
+        if (S.ctrls.length) body.append(numRow('Melt far from gradient', P('min'), Q('min'), 0, 1, 0.01, '×', '1 melts evenly everywhere; lower keeps pieces crisp where the gradient is weak'));
+        body.append(E('p', { class: 'hint' }, 'A melted layer becomes one set of outlines in the layer colour, so it exports as fused shapes. Per piece colours and opacity are left out.'));
       }
       if (e.kind === 'color') body.append(line(E('label', {}, 'Far colour'), color(P('c2'), Q('c2')), E('span', { class: 'hint' }, '→ near = each layer’s fill colour')));
       if (e.kind === 'morph') {
@@ -3467,14 +3811,26 @@ const PRESETS = [
   // ferrofluid: thin dark worms (the cores of a Turing labyrinth, even widths) on yellow, packed cells where it
   // blends into holes, two tone bands for shading and bubbles that hug the lines
   ['Ferrofluid labyrinth', () => {
+    // dark worms are the cores of a Turing labyrinth (even widths), drawn as dense dots and melted together so
+    // their edges bead like bubbles in real ferrofluid; packed cells where it blends into holes, two tone bands
+    // for shading, and loose bubbles beside the channels
     presetBase({ W: 90, H: 160, bg: '#f8dc1c' }, [{ id: 't', type: 'turing', radius: 11, style: 'labyrinth', blend: 'holes', share: 0.35, seed: 12, stretch: 1.3, angle: 90, even: true }],
-      [{ id: 'M', layout: 'contour', lay: { draw: 'fill', level: 0.6 }, fill: '#f3cd15' }, { id: 'R', layout: 'contour', lay: { draw: 'fill', level: 0.72 }, fill: '#dfa60f' },
-        { id: 'D', layout: 'contour', lay: { draw: 'fill', level: 0.8 }, fill: '#1a1207' },
-        { id: 'S', layout: 'scatter', shape: 'dot', lay: { spacing: 0.85, seed: 2, relax: 1 }, size: 0.42, fill: '#1a1207', vary: { size: 0.7 } },
+      [{ id: 'M', layout: 'contour', lay: { draw: 'fill', level: 0.6 }, fill: '#f3cd15' }, { id: 'R', layout: 'contour', lay: { draw: 'fill', level: 0.74 }, fill: '#dfa60f' },
+        { id: 'D', layout: 'scatter', shape: 'dot', lay: { spacing: 0.7, seed: 2 }, size: 0.75, fill: '#1a1207', vary: { size: 0.7 } },
+        { id: 'S', layout: 'scatter', shape: 'dot', lay: { spacing: 0.9, seed: 5, relax: 1 }, size: 0.4, fill: '#1a1207', vary: { size: 0.8 } },
         { id: 'B', layout: 'scatter', shape: 'dot', lay: { spacing: 5, seed: 9, relax: 1 }, size: 1.2, fill: '#1a1207', vary: { size: 0.6 } }]);
-    S.fx = normFx([{ kind: 'drop', p: { mode: 'bands', n: 1, w: 0.79 }, src: ['t'], layers: ['S'] }, { kind: 'drop', p: { mode: 'threshold', t: 0.64 }, src: ['t'], layers: ['S'] },
+    S.fx = normFx([{ kind: 'drop', p: { mode: 'threshold', t: 0.785 }, src: ['t'], layers: ['D'] }, { kind: 'melt', p: { r: 0.9, t: 0.42 }, layers: ['D'] },
+      { kind: 'drop', p: { mode: 'bands', n: 1, w: 0.8 }, src: ['t'], layers: ['S'] }, { kind: 'drop', p: { mode: 'dither' }, src: ['t'], layers: ['S'] }, { kind: 'drop', p: { mode: 'threshold', t: 0.55 }, src: ['t'], layers: ['S'] },
       { kind: 'drop', p: { mode: 'bands', n: 1, w: 0.5 }, src: ['t'], layers: ['B'] }, { kind: 'drop', p: { mode: 'threshold', t: 0.3 }, src: ['t'], layers: ['B'] }]);
-  }]
+  }],
+  ['Leaf veins', () => presetBase({ W: 100, H: 160, shape: 'custom', shapeId: 'leaf', fit: 'stretch', bg: '#f5f1e6' }, [],
+    [{ layout: 'branch', lay: { spacing: 2.2, bstart: 'bottom', cx: 50, cy: 50, width: 2.6, btip: 0.25, loops: 0.6, breach: 3, seed: 4 }, fill: '#3d5a2a' }])],
+  ['Brain coral', () => presetBase({ W: 120, H: 120, shape: 'ellipse', bg: '#f3e9dc' }, [],
+    [{ layout: 'growth', lay: { spacing: 2, width: 0.9, gstart: 'one', gfill: 0.75, cx: 50, cy: 50, seed: 1 }, fill: '#8c2f39' }])],
+  ['Plant cells', () => presetBase({ W: 120, H: 90, bg: '#2f4a1f' }, [],
+    [{ layout: 'voronoi', lay: { spacing: 5, gap: 0.6, corner: 1.4, round: 1, seed: 2, wobble: 0.5, vstretch: 2.6, vang: 80, nucleus: 0.3 }, fill: '#a9c46a' }])],
+  ['Giraffe skin', () => presetBase({ W: 120, H: 90, bg: '#f1e3c4' }, [],
+    [{ layout: 'voronoi', lay: { spacing: 13, gap: 2.2, corner: 3, round: 2, seed: 5, wobble: 1.6, wscale: 9 }, fill: '#a8622a' }])]
 ];
 function buildPresets() {
   const box = $('#presetGrid'); box.innerHTML = '';
@@ -5331,7 +5687,7 @@ let restored = false;
 try { const s = localStorage.getItem('pattern-studio-v1'); if (s) { const o = JSON.parse(s); (o.shapes || []).forEach(sh => { SHAPES[sh.id] = finishShape(Object.assign({ builtin: false }, sh)); }); S.layers = o.layers.map(L => newLayer(L)); S.sel = Math.min(o.sel || 0, S.layers.length - 1); S.region = Object.assign(defaultState().region, o.region); S.exp = Object.assign(defaultState().exp, o.exp); S.ctrls = Array.isArray(o.ctrls) ? o.ctrls : []; S.mix = o.mix || 'max'; S.fx = normFx(o.fx); migrateMods(); S.excl = normZones(o.excl); S.layers.forEach(L => { if (!SHAPES[L.shape]) L.shape = 'comma'; }); restored = true; } } catch (e) { S = defaultState(); }
 rebuildAll(); render(); fit(); pushHistory(true); renderThumbs();
 if (/^#(p|pattern)=/.test(location.hash)) setTimeout(openFromHash); else if (restored) toast('Restored your last session');
-window.__PS = { buildSTEP: buildSTEP, stepSolids: stepSolids, getField: getField, layerOut: layerOut, PRESETS: PRESETS, newCtrl: newCtrl, MORPHS: MORPHS, shapeSolid: shapeSolid, S: S, GROUPS: GROUPS, SHAPES: SHAPES, geom: geom, buildSVG: buildSVG, buildDXF: buildDXF, buildSTL: buildSTL, parseDXF: parseDXF, processSvg: processSvg, commonTile: commonTile, rectTileOf: rectTileOf, instances: instances, regionInfo: regionInfo, marksFor: marksFor, traceImage: traceImage, processRaster: processRaster, addShape: addShape, importText: importText, bakeCell: bakeCell, getS: () => S, rebuildAll: rebuildAll, cutFaces: cutFaces, perforatedPlate: perforatedPlate, faceSolid: faceSolid };
+window.__PS = { diffSim: diffSim, branchSim: branchSim, buildSTEP: buildSTEP, stepSolids: stepSolids, getField: getField, layerOut: layerOut, PRESETS: PRESETS, newCtrl: newCtrl, MORPHS: MORPHS, shapeSolid: shapeSolid, S: S, GROUPS: GROUPS, SHAPES: SHAPES, geom: geom, buildSVG: buildSVG, buildDXF: buildDXF, buildSTL: buildSTL, parseDXF: parseDXF, processSvg: processSvg, commonTile: commonTile, rectTileOf: rectTileOf, instances: instances, regionInfo: regionInfo, marksFor: marksFor, traceImage: traceImage, processRaster: processRaster, addShape: addShape, importText: importText, bakeCell: bakeCell, getS: () => S, rebuildAll: rebuildAll, cutFaces: cutFaces, perforatedPlate: perforatedPlate, faceSolid: faceSolid };
 
 /* ================= Share links and scripting API ================= */
 // Links carry the whole pattern after the #:  #p=<deflate + base64url>  (made by the app)  or  #pattern=<URL encoded JSON>  (easy to write by hand or by an AI).
@@ -5375,9 +5731,9 @@ function summary() {
 window.PatternStudio = {
   version: 1,
   /** Load a project (object or JSON text). Missing fields take their defaults. Returns a summary. */
-  async load(project) { loadProject(typeof project === 'string' ? JSON.parse(project) : project); await whenReady(); render(); return summary(); },
+  async load(project) { loadProject(typeof project === 'string' ? JSON.parse(project) : project); await settleAll(); return summary(); },
   /** Resolves when images and Turing patterns have finished loading or growing. */
-  ready() { return whenReady(); },
+  ready() { return settleAll(); },
   /** The current pattern as a project object (what Save project writes). */
   get() { return JSON.parse(projectJSON()); },
   /** Pieces, open area, surface size and seamless tile of the current pattern. */
@@ -5386,7 +5742,7 @@ window.PatternStudio = {
   reset(kind) { const keep = S.exp; S = defaultState(); S.exp = keep; selCtrl = -1; if (kind !== 'example') S.layers[0].empty = true; rebuildAll(); fit(); pushHistory(true); return summary(); },
   /** Names of the presets, and loading one by name. */
   presets() { return PRESETS.map(p => p[0]); },
-  async preset(name) { const p = PRESETS.find(q => q[0].toLowerCase() === String(name).toLowerCase()); if (!p) throw new Error('No preset called ' + name); await applyPreset(p); return summary(); },
+  async preset(name) { const p = PRESETS.find(q => q[0].toLowerCase() === String(name).toLowerCase()); if (!p) throw new Error('No preset called ' + name); await applyPreset(p); await settleAll(); return summary(); },
   /** What can be used in a project. */
   shapes() { return Object.values(SHAPES).filter(usable).map(sh => ({ id: sh.id, name: sh.name, kind: sh.kind, line: !!sh.lineArt, builtin: !!ORIG[sh.id], edited: !!isEdited(sh.id) })); },
   groups() { return GROUPS.map(g => ({ id: g.id, cell: ['oblique', 'rectangular', 'centered rectangular', 'square', 'hexagonal'][g.fam], description: g.d })); },
@@ -5397,6 +5753,7 @@ window.PatternStudio = {
   /** Export without downloading. Returns [{ filename, mime, base64 }] (STEP split exports arrive as one .zip). */
   async export(format, options) {
     if (!EXPORT_FORMATS.includes(format)) throw new Error('Unknown format ' + format + '. Use one of: ' + EXPORT_FORMATS.join(', '));
+    await settleAll();
     const keep = Object.assign({}, S.exp); Object.assign(S.exp, options || {}, { fmt: format }); captureDl = [];
     try {
       await doExport();

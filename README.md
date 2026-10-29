@@ -80,8 +80,10 @@ Every layout uses the same boundary, shapes and gradients, so switching between 
 | Fibonacci | Sunflower packing using the golden angle |
 | Crosshatch lines | Continuous lines whose width follows the gradient. A second direction gives moiré effects. With both directions, **Weave over and under** makes each line pass over one crossing and under the next, like woven cloth, basketry or strapwork, with a gap on each side where it passes under |
 | Contour lines | Isolines of the gradients, like a topographic map: set how many levels and the line width. With no gradients they follow a built in noise; with a Noise gradient (Detail, Warp) they look like real terrain. **Draw** picks lines, **Filled above a level** (solid shapes wherever the gradient is above the level, with holes where it dips back below) or **Filled bands** (every other band between levels is solid; with a palette each band takes its own colour, like a relief map). Filled shapes export as outlines with holes to DXF, STEP and STL |
-| Voronoi stone cracks | Stones separated by cracks of a set width. **Corner radius** rounds the stones, up to smooth pebbles |
+| Voronoi cells and stones | Cells or stones separated by cracks of a set width. **Corner radius** rounds them, up to smooth pebbles. Under **Organic cells**: **Wobble** bends every wall with a smooth random flow (neighbouring walls bend together, so the cracks keep their width), **Stretch** and **Direction** make cells longer than wide like plant tissue or wood, and **Nucleus** puts a round hole in every cell. Giraffe skin, turtle shell, dragonfly wings and plant tissue all start here |
 | Flow lines | Each line bends with the gradient and can wave, giving ripples and contour map looks |
+| Branching growth | Veins grow from a start point towards the open space (space colonisation), like leaf veins, roots, coral, lightning or rivers: thick at the trunk, fine at the tips. **Grows from** the bottom below the start point, the start point itself, or all around the outline; drag the + on the canvas to move it. **Reach** sets how far a vein senses open space, **Smoothness** how much it keeps its heading, and **Join into loops** connects tips to neighbouring veins for the closed net of real leaves. Grow it inside a leaf outline (Surface → Draw or Upload outline) for a leaf. The veins come out as one joined outline, ready to cut |
+| Differential growth | One line keeps growing and folds on itself without ever crossing or coming closer than the **Line spacing**, like brain coral, lettuce edges or intestines. It **Starts as** one small loop at the start point, several loops, or the outline growing inwards; **Growth** sets how much of the surface it fills. A single closed line, so it suits single stroke cutting and pen plotters |
 
 ## Gradients and attractors
 
@@ -118,6 +120,9 @@ The effects are:
 * **Drop out**, either below a threshold, by random thinning (dither), or in **bands**: the gradient is cut into steps and only a band of each step keeps its pieces, for contour stripes, tone bands or Turing style stripes.
 * **Colour**, from a far colour to each layer's fill colour.
 * **Morph shape**, which blends one shape into another across the gradient (for example a square into a star).
+* **Melt**, which fuses nearby pieces into soft liquid blobs and rounds every corner, like ink, wax, cells or ferrofluid. **Melt** sets how close pieces must be to join, **Thin ↔ fat** swells or thins the result, and with a gradient, **Melt far from gradient** keeps pieces crisp where it is weak. It works with no gradient at all. A melted layer becomes one set of outlines in the layer colour, so it exports as the fused shapes.
+
+Growth layouts and Turing patterns take a few seconds; the pattern grows on the canvas while you watch, and exports always wait for the finished result.
 
 ## Surface
 
@@ -142,7 +147,7 @@ The effects are:
 
 ## Presets
 
-There are 16 presets: Speaker grille, Laptop vent, Halftone dots, Sunflower, Voronoi stone, Flow waves, Moiré hatch, Shoe tread (pgg), Spiral seeds, Concentric diffuser, Seigaiha waves, Ridgeline waves, Midsole lattice, Letterform, Shape morph and Ferrofluid labyrinth. Loading a preset is a clean start: layers, gradients, effects, keep-out areas, the surface, crop and the View options all come from the preset, with nothing left over from before. Your own shapes and export settings stay, and Undo brings your previous pattern back. Every value in a preset stays editable.
+There are 20 presets: Speaker grille, Laptop vent, Halftone dots, Sunflower, Voronoi stone, Flow waves, Moiré hatch, Shoe tread (pgg), Spiral seeds, Concentric diffuser, Seigaiha waves, Ridgeline waves, Midsole lattice, Letterform, Shape morph, and five organic ones: Ferrofluid labyrinth, Leaf veins, Brain coral, Plant cells and Giraffe skin. Loading a preset is a clean start: layers, gradients, effects, keep-out areas, the surface, crop and the View options all come from the preset, with nothing left over from before. Your own shapes and export settings stay, and Undo brings your previous pattern back. Every value in a preset stays editable.
 
 ## Exports
 

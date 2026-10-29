@@ -71,8 +71,8 @@ On the site (or any copy of `index.html`), `window.PatternStudio` offers:
 
 | Call | Does |
 |---|---|
-| `load(pattern)` | Load a pattern object or JSON text. Waits until image maps and Turing patterns are ready, then returns a summary (a promise: use `await`) |
-| `ready()` | A promise that settles once image maps and Turing patterns have finished growing |
+| `load(pattern)` | Load a pattern object or JSON text. Waits until image maps, Turing patterns and growth layouts are ready, then returns a summary (a promise: use `await`) |
+| `ready()` | A promise that settles once image maps, Turing patterns and growth layouts have finished growing |
 | `get()` | The current pattern as a full project object |
 | `summary()` | Layers, pieces, open area, surface, seamless tile, gradient count |
 | `reset('clear' \| 'example')` | One empty layer, or the starter pattern |
@@ -136,9 +136,11 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `hatch` | Continuous lines; their width follows gradients | `spacing`, `width`, `angle`, `cross` (second direction), `crossAngle`, `weave` (over and under at the crossings), `wgap` (gap where a line passes under) |
 | `contour` | Isolines of all gradients combined (a built in noise when there are none) | `levels` (number of lines), `width`, `nscale` and `seed` for the built in noise. `draw`: `lines` (default), `fill` (solid where the gradient is above `level`, 0 to 1, with holes) or `bands` (every other band between the `levels` is solid; with a palette `colorMode` every band is filled in turn) |
 | `flow` | Lines that bend with gradients and can wave | `spacing`, `width`, `angle`, `bend`, `bendCentre`, `wave`, `waveLen`, `waveSkew` |
-| `voronoi` | Stones separated by cracks | `spacing` (stone size), `gap` (crack width), `corner` (corner radius in mm; large values give pebbles), `round` (extra smoothing, 0 to 4), `seed` |
+| `voronoi` | Cells or stones separated by cracks | `spacing` (cell size), `gap` (crack width), `corner` (corner radius in mm; large values give pebbles), `round` (extra smoothing, 0 to 4), `seed`. Organic cells: `wobble` (mm the walls bend), `wscale` (size of the bends, mm; 0 = cell size), `vstretch` (1 to 6, cells that many times longer than wide) along `vang` (degrees), `nucleus` (0 to 0.9, a round hole in each cell) |
+| `branch` | Veins growing towards open space, thick trunk to fine tips | `spacing` (vein spacing), `bstart` (`bottom`: below the start point, `centre`: at it, `edge`: all around the outline), `cx`, `cy` (start point, % of the surface), `width` (trunk), `btip` (tip width), `breach` (1.5 to 12, how far veins sense space, × spacing), `curl` (0 to 0.9, smoothness), `loops` (0 to 1, share of tips joined back into loops), `seed` |
+| `growth` | Differential growth: one closed line that folds without crossing | `spacing` (line spacing, also the closest it comes to itself), `width` (line width), `gstart` (`one` loop at `cx`, `cy`; `many` loops, how many in `gseeds`; `edge`: the outline growing inwards), `gfill` (0.05 to 1, how much of the surface it fills), `seed` |
 
-`hatch`, `contour`, `flow` and `voronoi` draw their own geometry and ignore `shape`.
+`hatch`, `contour`, `flow`, `voronoi`, `branch` and `growth` draw their own geometry and ignore `shape`. `branch` and `growth` are simulations that take a few seconds; `load` and every export wait for them.
 
 The summary from the render script and `summary()` reports `openArea` as the real share of the whole surface covered by pieces (overlaps counted once), and `limitReached: true` when the 60,000 piece limit cut the pattern short.
 
@@ -213,6 +215,7 @@ To point an effect at particular gradients or layers, give those gradients and l
 | `drop` | `mode` (`threshold`, `dither` or `bands`), `t`; for `bands`: `n` (steps) and `w` (share of each step kept) | Remove pieces where the gradient is weak, or keep only bands of it |
 | `color` | `c2` (far colour) | Blend from `c2` to each layer's `fill` |
 | `morph` | `shape`, `steps` | Morph into another shape across the gradient |
+| `melt` | `r` (mm: pieces closer than this fuse, corners round this much), `t` (0.05 to 0.95, the level traced: lower is fatter), `min` (0 to 1, how much it melts where the gradient is 0) | Fuses the layer's pieces into soft liquid outlines. Needs no gradient; the layer becomes fused outlines in its fill colour |
 
 `rot`, `align` and `morph` act on shape layers only. Older projects stored responses per layer as `"mod": { "size": { "on": true, … } }`, and had a separate `feather` kind (now `opacity` with `w`); those still load and become effects for that layer.
 
@@ -325,21 +328,39 @@ Define your own with `svgShapes`, then use the id like any other:
   "fx": [ { "kind": "size", "p": { "min": 0.1, "max": 1 } }, { "kind": "drop", "p": { "t": 0.08 } } ] }
 ```
 
-**Ferrofluid labyrinth** (also the preset of that name): thin dark worms on yellow, packed cells where the labyrinth blends into holes, two tone bands for shading and bubbles along the lines
+**Ferrofluid labyrinth** (also the preset of that name): the dark worms are the cores of a Turing labyrinth drawn as dense dots and melted together, so their edges bead like bubbles; packed cells where it blends into holes, two tone bands for shading, and loose bubbles beside the channels
 ```json
 { "region": { "W": 90, "H": 160, "bg": "#f8dc1c" },
   "ctrls": [ { "id": "t", "type": "turing", "radius": 11, "style": "labyrinth", "blend": "holes", "share": 0.35, "seed": 12, "stretch": 1.3, "angle": 90, "even": true } ],
   "layers": [ { "id": "M", "layout": "contour", "lay": { "draw": "fill", "level": 0.6 }, "fill": "#f3cd15" },
-              { "id": "R", "layout": "contour", "lay": { "draw": "fill", "level": 0.72 }, "fill": "#dfa60f" },
-              { "id": "D", "layout": "contour", "lay": { "draw": "fill", "level": 0.8 }, "fill": "#1a1207" },
-              { "id": "S", "layout": "scatter", "shape": "dot", "lay": { "spacing": 0.85, "seed": 2, "relax": 1 }, "size": 0.42, "fill": "#1a1207", "vary": { "size": 0.7 } },
+              { "id": "R", "layout": "contour", "lay": { "draw": "fill", "level": 0.74 }, "fill": "#dfa60f" },
+              { "id": "D", "layout": "scatter", "shape": "dot", "lay": { "spacing": 0.7, "seed": 2 }, "size": 0.75, "fill": "#1a1207", "vary": { "size": 0.7 } },
+              { "id": "S", "layout": "scatter", "shape": "dot", "lay": { "spacing": 0.9, "seed": 5, "relax": 1 }, "size": 0.4, "fill": "#1a1207", "vary": { "size": 0.8 } },
               { "id": "B", "layout": "scatter", "shape": "dot", "lay": { "spacing": 5, "seed": 9, "relax": 1 }, "size": 1.2, "fill": "#1a1207", "vary": { "size": 0.6 } } ],
-  "fx": [ { "kind": "drop", "p": { "mode": "bands", "n": 1, "w": 0.79 }, "src": ["t"], "layers": ["S"] },
-          { "kind": "drop", "p": { "mode": "threshold", "t": 0.64 }, "src": ["t"], "layers": ["S"] },
+  "fx": [ { "kind": "drop", "p": { "mode": "threshold", "t": 0.785 }, "src": ["t"], "layers": ["D"] },
+          { "kind": "melt", "p": { "r": 0.9, "t": 0.42 }, "layers": ["D"] },
+          { "kind": "drop", "p": { "mode": "bands", "n": 1, "w": 0.8 }, "src": ["t"], "layers": ["S"] },
+          { "kind": "drop", "p": { "mode": "dither" }, "src": ["t"], "layers": ["S"] },
+          { "kind": "drop", "p": { "mode": "threshold", "t": 0.55 }, "src": ["t"], "layers": ["S"] },
           { "kind": "drop", "p": { "mode": "bands", "n": 1, "w": 0.5 }, "src": ["t"], "layers": ["B"] },
           { "kind": "drop", "p": { "mode": "threshold", "t": 0.3 }, "src": ["t"], "layers": ["B"] } ] }
 ```
 A drop out band (`bands` with `n` 1 keeps values below `w`) plus a threshold (drops values below `t`) keeps a layer's pieces between two levels: here small bubbles just beside the lines and a few big ones out in the yellow. For yellow worms with thin dark channels instead, make the background dark and fill one yellow layer above a level near 0 (0.15 with `even`); `bands` with a palette gives a topographic map.
+
+**Leaf veins, brain coral, giraffe skin** (also presets)
+```json
+{ "region": { "W": 100, "H": 160, "shape": "custom", "shapeId": "leaf", "fit": "stretch", "bg": "#f5f1e6" },
+  "layers": [ { "layout": "branch", "lay": { "spacing": 2.2, "bstart": "bottom", "cx": 50, "cy": 50, "width": 2.6, "btip": 0.25, "loops": 0.6, "breach": 3, "seed": 4 }, "fill": "#3d5a2a" } ] }
+```
+```json
+{ "region": { "W": 120, "H": 120, "shape": "ellipse", "bg": "#f3e9dc" },
+  "layers": [ { "layout": "growth", "lay": { "spacing": 2, "width": 0.9, "gstart": "one", "gfill": 0.75, "seed": 1 }, "fill": "#8c2f39" } ] }
+```
+```json
+{ "region": { "W": 120, "H": 90, "bg": "#f1e3c4" },
+  "layers": [ { "layout": "voronoi", "lay": { "spacing": 13, "gap": 2.2, "corner": 3, "round": 2, "seed": 5, "wobble": 1.6, "wscale": 9 }, "fill": "#a8622a" } ] }
+```
+Any layout plus `{ "kind": "melt", "p": { "r": 1.5 } }` fuses its pieces into blobs: scattered dots become ink splats or cell colonies.
 
 ## Good to know
 
