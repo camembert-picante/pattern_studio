@@ -1477,7 +1477,7 @@ const BUILTINS = [
 
 /* ================= State ================= */
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
-const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', draw: 'lines', level: 0.5, weave: false, wgap: 0.4, pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true, wobble: 0, wscale: 0, vstretch: 1, vang: 0, nucleus: 0, bstart: 'bottom', breach: 4, btip: 0.25, loops: 0, curl: 0.3, gstart: 'one', gseeds: 5, gfill: 0.7 });
+const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', draw: 'lines', level: 0.5, weave: false, wgap: 0.4, pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true, wobble: 0, wscale: 0, vstretch: 1, vang: 0, nucleus: 0, bstart: 'bottom', breach: 4, btip: 0.25, loops: 0, curl: 0.3, gstart: 'one', gseeds: 5, gfill: 0.7, bub: 0, bubSize: 0, bubSpread: 0 });
 const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
 // Random variation per copy: turn (any angle within ±rot, or whole steps of `step` degrees), size (± share),
 // mirror, and a mix of extra shapes. The same seed always gives the same pattern.
@@ -2680,9 +2680,9 @@ const centreOf = L => [L.lay.cx / 100 * S.region.W, L.lay.cy / 100 * S.region.H]
 // grows one step towards it, and food is eaten once a vein comes close. Veins branch where food pulls two ways.
 function branchSim(L, idx, reg, F) {
   const lay = L.lay, sp = Math.max(0.4, lay.spacing), step = sp / 3, reach = sp * Math.max(1.5, lay.breach || 4), kill = sp;
-  const spe = fxKind(L, 'spacing')[0], amt = spe ? spe.p.amt : 0, rr = rng((lay.seed || 1) * 7717 + idx);
+  const spe = fxKind(L, 'spacing')[0], amt = spe ? spe.p.amt : 0, rr = rng((lay.seed || 1) * 7717);
   const ok = q => reg.contains(q) && !exclHit(L, q, 0);
-  const food = scatterPoints({ spacing: sp }, [reg.x0, reg.y0, reg.x1, reg.y1], spe ? spe.F : F, amt, (lay.seed || 1) * 104729 + idx + 5).filter(ok);
+  const food = scatterPoints({ spacing: sp }, [reg.x0, reg.y0, reg.x1, reg.y1], spe ? spe.F : F, amt, (lay.seed || 1) * 104729 + 5).filter(ok);
   const X = [], Y = [], par = [], kids = [], ng = pointGrid(reach);
   const addNode = (x, y, pi) => { const i = X.length; X.push(x); Y.push(y); par.push(pi); kids.push(0); if (pi >= 0) kids[pi]++; ng.add(i, x, y); return i; };
   const C0 = centreOf(L);
@@ -2741,26 +2741,37 @@ function branchSim(L, idx, reg, F) {
 // Differential growth: closed lines of points. Each point is pulled towards the middle of its neighbours and
 // pushed away from every other point nearby; long sides split in two, so the line grows and has to fold.
 function diffSim(L, idx, reg, F) {
-  const lay = L.lay, R0 = Math.max(0.3, lay.spacing), maxE = R0 * 0.5, rr = rng((lay.seed || 1) * 4111 + idx);
+  const lay = L.lay, R0 = Math.max(0.3, lay.spacing), maxE = R0 * 0.5, rr = rng((lay.seed || 1) * 4111);
   const spe = fxKind(L, 'spacing')[0], amt = spe ? spe.p.amt : 0, RF = spe ? q => R0 * Math.max(0.25, 1 + amt * spe.F.v(q)) : () => R0;
-  const margin = Math.max(lay.width, 0.1) / 2 + R0 * 0.25, ok = q => reg.edgeDist(q) > margin && !exclHit(L, q, margin);
+  const margin = Math.max(R0 * 0.5, Math.max(lay.width, 0.1) / 2 + R0 * 0.25), ok = q => reg.edgeDist(q) > margin && !exclHit(L, q, margin);
   let loops = [];
   const ring = (c, r) => { const n = Math.max(8, Math.ceil(TAU * r / (maxE * 0.8))), l = []; for (let k = 0; k < n; k++) { const a = k / n * TAU; l.push([c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)]); } return l.filter(ok); };
-  if (lay.gstart === 'edge') reg.loops().forEach(l => { const d = densify(l.concat([l[0]]), maxE * 0.8); d.pop(); const inn = d.map((q, k) => { const a = d[(k - 1 + d.length) % d.length], b = d[(k + 1) % d.length], tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1, m = margin + R0 * 0.6, c1 = [q[0] - ty / tl * m, q[1] + tx / tl * m]; return ok(c1) ? c1 : [q[0] + ty / tl * m, q[1] - tx / tl * m]; }).filter(ok); if (inn.length > 8) loops.push(inn); });
+  if (lay.gstart === 'edge') {
+    // the outline moved in by the margin plus a little, as clean closed loops
+    treeFaces(cOffset(reg.loops().map(l => toC(orientPos(l))), -(margin + R0 * 0.6))).forEach(f => [f.outer].concat(f.holes).forEach(l => { const d = densify(l.concat([l[0]]), maxE * 0.8); d.pop(); const q = d.filter(ok); if (q.length > 8) loops.push(q); }));
+  }
   else if (lay.gstart === 'many') { const n = clamp(Math.round(lay.gseeds || 5), 2, 60); for (let k = 0, tries = 0; k < n && tries < n * 50; tries++) { const c = [reg.x0 + rr() * (reg.x1 - reg.x0), reg.y0 + rr() * (reg.y1 - reg.y0)]; if (reg.edgeDist(c) > R0 * 3 && !loops.some(l => Math.hypot(l[0][0] - c[0], l[0][1] - c[1]) < R0 * 6)) { const l = ring(c, R0 * 1.2); if (l.length > 7) { loops.push(l); k++; } } } }
   if (!loops.length) { const l = ring(ok(centreOf(L)) ? centreOf(L) : [(reg.x0 + reg.x1) / 2, (reg.y0 + reg.y1) / 2], R0 * 1.2); if (l.length > 7) loops.push(l); }
-  const area = Math.abs(reg.loops().reduce((a, l) => a + polyArea(l), 0)), target = Math.min(60000, clamp(lay.gfill == null ? 0.7 : lay.gfill, 0.05, 1) * area / (R0 * maxE * 0.62));
+  const area = Math.abs(reg.loops().reduce((a, l) => a + polyArea(l), 0)), target = Math.min(60000, clamp(lay.gfill == null ? 0.7 : lay.gfill, 0.05, 4) * area / (R0 * maxE * 0.62));
   let iter = 0;
-  const dmin = Math.max(Math.max(lay.width, 0.05) * 1.3, R0 * 0.55), Rmax = R0 * Math.max(1, 1 + Math.abs(amt));
+  const dmin = Math.min(R0 * 0.95, Math.max(Math.max(lay.width, 0.05) * 1.3, R0 * 0.55)), Rmax = R0 * Math.max(1, 1 + Math.abs(amt));
   const step1 = () => {
     let n = 0; loops.forEach(l => { n += l.length; });
     if (!loops.length || n >= target || iter++ > 9000) return true;
     // all points in flat arrays: X, Y, which loop (LI), place in it (KI) and that loop's length (LN)
     const X = new Float64Array(n), Y = new Float64Array(n), LI = new Int32Array(n), KI = new Int32Array(n), LN = new Int32Array(n), B0 = [];
-    let o = 0; loops.forEach((l, li) => { B0.push(o); l.forEach((q, k) => { X[o] = q[0]; Y[o] = q[1]; LI[o] = li; KI[o] = k; LN[o] = l.length; o++; }); });
-    const near = (a, b) => { if (LI[a] !== LI[b]) return false; const d = Math.abs(KI[a] - KI[b]); return Math.min(d, LN[a] - d) <= 3; };
-    let G = fastGrid(X, Y, n, Rmax);
+    // ARC: distance along the line from the loop's first point; LL: each loop's length
+    const ARC = new Float64Array(n), LL = [];
+    let o = 0; loops.forEach((l, li) => { B0.push(o); let acc = 0; l.forEach((q, k) => { if (k) acc += Math.hypot(q[0] - l[k - 1][0], q[1] - l[k - 1][1]); X[o] = q[0]; Y[o] = q[1]; LI[o] = li; KI[o] = k; LN[o] = l.length; ARC[o] = acc; o++; }); LL.push(acc + Math.hypot(l[0][0] - l[l.length - 1][0], l[0][1] - l[l.length - 1][1])); });
+    // neighbours along the line: close in index, or close along the line. Points further along the line than the
+    // closest allowed distance must keep that distance in space too, so U turns never get tighter than the line
+    const near = (a, b) => { if (LI[a] !== LI[b]) return false; const d = Math.abs(KI[a] - KI[b]); if (Math.min(d, LN[a] - d) <= 2) return true; const da = Math.abs(ARC[a] - ARC[b]); return Math.min(da, LL[LI[a]] - da) < dmin * 1.05; };
     const NX = new Float64Array(n), NY = new Float64Array(n), crowd = new Uint8Array(n);
+    // thick lines (fat worms with thin gaps between them, like ferrofluid) settle several times per growth step
+    const subs = lay.width > R0 * 0.45 ? 4 : 1;
+    for (let sub = 0; sub < subs; sub++) {
+    if (sub) { X.set(NX); Y.set(NY); }
+    let G = fastGrid(X, Y, n, Rmax);
     for (let i = 0; i < n; i++) {
       const b = B0[LI[i]], m = LN[i], ia = b + (KI[i] - 1 + m) % m, ib = b + (KI[i] + 1) % m, R = RF([X[i], Y[i]]);
       let dx = ((X[ia] + X[ib]) / 2 - X[i]) * 0.15, dy = ((Y[ia] + Y[ib]) / 2 - Y[i]) * 0.15, cnt = 0;
@@ -2782,6 +2793,10 @@ function diffSim(L, idx, reg, F) {
       const push = (dmin - d) / 2 / d, a = [NX[i] + ex * push, NY[i] + ey * push], c = [NX[j] - ex * push, NY[j] - ey * push];
       if (ok(a)) { NX[i] = a[0]; NY[i] = a[1]; } if (ok(c)) { NX[j] = c[0]; NY[j] = c[1]; }
     });
+    }
+    // no room left anywhere: stop, rather than squeeze more line in until it crosses itself
+    let roomy = 0; for (let i = 0; i < n; i++) if (crowd[i] < 3) roomy++;
+    if (iter > 60 && roomy < n * 0.015) return true;
     // split long sides, and now and then a random one where there is room (few other points close by), so the
     // line spreads instead of jamming
     loops = loops.map((l, li) => {
@@ -2801,10 +2816,10 @@ function diffSim(L, idx, reg, F) {
 // veins close into loops), so they cut and print as single parts.
 function grownPolys(L, idx, reg, F, R) {
   const lay = L.lay, br = L.layout === 'branch';
-  const key = JSON.stringify([L.layout, lay.spacing, lay.seed, lay.cx, lay.cy, br ? [lay.bstart, lay.breach, lay.curl] : [lay.gstart, lay.gseeds, lay.gfill, lay.width], reg.x0, reg.y0, reg.x1, reg.y1, S.region, S.excl, L.excl, fxKind(L, 'spacing').length ? fieldKey + JSON.stringify(fxKind(L, 'spacing').map(e => e.p)) : '', idx]);
+  const key = JSON.stringify([L.layout, lay.spacing, lay.seed, lay.cx, lay.cy, br ? [lay.bstart, lay.breach, lay.curl] : [lay.gstart, lay.gseeds, lay.gfill, lay.width > lay.spacing * 0.42 ? lay.width : 0], reg.x0, reg.y0, reg.x1, reg.y1, S.region, S.excl, L.excl, fxKind(L, 'spacing').length ? fieldKey + JSON.stringify(fxKind(L, 'spacing').map(e => e.p)) : '', idx]);
   const job = growJob(L, key, () => br ? branchSim(L, idx, reg, F) : diffSim(L, idx, reg, F)), res = job.res; if (!res) return [];
   const sz = fxKind(L, 'size').length > 0;
-  return solvedOnce(L, 'grow', JSON.stringify([key, job.n, job.done, lay.width, lay.btip, lay.loops, sz ? fieldKey + JSON.stringify(fxKind(L, 'size').map(e => e.p)) : '']), () => {
+  return solvedOnce(L, 'grow', JSON.stringify([key, job.n, job.done, lay.width, lay.btip, lay.loops, lay.bub, lay.bubSize, lay.bubSpread, sz ? fieldKey + JSON.stringify(fxKind(L, 'size').map(e => e.p)) : '']), () => {
     const runs = [], sOf = (q, k) => { if (!sz) return 1; const r = respond(L, F, R, reg, q, [k, 0, idx]); return r ? r.s : 1; };
     const chaikin = run => { if (run.length < 3) return run; const o = [run[0]]; for (let k = 0; k < run.length - 1; k++) { const a = run[k], b = run[k + 1]; o.push([[0.75 * a[0][0] + 0.25 * b[0][0], 0.75 * a[0][1] + 0.25 * b[0][1]], 0.75 * a[1] + 0.25 * b[1]], [[0.25 * a[0][0] + 0.75 * b[0][0], 0.25 * a[0][1] + 0.75 * b[0][1]], 0.25 * a[1] + 0.75 * b[1]]); } o.push(run[run.length - 1]); return o; };
     if (br) {
@@ -2838,11 +2853,30 @@ function grownPolys(L, idx, reg, F, R) {
       }
     } else {
       const w = Math.max(0.02, lay.width);
-      res.loops.forEach((l, li) => { if (l.length < 4) return; const run = l.map((q, k) => [q, w * sOf(q, li * 1e6 + k)]); const sm = chaikin(chaikin(run.concat([run[0], run[1]]))); runs.push(sm); });
+      res.loops.forEach((l, li) => { if (l.length < 4) return; const run = l.map((q, k) => [q, w * sOf(q, li * 1e6 + k)]); let sm = chaikin(chaikin(run.concat([run[0], run[1]]))); if (lay.spacing > 4) sm = chaikin(sm); runs.push(sm); });
     }
     if (!runs.length) return [];
     const C = CL(), c = new C.Clipper(), tr = new C.PolyTree(), NZ = C.PolyFillType.pftNonZero;
     runs.forEach(run => { if (run.length > 1) c.AddPath(toC(orientPos(ribbon(run, true, true))), C.PolyType.ptSubject, true); });
+    // Bubbles: drops scattered along both sides of the line, most of them close to it. The ones that touch it
+    // join it as beads, the rest stay loose, like bubbles caught along ferrofluid channels.
+    const bub = clamp(lay.bub || 0, 0, 1);
+    if (bub > 0) {
+      const rb = rng((lay.seed || 1) * 613 + 7), w0 = Math.max(0.05, lay.width), bs = lay.bubSize > 0 ? lay.bubSize : w0 * 0.6, spread = lay.bubSpread > 0 ? lay.bubSpread : w0 * 1.5;
+      runs.forEach(run => {
+        let acc = 0;
+        for (let k = 1; k < run.length; k++) {
+          const a = run[k - 1][0], b = run[k][0], seg = Math.hypot(b[0] - a[0], b[1] - a[1]); acc += seg;
+          while (acc > bs) {
+            acc -= bs; if (rb() > bub) continue;
+            const t = rb(), nx0 = -(b[1] - a[1]) / (seg || 1), ny0 = (b[0] - a[0]) / (seg || 1), side = rb() < 0.5 ? -1 : 1, off = run[k][1] / 2 + spread * Math.pow(rb(), 1.6), r = bs * (0.25 + 0.75 * rb()) / 2;
+            const cx = a[0] + (b[0] - a[0]) * t + nx0 * side * off, cy = a[1] + (b[1] - a[1]) * t + ny0 * side * off, ring = [];
+            for (let q = 0; q < 14; q++) { const an = q / 14 * TAU; ring.push([cx + r * Math.cos(an), cy + r * Math.sin(an)]); }
+            c.AddPath(toC(ring), C.PolyType.ptSubject, true);
+          }
+        }
+      });
+    }
     c.AddPaths(reg.loops().map(l => toC(l)), C.PolyType.ptClip, true);
     c.Execute(C.ClipType.ctIntersection, tr, NZ, C.PolyFillType.pftEvenOdd);
     const out = [];
@@ -3414,6 +3448,10 @@ function buildLayout() {
   const align = (t) => line(chk(t || 'Point copies along the layout', P('align'), Q('align')));
   const jitter = () => numRow('Random turn', P('jitter'), Q('jitter'), 0, 180, 1, '±°');
   const seed = () => numRow('Seed', P('seed'), Q('seed'), 1, 500, 1, '');
+  const bubbles = () => [E('div', { class: 'fam' }, 'Bubbles'),
+    numRow('Bubbles', () => lay.bub || 0, Q('bub'), 0, 1, 0.01, '', 'Drops scattered along both sides of the line; the ones that touch it join it as beads'),
+    numRow('Bubble size', () => lay.bubSize > 0 ? lay.bubSize : +(Math.max(0.05, lay.width) * 0.6).toFixed(2), Q('bubSize'), 0.05, 10, 0.01, 'mm'),
+    numRow('Spread', () => lay.bubSpread > 0 ? lay.bubSpread : +(Math.max(0.05, lay.width) * 1.5).toFixed(2), Q('bubSpread'), 0.05, 20, 0.05, 'mm', 'How far from the line bubbles reach; most stay close')];
   switch (L.layout) {
     case 'grid': box.append(numRow('Row offset', P('rowOff'), Q('rowOff'), 0, 1, 0.01, '×', '0 = square grid, 0.5 = brick / staggered')); break;
     case 'scatter': box.append(spacing('Min spacing'), numRow('Relax', P('relax'), Q('relax'), 0, 12, 1, 'steps', 'Evens out the dots step by step (Lloyd relaxation). With a Density effect the dots gather smoothly, like stippling'), seed(), jitter()); break;
@@ -3463,7 +3501,7 @@ function buildLayout() {
         numRow('Trunk width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Tip width', () => lay.btip == null ? 0.25 : lay.btip, Q('btip'), 0.02, 10, 0.01, 'mm'),
         numRow('Reach', () => lay.breach || 4, Q('breach'), 1.5, 12, 0.1, '× spacing', 'How far a vein can sense open space. Low gives many short side veins, high gives long sweeping ones'),
         numRow('Smoothness', () => lay.curl == null ? 0.3 : lay.curl, Q('curl'), 0, 0.9, 0.01, '', 'How much each vein keeps its heading, so it curves instead of zigzagging'),
-        numRow('Join into loops', P('loops'), Q('loops'), 0, 1, 0.01, '', 'Share of vein tips that join a neighbouring vein, for the closed net of real leaves'), ...centre(), seed());
+        numRow('Join into loops', P('loops'), Q('loops'), 0, 1, 0.01, '', 'Share of vein tips that join a neighbouring vein, for the closed net of real leaves'), ...centre(), seed(), ...bubbles());
       box.append(growHint(L, 'Drag the + on the canvas to move the start. Use a leaf outline (Surface → Draw or Upload outline) and grow from the bottom for leaf veins. Size effects thicken veins, Density effects pack them closer.'));
       break;
     }
@@ -3471,7 +3509,7 @@ function buildLayout() {
       box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'),
         line(E('label', {}, 'Starts as'), sel([['one', 'One small loop at the start point'], ['many', 'Several small loops'], ['edge', 'The outline, growing inwards']], () => lay.gstart || 'one', v => { lay.gstart = v; buildLayout(); requestRender(); pushHistory(); })));
       if (lay.gstart === 'many') box.append(numRow('Loops', () => lay.gseeds || 5, Q('gseeds'), 2, 60, 1, ''));
-      box.append(numRow('Growth', () => lay.gfill == null ? 0.7 : lay.gfill, Q('gfill'), 0.05, 1, 0.01, '', 'How far the line grows, as a share of the surface it could fill'), ...centre(), seed());
+      box.append(numRow('Growth', () => lay.gfill == null ? 0.7 : lay.gfill, Q('gfill'), 0.05, 4, 0.01, '', 'How far the line grows. Around 1 a single loop covers most of a small surface; raise it to fill large ones'), ...centre(), seed(), ...bubbles());
       box.append(growHint(L, 'The line never crosses itself or comes closer than the line spacing. Density effects make it fold tighter near a gradient, Size effects make it thicker.'));
       break;
     }
@@ -3822,6 +3860,14 @@ const PRESETS = [
     S.fx = normFx([{ kind: 'drop', p: { mode: 'threshold', t: 0.785 }, src: ['t'], layers: ['D'] }, { kind: 'melt', p: { r: 0.9, t: 0.42 }, layers: ['D'] },
       { kind: 'drop', p: { mode: 'bands', n: 1, w: 0.8 }, src: ['t'], layers: ['S'] }, { kind: 'drop', p: { mode: 'dither' }, src: ['t'], layers: ['S'] }, { kind: 'drop', p: { mode: 'threshold', t: 0.55 }, src: ['t'], layers: ['S'] },
       { kind: 'drop', p: { mode: 'bands', n: 1, w: 0.5 }, src: ['t'], layers: ['B'] }, { kind: 'drop', p: { mode: 'threshold', t: 0.3 }, src: ['t'], layers: ['B'] }]);
+  }],
+  // the same idea grown instead: one line folding without touching (differential growth) drawn thin and dark on
+  // yellow, with bubbles along it; two wider copies of the same line below give the warm rim
+  ['Ferrofluid fingers', () => {
+    const g = (w, extra) => Object.assign({ spacing: 10, width: w, gstart: 'one', gfill: 3, seed: 3, cx: 50, cy: 50 }, extra || {});
+    presetBase({ W: 90, H: 160, bg: '#f8dc1c' }, [],
+      [{ layout: 'growth', lay: g(3.8), fill: '#efc414' }, { layout: 'growth', lay: g(2.7), fill: '#d99c0e' },
+        { layout: 'growth', lay: g(1.6, { bub: 0.6, bubSize: 1.1, bubSpread: 1.2 }), fill: '#1a1207' }]);
   }],
   ['Leaf veins', () => presetBase({ W: 100, H: 160, shape: 'custom', shapeId: 'leaf', fit: 'stretch', bg: '#f5f1e6' }, [],
     [{ layout: 'branch', lay: { spacing: 2.2, bstart: 'bottom', cx: 50, cy: 50, width: 2.6, btip: 0.25, loops: 0.6, breach: 3, seed: 4 }, fill: '#3d5a2a' }])],

@@ -138,7 +138,8 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `flow` | Lines that bend with gradients and can wave | `spacing`, `width`, `angle`, `bend`, `bendCentre`, `wave`, `waveLen`, `waveSkew` |
 | `voronoi` | Cells or stones separated by cracks | `spacing` (cell size), `gap` (crack width), `corner` (corner radius in mm; large values give pebbles), `round` (extra smoothing, 0 to 4), `seed`. Organic cells: `wobble` (mm the walls bend), `wscale` (size of the bends, mm; 0 = cell size), `vstretch` (1 to 6, cells that many times longer than wide) along `vang` (degrees), `nucleus` (0 to 0.9, a round hole in each cell) |
 | `branch` | Veins growing towards open space, thick trunk to fine tips | `spacing` (vein spacing), `bstart` (`bottom`: below the start point, `centre`: at it, `edge`: all around the outline), `cx`, `cy` (start point, % of the surface), `width` (trunk), `btip` (tip width), `breach` (1.5 to 12, how far veins sense space, × spacing), `curl` (0 to 0.9, smoothness), `loops` (0 to 1, share of tips joined back into loops), `seed` |
-| `growth` | Differential growth: one closed line that folds without crossing | `spacing` (line spacing, also the closest it comes to itself), `width` (line width), `gstart` (`one` loop at `cx`, `cy`; `many` loops, how many in `gseeds`; `edge`: the outline growing inwards), `gfill` (0.05 to 1, how much of the surface it fills), `seed` |
+| `branch`, `growth` bubbles | Drops scattered along both sides of the line | `bub` (0 to 1, how many), `bubSize` (mm; 0 = 0.6 × width), `bubSpread` (mm from the line; 0 = 1.5 × width). Bubbles that touch the line join it as beads |
+| `growth` | Differential growth: one closed line that folds without crossing | `spacing` (line spacing, also the closest it comes to itself), `width` (line width), `gstart` (`one` loop at `cx`, `cy`; `many` loops, how many in `gseeds`; `edge`: the outline growing inwards), `gfill` (0.05 to 4: how far it grows; it stops by itself when no room is left), `seed`. Thin lines (`width` up to 0.42 × `spacing`) grow the same whatever their width, so copies of the layer stack exactly |
 
 `hatch`, `contour`, `flow`, `voronoi`, `branch` and `growth` draw their own geometry and ignore `shape`. `branch` and `growth` are simulations that take a few seconds; `load` and every export wait for them.
 
@@ -360,6 +361,15 @@ A drop out band (`bands` with `n` 1 keeps values below `w`) plus a threshold (dr
 { "region": { "W": 120, "H": 90, "bg": "#f1e3c4" },
   "layers": [ { "layout": "voronoi", "lay": { "spacing": 13, "gap": 2.2, "corner": 3, "round": 2, "seed": 5, "wobble": 1.6, "wscale": 9 }, "fill": "#a8622a" } ] }
 ```
+**Ferrofluid fingers** (also a preset): a thin dark growth line with bubbles on yellow, and two wider copies of the same line below for the warm rim
+```json
+{ "region": { "W": 90, "H": 160, "bg": "#f8dc1c" },
+  "layers": [ { "layout": "growth", "lay": { "spacing": 10, "width": 3.8, "gstart": "one", "gfill": 3, "seed": 3 }, "fill": "#efc414" },
+              { "layout": "growth", "lay": { "spacing": 10, "width": 2.7, "gstart": "one", "gfill": 3, "seed": 3 }, "fill": "#d99c0e" },
+              { "layout": "growth", "lay": { "spacing": 10, "width": 1.6, "gstart": "one", "gfill": 3, "seed": 3, "bub": 0.6, "bubSize": 1.1, "bubSpread": 1.2 }, "fill": "#1a1207" } ] }
+```
+With `"gstart": "edge"` the fingers grow in from the outline, like ferrofluid in a dish.
+
 Any layout plus `{ "kind": "melt", "p": { "r": 1.5 } }` fuses its pieces into blobs: scattered dots become ink splats or cell colonies.
 
 ## Good to know
