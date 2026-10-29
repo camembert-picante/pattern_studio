@@ -95,7 +95,7 @@ These are the sources: each gives a value from 0 to 1 across the surface. On the
 | Linear ramp | A gradient from 0 to 1 between two handles |
 | Image map | Halftone: an image's brightness drives the pattern, and dark areas give bigger pieces |
 | Noise | Organic variation. **Style** smooth, ridged (sharp crests) or cells (rounded cells around random points); **Detail** adds finer layers, **Roughness** sets how strong they are, **Warp** bends the noise by itself for marbled shapes |
-| Turing pattern | A reaction diffusion simulation, the process behind animal coats and coral: **Style** labyrinth (winding worms), stripes, spots or holes; **Pattern size** sets the distance from one worm or spot to the next; **Seed** gives another layout; **Stretch** and **Direction** pull the worms one way, like fingerprints or brain coral. It takes a few seconds to grow and the pattern appears when it is ready. Contour lines set to **Filled above a level** turn it into solid labyrinth shapes |
+| Turing pattern | A reaction diffusion simulation, the process behind animal coats, coral and ferrofluid: **Style** labyrinth (winding worms), stripes, spots, holes or cells (packed round blobs); **Blend with** lets patches of the surface drift into a second style, with **Blend amount** for how much; **Pattern size** sets the distance from one worm or spot to the next; **Seed** gives another layout; **Stretch** and **Direction** pull the worms one way, like fingerprints or brain coral. **Even line widths** measures by distance from each worm's edge (0.5 is the edge, 1 the centre line, 0 the middle of the gap), so a level near 1 gives thin dark lines of one width that still branch and end freely. It takes a few seconds to grow and the pattern appears when it is ready. Contour lines set to **Filled above a level** turn it into solid labyrinth shapes; stack several at nearby levels for shading |
 
 Each controller has a reach, a falloff curve (linear, smooth, ease, step), invert and strength. On crosshatch and flow lines, opacity and colour effects fade smoothly along each line. You can combine several controllers by taking the strongest value, adding, multiplying or taking the weakest.
 
@@ -142,7 +142,7 @@ The effects are:
 
 ## Presets
 
-There are 15 presets: Speaker grille, Laptop vent, Halftone dots, Sunflower, Voronoi stone, Flow waves, Moiré hatch, Shoe tread (pgg), Spiral seeds, Concentric diffuser, Seigaiha waves, Ridgeline waves, Midsole lattice, Letterform and Shape morph. Loading a preset is a clean start: layers, gradients, effects, keep-out areas, the surface, crop and the View options all come from the preset, with nothing left over from before. Your own shapes and export settings stay, and Undo brings your previous pattern back. Every value in a preset stays editable.
+There are 16 presets: Speaker grille, Laptop vent, Halftone dots, Sunflower, Voronoi stone, Flow waves, Moiré hatch, Shoe tread (pgg), Spiral seeds, Concentric diffuser, Seigaiha waves, Ridgeline waves, Midsole lattice, Letterform, Shape morph and Ferrofluid labyrinth. Loading a preset is a clean start: layers, gradients, effects, keep-out areas, the surface, crop and the View options all come from the preset, with nothing left over from before. Your own shapes and export settings stay, and Undo brings your previous pattern back. Every value in a preset stays editable.
 
 ## Exports
 

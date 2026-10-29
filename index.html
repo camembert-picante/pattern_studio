@@ -1681,17 +1681,27 @@ function noiseFn(c, R) {
 // so the page stays usable, on a grid that wraps at its edges (a big surface repeats one seamless tile). One period
 // of the pattern is about 13.5 grid cells; the gradient's `radius` sets that period in mm.
 const TURING = new Map(); let turingBusy = 0;
-const TURING_STYLES = { labyrinth: [0.037, 0.06], stripes: [0.029, 0.057], spots: [0.03, 0.062], holes: [0.039, 0.058] };
-const turingKey = (c, W, H) => JSON.stringify([c.radius, c.style || 'labyrinth', c.seed || 1, W, H]);
+const TURING_STYLES = { labyrinth: [0.037, 0.06], stripes: [0.029, 0.057], spots: [0.03, 0.062], holes: [0.039, 0.058], cells: [0.026, 0.061] };
+const turingKey = (c, W, H) => JSON.stringify([c.radius, c.style || 'labyrinth', c.seed || 1, W, H, c.blend || '', c.blend ? (c.share == null ? 0.5 : c.share) : 0, !!c.even]);
 function turingGrid(c, W, H) {
   const key = turingKey(c, W, H), have = TURING.get(key); if (have !== undefined) return have; // null while growing
   TURING.set(key, null); turingBusy++;
   const h = Math.max(0.2, c.radius || 12) / 13.5;
   let nx = Math.max(24, Math.ceil(W / h)), ny = Math.max(24, Math.ceil(H / h));
   const cap = 150000; if (nx * ny > cap) { const k = Math.sqrt(cap / (nx * ny)); nx = Math.max(24, Math.floor(nx * k)); ny = Math.max(24, Math.floor(ny * k)); }
-  const fk = TURING_STYLES[c.style] || TURING_STYLES.labyrinth, f = fk[0], kk = fk[1], N = nx * ny;
+  const fk = TURING_STYLES[c.style] || TURING_STYLES.labyrinth, N = nx * ny;
   let U = new Float32Array(N).fill(1), V = new Float32Array(N), U2 = new Float32Array(N), V2 = new Float32Array(N);
   const rr = rng((c.seed || 1) * 977 + 5);
+  // Each cell has its own feed and kill rate. With a second style they drift from one style to the other in broad
+  // patches (a few gentle waves that wrap around like the grid does), so worms turn into round cells and back.
+  const fA = new Float32Array(N).fill(fk[0]), fB = new Float32Array(N).fill(fk[0] + fk[1]), fk2 = c.blend && TURING_STYLES[c.blend];
+  if (fk2) {
+    const waves = []; for (let q = 0; q < 4; q++) waves.push([1 + ((rr() * 2) | 0), (rr() < 0.5 ? -1 : 1) * ((rr() * 3) | 0), rr() * TAU]);
+    const w = new Float32Array(N); let lo = Infinity, hi = -Infinity;
+    for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { let v = 0; waves.forEach((k, q) => { v += Math.sin(TAU * ((q % 2 ? k[1] : k[0]) * x / nx + (q % 2 ? k[0] : k[1]) * y / ny) + k[2]); }); w[y * nx + x] = v; lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    const share = c.share == null ? 0.5 : c.share; // how much of the surface takes the second style
+    for (let i = 0; i < N; i++) { let t = clamp(((w[i] - lo) / Math.max(1e-9, hi - lo) - 1 + share) / 0.3 + 0.5, 0, 1); t = t * t * (3 - 2 * t); fA[i] = fk[0] + (fk2[0] - fk[0]) * t; fB[i] = fA[i] + fk[1] + (fk2[1] - fk[1]) * t; }
+  }
   for (let q = Math.max(4, Math.round(N / 400)); q > 0; q--) { const x0 = (rr() * nx) | 0, y0 = (rr() * ny) | 0; for (let dy = -2; dy < 2; dy++) for (let dx = -2; dx < 2; dx++) { const i = ((y0 + dy + ny) % ny) * nx + (x0 + dx + nx) % nx; U[i] = 0.5; V[i] = 0.25; } }
   const total = 7000; let done = 0;
   const steps = n => {
@@ -1700,8 +1710,8 @@ function turingGrid(c, W, H) {
         const ym = ((y - 1 + ny) % ny) * nx, yp = ((y + 1) % ny) * nx, y0 = y * nx;
         for (let x = 0; x < nx; x++) {
           const xm = x ? x - 1 : nx - 1, xp = x < nx - 1 ? x + 1 : 0, i = y0 + x, u = U[i], v = V[i], uvv = u * v * v;
-          U2[i] = u + 0.2 * (U[ym + x] + U[yp + x] + U[y0 + xm] + U[y0 + xp] - 4 * u) - uvv + f * (1 - u);
-          V2[i] = v + 0.1 * (V[ym + x] + V[yp + x] + V[y0 + xm] + V[y0 + xp] - 4 * v) + uvv - (f + kk) * v;
+          U2[i] = u + 0.2 * (U[ym + x] + U[yp + x] + U[y0 + xm] + U[y0 + xp] - 4 * u) - uvv + fA[i] * (1 - u);
+          V2[i] = v + 0.1 * (V[ym + x] + V[yp + x] + V[y0 + xm] + V[y0 + xp] - 4 * v) + uvv - fB[i] * v;
         }
       }
       let t = U; U = U2; U2 = t; t = V; V = V2; V2 = t;
@@ -1711,12 +1721,64 @@ function turingGrid(c, W, H) {
     if (TURING.get(key) !== null) return;
     const t0 = performance.now(); while (done < total && performance.now() - t0 < 35) { steps(20); done += 20; }
     if (done < total) { setTimeout(chunk, 0); return; }
-    let lo = Infinity, hi = -Infinity; for (let i = 0; i < N; i++) { if (V[i] < lo) lo = V[i]; if (V[i] > hi) hi = V[i]; }
-    const v = new Float32Array(N), d = Math.max(1e-6, hi - lo); for (let i = 0; i < N; i++) v[i] = (V[i] - lo) / d;
-    TURING.set(key, { nx: nx, ny: ny, h: h, v: v }); turingBusy--; FIELD = null; requestRender(); settleReady();
+    // Scaled to 0..1 against the lowest and highest values within about one period, so a level cuts every worm
+    // and every gap alike, even where a blended style runs higher or lower overall.
+    const r = 9, lo = turingSpread(V, nx, ny, r, Math.min), hi = turingSpread(V, nx, ny, r, Math.max);
+    const v = new Float32Array(N); for (let i = 0; i < N; i++) v[i] = clamp((V[i] - lo[i]) / Math.max(0.05, hi[i] - lo[i]), 0, 1);
+    TURING.set(key, c.even ? turingEven(v, nx, ny, h) : { nx: nx, ny: ny, h: h, v: v }); turingBusy--; FIELD = null; requestRender(); settleReady();
   };
   setTimeout(chunk, 0);
   return null;
+}
+// The lowest (or highest) value within r cells of each cell, wrapping at the edges, then smoothed so it drifts gently.
+function turingSpread(A, nx, ny, r, pick) {
+  const N = nx * ny, T = new Float32Array(N), O = new Float32Array(N);
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { let m = A[y * nx + x]; for (let d = -r; d <= r; d++) m = pick(m, A[y * nx + (x + d + nx) % nx]); T[y * nx + x] = m; }
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { let m = T[y * nx + x]; for (let d = -r; d <= r; d++) m = pick(m, T[((y + d + ny) % ny) * nx + x]); O[y * nx + x] = m; }
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { let m = 0; for (let d = -r; d <= r; d++) m += O[y * nx + (x + d + nx) % nx]; T[y * nx + x] = m / (2 * r + 1); }
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { let m = 0; for (let d = -r; d <= r; d++) m += T[((y + d + ny) % ny) * nx + x]; O[y * nx + x] = m / (2 * r + 1); }
+  return O;
+}
+// Even widths: the pattern redrawn by distance on a grid three times finer. 0.5 is the edge of a worm, 1 its centre
+// line and 0 the middle of the gap, each measured against the local width, so a level near 1 (or 0) gives thin
+// lines of the same width all along every worm, branch and loose end.
+function turingEven(v, nx, ny, h) {
+  const K = 3, fx = nx * K, fy = ny * K, N = fx * fy, M = Math.min(60, Math.max(fx, fy)), px = fx + 2 * M, py = fy + 2 * M;
+  const up = new Float32Array(N);
+  for (let y = 0; y < fy; y++) for (let x = 0; x < fx; x++) {
+    const sx = (x + 0.5) / K - 0.5, sy = (y + 0.5) / K - 0.5, x0 = Math.floor(sx), y0 = Math.floor(sy), tx = sx - x0, ty = sy - y0;
+    const X0 = (x0 + nx) % nx, Y0 = (y0 + ny) % ny, X1 = (X0 + 1) % nx, Y1 = (Y0 + 1) % ny;
+    up[y * fx + x] = (v[Y0 * nx + X0] * (1 - tx) + v[Y0 * nx + X1] * tx) * (1 - ty) + (v[Y1 * nx + X0] * (1 - tx) + v[Y1 * nx + X1] * tx) * ty;
+  }
+  // squared distance to the nearest cell on the other side of the edge (Felzenszwalb), on a copy padded by wrapping
+  const dist = inside => {
+    const g = new Float64Array(px * py), INF = 1e20, n = Math.max(px, py), f = new Float64Array(n), d = new Float64Array(n), vv = new Int32Array(n), z = new Float64Array(n + 1);
+    for (let y = 0; y < py; y++) for (let x = 0; x < px; x++) { const q = up[(((y - M) % fy + fy) % fy) * fx + ((x - M) % fx + fx) % fx] > 0.5; g[y * px + x] = q === inside ? INF : 0; }
+    const pass = (len, get, set) => {
+      for (let q = 0; q < len; q++) f[q] = get(q);
+      let k = 0; vv[0] = 0; z[0] = -INF; z[1] = INF;
+      for (let q = 1; q < len; q++) {
+        let sp = ((f[q] + q * q) - (f[vv[k]] + vv[k] * vv[k])) / (2 * q - 2 * vv[k]);
+        while (sp <= z[k]) { k--; sp = ((f[q] + q * q) - (f[vv[k]] + vv[k] * vv[k])) / (2 * q - 2 * vv[k]); }
+        k++; vv[k] = q; z[k] = sp; z[k + 1] = INF;
+      }
+      k = 0; for (let q = 0; q < len; q++) { while (z[k + 1] < q) k++; d[q] = (q - vv[k]) * (q - vv[k]) + f[vv[k]]; }
+      for (let q = 0; q < len; q++) set(q, d[q]);
+    };
+    for (let x = 0; x < px; x++) pass(py, q => g[q * px + x], (q, val) => { g[q * px + x] = val; });
+    for (let y = 0; y < py; y++) pass(px, q => g[y * px + q], (q, val) => { g[y * px + q] = val; });
+    const out = new Float32Array(N); for (let y = 0; y < fy; y++) for (let x = 0; x < fx; x++) out[y * fx + x] = Math.max(0, Math.sqrt(g[(y + M) * px + x + M]) - 0.5) / K;
+    return out;
+  };
+  const din = dist(true), dout = dist(false);
+  // the local width: the widest distance nearby, taken on the coarse grid and smoothed
+  const localMax = D => { const c = new Float32Array(nx * ny); for (let y = 0; y < fy; y++) for (let x = 0; x < fx; x++) { const i = ((y / K) | 0) * nx + ((x / K) | 0); if (D[y * fx + x] > c[i]) c[i] = D[y * fx + x]; } return turingSpread(c, nx, ny, 5, Math.max); };
+  const li = localMax(din), lo = localMax(dout), out = new Float32Array(N);
+  for (let y = 0; y < fy; y++) for (let x = 0; x < fx; x++) {
+    const i = y * fx + x, cI = Math.min(ny - 1, (y / K) | 0) * nx + Math.min(nx - 1, (x / K) | 0);
+    out[i] = up[i] > 0.5 ? 0.5 + 0.5 * Math.min(1, din[i] / Math.max(0.3, li[cI])) : 0.5 - 0.5 * Math.min(1, dout[i] / Math.max(0.3, lo[cI]));
+  }
+  return { nx: fx, ny: fy, h: h / K, v: out };
 }
 // Reading the grown pattern: smooth between grid cells, wrapping at the edges, optionally stretched along a direction.
 function turingFn(c, g) {
@@ -3189,9 +3251,13 @@ function buildGradients() {
   if (c.type === 'point' || c.type === 'line' || c.type === 'curve') box.append(numRow('Reach', P('radius'), Q('radius'), 1, 600, 0.5, 'mm', 'Distance at which the effect fades to 0'));
   if (c.type === 'turing') {
     const ready = !!TURING.get(turingKey(c, S.region.W, S.region.H));
-    box.append(line(E('label', {}, 'Style'), sel([['labyrinth', 'Labyrinth (worms)'], ['stripes', 'Stripes (fingerprint)'], ['spots', 'Spots'], ['holes', 'Holes']], () => c.style || 'labyrinth', v => { c.style = v; buildGradients(); requestRender(); pushHistory(); })));
+    const TS = [['labyrinth', 'Labyrinth (worms)'], ['stripes', 'Stripes (fingerprint)'], ['spots', 'Spots'], ['holes', 'Holes'], ['cells', 'Cells (packed round blobs)']];
+    box.append(line(E('label', {}, 'Style'), sel(TS, () => c.style || 'labyrinth', v => { c.style = v; buildGradients(); requestRender(); pushHistory(); })));
+    box.append(line(E('label', { title: 'Patches of the surface drift into a second style, like worms that break up into round cells' }, 'Blend with'), sel([['', 'Nothing']].concat(TS), () => c.blend || '', v => { c.blend = v; buildGradients(); requestRender(); pushHistory(); })));
+    if (c.blend) box.append(numRow('Blend amount', () => c.share == null ? 0.5 : c.share, v => { c.share = v; }, 0, 1, 0.01, '', 'How much of the surface turns into the second style'));
     box.append(numRow('Pattern size', P('radius'), Q('radius'), 1, 60, 0.1, 'mm', 'Distance from one worm or spot to the next'), numRow('Seed', P('seed'), Q('seed'), 1, 500, 1, '', 'Another seed grows another arrangement'));
     box.append(numRow('Stretch', () => c.stretch || 1, v => { c.stretch = v; }, 1, 4, 0.05, '×', 'Pulls the worms out along one direction'), numRow('Direction', () => c.angle || 0, v => { c.angle = v; }, -90, 90, 1, '°'));
+    box.append(line(chk('Even line widths', () => !!c.even, v => { c.even = v; buildGradients(); requestRender(); pushHistory(); }), E('span', { class: 'hint' }, 'Measures by distance, so a level near 1 or 0 gives thin lines of one width')));
     box.append(E('p', { class: 'hint' }, (ready ? '' : 'Growing the pattern… ') + 'Reaction diffusion, like ferrofluid, coral or animal markings. Use it with Contour lines set to Filled for clean worms, or with Size and Drop out effects on any layout.'));
   }
   if (c.type === 'noise') {
@@ -3397,7 +3463,18 @@ const PRESETS = [
       [{ layout: 'fibonacci', shape: 'dot', lay: { spacing: 3.6, cx: 50, cy: 33 }, size: 3, fill: '#d4552b', mod: { size: { on: true, min: 0.5, max: 1 }, color: { on: true, c2: '#1f2a44' } } }]);
   }],
   ['Shape morph', () => presetBase({ W: 200, H: 150, edge: 'inside', bg: '#f7f3ea' }, [{ type: 'ramp', x1: 10, y1: 75, x2: 190, y2: 75 }],
-    [{ layout: 'grid', shape: 'square', cellW: 10, cellH: 10, lay: { rowOff: 0 }, mx: 0, my: 0, sx: 0, sy: 0, size: 7.5, fill: '#1f2a44', mod: { morph: { on: true, shape: 'star', steps: 12 }, rot: { on: true, deg: 45 } } }])]
+    [{ layout: 'grid', shape: 'square', cellW: 10, cellH: 10, lay: { rowOff: 0 }, mx: 0, my: 0, sx: 0, sy: 0, size: 7.5, fill: '#1f2a44', mod: { morph: { on: true, shape: 'star', steps: 12 }, rot: { on: true, deg: 45 } } }])],
+  // ferrofluid: thin dark worms (the cores of a Turing labyrinth, even widths) on yellow, packed cells where it
+  // blends into holes, two tone bands for shading and bubbles that hug the lines
+  ['Ferrofluid labyrinth', () => {
+    presetBase({ W: 90, H: 160, bg: '#f8dc1c' }, [{ id: 't', type: 'turing', radius: 11, style: 'labyrinth', blend: 'holes', share: 0.35, seed: 12, stretch: 1.3, angle: 90, even: true }],
+      [{ id: 'M', layout: 'contour', lay: { draw: 'fill', level: 0.6 }, fill: '#f3cd15' }, { id: 'R', layout: 'contour', lay: { draw: 'fill', level: 0.72 }, fill: '#dfa60f' },
+        { id: 'D', layout: 'contour', lay: { draw: 'fill', level: 0.8 }, fill: '#1a1207' },
+        { id: 'S', layout: 'scatter', shape: 'dot', lay: { spacing: 0.85, seed: 2, relax: 1 }, size: 0.42, fill: '#1a1207', vary: { size: 0.7 } },
+        { id: 'B', layout: 'scatter', shape: 'dot', lay: { spacing: 5, seed: 9, relax: 1 }, size: 1.2, fill: '#1a1207', vary: { size: 0.6 } }]);
+    S.fx = normFx([{ kind: 'drop', p: { mode: 'bands', n: 1, w: 0.79 }, src: ['t'], layers: ['S'] }, { kind: 'drop', p: { mode: 'threshold', t: 0.64 }, src: ['t'], layers: ['S'] },
+      { kind: 'drop', p: { mode: 'bands', n: 1, w: 0.5 }, src: ['t'], layers: ['B'] }, { kind: 'drop', p: { mode: 'threshold', t: 0.3 }, src: ['t'], layers: ['B'] }]);
+  }]
 ];
 function buildPresets() {
   const box = $('#presetGrid'); box.innerHTML = '';

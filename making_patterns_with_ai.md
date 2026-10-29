@@ -227,7 +227,7 @@ Gradients are sources: each gives a value from 0 to 1 everywhere on the surface,
 | `curve` | `pts`: `[[x, y], …]` the points of a pen path, `radius`. Optional `hs`: one entry per point, `0` for a corner or `[inX, inY, outX, outY]` handles in mm. Without `hs` a smooth curve runs through the points |
 | `ramp` | `x1`, `y1` (value 0) to `x2`, `y2` (value 1) |
 | `noise` | `radius` (feature size), `seed`. Optional: `style` (`smooth`, `ridged`, `cells`), `octaves` (detail layers, 1 to 6), `rough` (0.2 to 0.85), `warp` (0 to 3, bends the noise by itself) |
-| `turing` | A reaction diffusion (Gray Scott) pattern. `radius`: the period in mm, from one worm or spot to the next. Optional: `style` (`labyrinth`, `stripes`, `spots`, `holes`), `seed`, `stretch` (1 to 3, pulls the worms along `angle`), `angle` (degrees). It grows for a few seconds; `load` waits for it |
+| `turing` | A reaction diffusion (Gray Scott) pattern. `radius`: the period in mm, from one worm or spot to the next. Optional: `style` (`labyrinth`, `stripes`, `spots`, `holes`, `cells`), `blend` (a second style that patches of the surface drift into) with `share` (0 to 1, how much), `even` (true: values by distance, 0.5 at a worm's edge, 1 on its centre line, 0 mid gap, so levels near 1 give thin even lines), `seed`, `stretch` (1 to 3, pulls the worms along `angle`), `angle` (degrees). Values are scaled within about one period, so a level cuts every worm alike. It grows for a few seconds; `load` waits for it |
 | `image` | `data` (an image data URL; dark = 1), `contrast` |
 
 All types also take `curve` (falloff: `linear smooth in out step`), `invert`, `weight` (strength 0 to 1) and `on`. `mix` combines several: `max` (default), `add`, `multiply`, `min`.
@@ -325,16 +325,21 @@ Define your own with `svgShapes`, then use the id like any other:
   "fx": [ { "kind": "size", "p": { "min": 0.1, "max": 1 } }, { "kind": "drop", "p": { "t": 0.08 } } ] }
 ```
 
-**Turing labyrinth, dark channels on yellow, dots near the edges**
+**Ferrofluid labyrinth** (also the preset of that name): thin dark worms on yellow, packed cells where the labyrinth blends into holes, two tone bands for shading and bubbles along the lines
 ```json
-{ "region": { "W": 90, "H": 160, "bg": "#f3d317" },
-  "ctrls": [ { "id": "t", "type": "turing", "radius": 11, "style": "labyrinth", "seed": 3, "stretch": 1.4, "angle": 80 } ],
-  "layers": [ { "id": "C", "layout": "contour", "lay": { "draw": "fill", "level": 0.7 }, "fill": "#17110a" },
-              { "id": "D", "layout": "scatter", "shape": "dot", "lay": { "spacing": 1.15, "seed": 2, "relax": 2 }, "size": 0.6, "fill": "#17110a", "vary": { "size": 0.6 } } ],
-  "fx": [ { "kind": "drop", "p": { "mode": "bands", "n": 1, "w": 0.7 }, "src": ["t"], "layers": ["D"] },
-          { "kind": "drop", "p": { "mode": "threshold", "t": 0.48 }, "src": ["t"], "layers": ["D"] } ] }
+{ "region": { "W": 90, "H": 160, "bg": "#f8dc1c" },
+  "ctrls": [ { "id": "t", "type": "turing", "radius": 11, "style": "labyrinth", "blend": "holes", "share": 0.35, "seed": 12, "stretch": 1.3, "angle": 90, "even": true } ],
+  "layers": [ { "id": "M", "layout": "contour", "lay": { "draw": "fill", "level": 0.6 }, "fill": "#f3cd15" },
+              { "id": "R", "layout": "contour", "lay": { "draw": "fill", "level": 0.72 }, "fill": "#dfa60f" },
+              { "id": "D", "layout": "contour", "lay": { "draw": "fill", "level": 0.8 }, "fill": "#1a1207" },
+              { "id": "S", "layout": "scatter", "shape": "dot", "lay": { "spacing": 0.85, "seed": 2, "relax": 1 }, "size": 0.42, "fill": "#1a1207", "vary": { "size": 0.7 } },
+              { "id": "B", "layout": "scatter", "shape": "dot", "lay": { "spacing": 5, "seed": 9, "relax": 1 }, "size": 1.2, "fill": "#1a1207", "vary": { "size": 0.6 } } ],
+  "fx": [ { "kind": "drop", "p": { "mode": "bands", "n": 1, "w": 0.79 }, "src": ["t"], "layers": ["S"] },
+          { "kind": "drop", "p": { "mode": "threshold", "t": 0.64 }, "src": ["t"], "layers": ["S"] },
+          { "kind": "drop", "p": { "mode": "bands", "n": 1, "w": 0.5 }, "src": ["t"], "layers": ["B"] },
+          { "kind": "drop", "p": { "mode": "threshold", "t": 0.3 }, "src": ["t"], "layers": ["B"] } ] }
 ```
-A higher `level` gives thinner channels and wider worms; `bands` with a palette gives a topographic map.
+A drop out band (`bands` with `n` 1 keeps values below `w`) plus a threshold (drops values below `t`) keeps a layer's pieces between two levels: here small bubbles just beside the lines and a few big ones out in the yellow. For yellow worms with thin dark channels instead, make the background dark and fill one yellow layer above a level near 0 (0.15 with `even`); `bands` with a palette gives a topographic map.
 
 ## Good to know
 
