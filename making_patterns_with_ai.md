@@ -71,7 +71,8 @@ On the site (or any copy of `index.html`), `window.PatternStudio` offers:
 
 | Call | Does |
 |---|---|
-| `load(pattern)` | Load a pattern object or JSON text. Returns a summary |
+| `load(pattern)` | Load a pattern object or JSON text. Waits until image maps and Turing patterns are ready, then returns a summary (a promise: use `await`) |
+| `ready()` | A promise that settles once image maps and Turing patterns have finished growing |
 | `get()` | The current pattern as a full project object |
 | `summary()` | Layers, pieces, open area, surface, seamless tile, gradient count |
 | `reset('clear' \| 'example')` | One empty layer, or the starter pattern |
@@ -133,7 +134,7 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `circular` | Rosette: copies turned around a centre | `fold` (number of folds), `mirror` (add reflected copies), `offset` (° from the mirror line), `r0` (first ring radius), `ringGap`, `rings` (0 fills the surface), `even` (more copies on outer rings, a multiple of `fold`, about `spacing` apart), `twist` (° per ring), `centre` (a piece in the middle), `cx`, `cy`, `align` |
 | `fibonacci` | Sunflower packing | `spacing`, `cx`, `cy`, `align` (point copies outward), `jitter` |
 | `hatch` | Continuous lines; their width follows gradients | `spacing`, `width`, `angle`, `cross` (second direction), `crossAngle`, `weave` (over and under at the crossings), `wgap` (gap where a line passes under) |
-| `contour` | Isolines of all gradients combined (a built in noise when there are none) | `levels` (number of lines), `width`, `nscale` and `seed` for the built in noise |
+| `contour` | Isolines of all gradients combined (a built in noise when there are none) | `levels` (number of lines), `width`, `nscale` and `seed` for the built in noise. `draw`: `lines` (default), `fill` (solid where the gradient is above `level`, 0 to 1, with holes) or `bands` (every other band between the `levels` is solid; with a palette `colorMode` every band is filled in turn) |
 | `flow` | Lines that bend with gradients and can wave | `spacing`, `width`, `angle`, `bend`, `bendCentre`, `wave`, `waveLen`, `waveSkew` |
 | `voronoi` | Stones separated by cracks | `spacing` (stone size), `gap` (crack width), `corner` (corner radius in mm; large values give pebbles), `round` (extra smoothing, 0 to 4), `seed` |
 
@@ -226,6 +227,7 @@ Gradients are sources: each gives a value from 0 to 1 everywhere on the surface,
 | `curve` | `pts`: `[[x, y], …]` the points of a pen path, `radius`. Optional `hs`: one entry per point, `0` for a corner or `[inX, inY, outX, outY]` handles in mm. Without `hs` a smooth curve runs through the points |
 | `ramp` | `x1`, `y1` (value 0) to `x2`, `y2` (value 1) |
 | `noise` | `radius` (feature size), `seed`. Optional: `style` (`smooth`, `ridged`, `cells`), `octaves` (detail layers, 1 to 6), `rough` (0.2 to 0.85), `warp` (0 to 3, bends the noise by itself) |
+| `turing` | A reaction diffusion (Gray Scott) pattern. `radius`: the period in mm, from one worm or spot to the next. Optional: `style` (`labyrinth`, `stripes`, `spots`, `holes`), `seed`, `stretch` (1 to 3, pulls the worms along `angle`), `angle` (degrees). It grows for a few seconds; `load` waits for it |
 | `image` | `data` (an image data URL; dark = 1), `contrast` |
 
 All types also take `curve` (falloff: `linear smooth in out step`), `invert`, `weight` (strength 0 to 1) and `on`. `mix` combines several: `max` (default), `add`, `multiply`, `min`.
@@ -322,6 +324,17 @@ Define your own with `svgShapes`, then use the id like any other:
   "layers": [ { "layout": "fibonacci", "shape": "dot", "lay": { "spacing": 3.5, "cx": 50, "cy": 50 }, "size": 3.2 } ],
   "fx": [ { "kind": "size", "p": { "min": 0.1, "max": 1 } }, { "kind": "drop", "p": { "t": 0.08 } } ] }
 ```
+
+**Turing labyrinth, dark channels on yellow, dots near the edges**
+```json
+{ "region": { "W": 90, "H": 160, "bg": "#f3d317" },
+  "ctrls": [ { "id": "t", "type": "turing", "radius": 11, "style": "labyrinth", "seed": 3, "stretch": 1.4, "angle": 80 } ],
+  "layers": [ { "id": "C", "layout": "contour", "lay": { "draw": "fill", "level": 0.7 }, "fill": "#17110a" },
+              { "id": "D", "layout": "scatter", "shape": "dot", "lay": { "spacing": 1.15, "seed": 2, "relax": 2 }, "size": 0.6, "fill": "#17110a", "vary": { "size": 0.6 } } ],
+  "fx": [ { "kind": "drop", "p": { "mode": "bands", "n": 1, "w": 0.7 }, "src": ["t"], "layers": ["D"] },
+          { "kind": "drop", "p": { "mode": "threshold", "t": 0.48 }, "src": ["t"], "layers": ["D"] } ] }
+```
+A higher `level` gives thinner channels and wider worms; `bands` with a palette gives a topographic map.
 
 ## Good to know
 

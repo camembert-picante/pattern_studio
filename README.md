@@ -79,7 +79,7 @@ Every layout uses the same boundary, shapes and gradients, so switching between 
 | Circular pattern | Copies turned around a centre with any number of folds (5, 8, 10, 12…), like a rosette or mandala. Mirror copies adds a reflected copy beside each one; set the first ring, ring gap and number of rings, even spacing (outer rings get more copies, always a multiple of the folds), a twist per ring and a centre piece |
 | Fibonacci | Sunflower packing using the golden angle |
 | Crosshatch lines | Continuous lines whose width follows the gradient. A second direction gives moiré effects. With both directions, **Weave over and under** makes each line pass over one crossing and under the next, like woven cloth, basketry or strapwork, with a gap on each side where it passes under |
-| Contour lines | Isolines of the gradients, like a topographic map: set how many levels and the line width. With no gradients they follow a built in noise; with a Noise gradient (Detail, Warp) they look like real terrain |
+| Contour lines | Isolines of the gradients, like a topographic map: set how many levels and the line width. With no gradients they follow a built in noise; with a Noise gradient (Detail, Warp) they look like real terrain. **Draw** picks lines, **Filled above a level** (solid shapes wherever the gradient is above the level, with holes where it dips back below) or **Filled bands** (every other band between levels is solid; with a palette each band takes its own colour, like a relief map). Filled shapes export as outlines with holes to DXF, STEP and STL |
 | Voronoi stone cracks | Stones separated by cracks of a set width. **Corner radius** rounds the stones, up to smooth pebbles |
 | Flow lines | Each line bends with the gradient and can wave, giving ripples and contour map looks |
 
@@ -95,6 +95,7 @@ These are the sources: each gives a value from 0 to 1 across the surface. On the
 | Linear ramp | A gradient from 0 to 1 between two handles |
 | Image map | Halftone: an image's brightness drives the pattern, and dark areas give bigger pieces |
 | Noise | Organic variation. **Style** smooth, ridged (sharp crests) or cells (rounded cells around random points); **Detail** adds finer layers, **Roughness** sets how strong they are, **Warp** bends the noise by itself for marbled shapes |
+| Turing pattern | A reaction diffusion simulation, the process behind animal coats and coral: **Style** labyrinth (winding worms), stripes, spots or holes; **Pattern size** sets the distance from one worm or spot to the next; **Seed** gives another layout; **Stretch** and **Direction** pull the worms one way, like fingerprints or brain coral. It takes a few seconds to grow and the pattern appears when it is ready. Contour lines set to **Filled above a level** turn it into solid labyrinth shapes |
 
 Each controller has a reach, a falloff curve (linear, smooth, ease, step), invert and strength. On crosshatch and flow lines, opacity and colour effects fade smoothly along each line. You can combine several controllers by taking the strongest value, adding, multiplying or taking the weakest.
 

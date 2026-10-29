@@ -1477,7 +1477,7 @@ const BUILTINS = [
 
 /* ================= State ================= */
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
-const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', weave: false, wgap: 0.4, pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true });
+const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', draw: 'lines', level: 0.5, weave: false, wgap: 0.4, pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true });
 const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
 // Random variation per copy: turn (any angle within ±rot, or whole steps of `step` degrees), size (± share),
 // mirror, and a mix of extra shapes. The same seed always gives the same pattern.
@@ -1569,7 +1569,7 @@ function loadProject(o) {
 /* ================= Gradients & attractors ================= */
 // Controllers live on the canvas and are shared by every layer. Each gives a value 0..1 at any point;
 // layers choose what that value drives (size, spacing, rotation, opacity, colour, morph...).
-const CTRL_NAMES = { point: 'Point', line: 'Line', curve: 'Curve', ramp: 'Linear ramp', image: 'Image map', noise: 'Noise' };
+const CTRL_NAMES = { point: 'Point', line: 'Line', curve: 'Curve', ramp: 'Linear ramp', image: 'Image map', noise: 'Noise', turing: 'Turing pattern' };
 const CURVES = { linear: t => t, smooth: t => t * t * (3 - 2 * t), in: t => t * t, out: t => 1 - (1 - t) * (1 - t), step: t => t >= 0.5 ? 1 : 0 };
 function newCtrl(type) {
   const W = S.region.W, H = S.region.H, m = Math.min(W, H);
@@ -1580,6 +1580,7 @@ function newCtrl(type) {
   if (type === 'ramp') { c.x1 = +(W * 0.08).toFixed(1); c.y1 = +(H / 2).toFixed(1); c.x2 = +(W * 0.92).toFixed(1); c.y2 = +(H / 2).toFixed(1); c.curve = 'linear'; }
   if (type === 'noise') { c.radius = +(m * 0.2).toFixed(1); c.seed = 1; c.curve = 'linear'; }
   if (type === 'image') { c.data = null; c.contrast = 1.2; c.curve = 'linear'; }
+  if (type === 'turing') { c.radius = +clamp(m / 12, 3, 30).toFixed(1); c.style = 'labyrinth'; c.seed = 1; c.stretch = 1; c.angle = 0; c.curve = 'linear'; }
   return c;
 }
 // A Curve gradient is a pen path through its points: hs[k] is 0 for a corner or [inX, inY, outX, outY]. Curves
@@ -1639,7 +1640,7 @@ function loadCtrlImage(c) {
     const x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h);
     const d = x.getImageData(0, 0, w, h).data, lum = new Float32Array(w * h);
     for (let q = 0; q < w * h; q++) lum[q] = (0.2126 * d[q * 4] + 0.7152 * d[q * 4 + 1] + 0.0722 * d[q * 4 + 2]) / 255;
-    IMG.set(k, { w: w, h: h, lum: lum }); FIELD = null; requestRender();
+    IMG.set(k, { w: w, h: h, lum: lum }); FIELD = null; requestRender(); settleReady();
   };
   im.src = c.data;
 }
@@ -1674,9 +1675,68 @@ function noiseFn(c, R) {
     return st === 'cells' ? v * 1.25 : (v - 0.5) * (1.4 + 0.25 * oct) + 0.5;
   };
 }
+/* ---------- Turing (reaction diffusion) gradients ---------- */
+// Gray Scott reaction diffusion: two chemicals spread and react until they settle into worms, spots or holes of an
+// even size, like animal markings or the fluid in a ferrofluid dish. It grows once, in short steps in the background
+// so the page stays usable, on a grid that wraps at its edges (a big surface repeats one seamless tile). One period
+// of the pattern is about 13.5 grid cells; the gradient's `radius` sets that period in mm.
+const TURING = new Map(); let turingBusy = 0;
+const TURING_STYLES = { labyrinth: [0.037, 0.06], stripes: [0.029, 0.057], spots: [0.03, 0.062], holes: [0.039, 0.058] };
+const turingKey = (c, W, H) => JSON.stringify([c.radius, c.style || 'labyrinth', c.seed || 1, W, H]);
+function turingGrid(c, W, H) {
+  const key = turingKey(c, W, H), have = TURING.get(key); if (have !== undefined) return have; // null while growing
+  TURING.set(key, null); turingBusy++;
+  const h = Math.max(0.2, c.radius || 12) / 13.5;
+  let nx = Math.max(24, Math.ceil(W / h)), ny = Math.max(24, Math.ceil(H / h));
+  const cap = 150000; if (nx * ny > cap) { const k = Math.sqrt(cap / (nx * ny)); nx = Math.max(24, Math.floor(nx * k)); ny = Math.max(24, Math.floor(ny * k)); }
+  const fk = TURING_STYLES[c.style] || TURING_STYLES.labyrinth, f = fk[0], kk = fk[1], N = nx * ny;
+  let U = new Float32Array(N).fill(1), V = new Float32Array(N), U2 = new Float32Array(N), V2 = new Float32Array(N);
+  const rr = rng((c.seed || 1) * 977 + 5);
+  for (let q = Math.max(4, Math.round(N / 400)); q > 0; q--) { const x0 = (rr() * nx) | 0, y0 = (rr() * ny) | 0; for (let dy = -2; dy < 2; dy++) for (let dx = -2; dx < 2; dx++) { const i = ((y0 + dy + ny) % ny) * nx + (x0 + dx + nx) % nx; U[i] = 0.5; V[i] = 0.25; } }
+  const total = 7000; let done = 0;
+  const steps = n => {
+    for (let it = 0; it < n; it++) {
+      for (let y = 0; y < ny; y++) {
+        const ym = ((y - 1 + ny) % ny) * nx, yp = ((y + 1) % ny) * nx, y0 = y * nx;
+        for (let x = 0; x < nx; x++) {
+          const xm = x ? x - 1 : nx - 1, xp = x < nx - 1 ? x + 1 : 0, i = y0 + x, u = U[i], v = V[i], uvv = u * v * v;
+          U2[i] = u + 0.2 * (U[ym + x] + U[yp + x] + U[y0 + xm] + U[y0 + xp] - 4 * u) - uvv + f * (1 - u);
+          V2[i] = v + 0.1 * (V[ym + x] + V[yp + x] + V[y0 + xm] + V[y0 + xp] - 4 * v) + uvv - (f + kk) * v;
+        }
+      }
+      let t = U; U = U2; U2 = t; t = V; V = V2; V2 = t;
+    }
+  };
+  const chunk = () => {
+    if (TURING.get(key) !== null) return;
+    const t0 = performance.now(); while (done < total && performance.now() - t0 < 35) { steps(20); done += 20; }
+    if (done < total) { setTimeout(chunk, 0); return; }
+    let lo = Infinity, hi = -Infinity; for (let i = 0; i < N; i++) { if (V[i] < lo) lo = V[i]; if (V[i] > hi) hi = V[i]; }
+    const v = new Float32Array(N), d = Math.max(1e-6, hi - lo); for (let i = 0; i < N; i++) v[i] = (V[i] - lo) / d;
+    TURING.set(key, { nx: nx, ny: ny, h: h, v: v }); turingBusy--; FIELD = null; requestRender(); settleReady();
+  };
+  setTimeout(chunk, 0);
+  return null;
+}
+// Reading the grown pattern: smooth between grid cells, wrapping at the edges, optionally stretched along a direction.
+function turingFn(c, g) {
+  const st = Math.max(1, c.stretch || 1), a = (c.angle || 0) * D2R, ca = Math.cos(a), sa = Math.sin(a);
+  return p => {
+    let x = p[0], y = p[1];
+    if (st !== 1) { const u = (x * ca + y * sa) / st, w = -x * sa + y * ca; x = u * ca - w * sa; y = u * sa + w * ca; }
+    let fx = x / g.h - 0.5, fy = y / g.h - 0.5; const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+    const X0 = ((x0 % g.nx) + g.nx) % g.nx, Y0 = ((y0 % g.ny) + g.ny) % g.ny, X1 = (X0 + 1) % g.nx, Y1 = (Y0 + 1) % g.ny, V = g.v;
+    return (V[Y0 * g.nx + X0] * (1 - tx) + V[Y0 * g.nx + X1] * tx) * (1 - ty) + (V[Y1 * g.nx + X0] * (1 - tx) + V[Y1 * g.nx + X1] * tx) * ty;
+  };
+}
+// Images and Turing patterns arrive later; whenReady() waits for them (the API uses it so renders are complete).
+const readyWaiters = [];
+const pendingSources = () => turingBusy > 0 || [...IMG.values()].some(v => v === null);
+function settleReady() { if (pendingSources()) return; while (readyWaiters.length) readyWaiters.shift()(); }
+function whenReady() { getField(); return pendingSources() ? new Promise(res => readyWaiters.push(res)) : Promise.resolve(); }
 let FIELD = null, fieldKey = '';
 function getField() {
-  const key = JSON.stringify([S.ctrls, S.mix, S.region.W, S.region.H], (k, v) => k === 'data' ? (v ? v.length : 0) : v) + '|' + [...IMG.keys()].filter(k => IMG.get(k)).join();
+  const key = JSON.stringify([S.ctrls, S.mix, S.region.W, S.region.H], (k, v) => k === 'data' ? (v ? v.length : 0) : v) + '|' + [...IMG.keys()].filter(k => IMG.get(k)).join() + '|' + [...TURING.keys()].filter(k => TURING.get(k)).length;
   if (FIELD && key === fieldKey) return FIELD;
   fieldKey = key; FIELD = buildField(); SUBFIELDS.clear(); return FIELD;
 }
@@ -1688,8 +1748,9 @@ function fieldFor(src) {
   const k = src.join(','); if (!SUBFIELDS.has(k)) SUBFIELDS.set(k, buildField(src)); return SUBFIELDS.get(k);
 }
 function buildField(only) {
-  const cs = (S.ctrls || []).filter(c => c.on && (!only || only.includes(c.id)) && (c.type !== 'image' || (c.data && IMG.get(imgKey(c)))));
-  (S.ctrls || []).forEach(c => { if (c.type === 'image') loadCtrlImage(c); });
+  const RW = S.region.W, RH = S.region.H;
+  (S.ctrls || []).forEach(c => { if (c.type === 'image') loadCtrlImage(c); else if (c.type === 'turing' && c.on) turingGrid(c, RW, RH); });
+  const cs = (S.ctrls || []).filter(c => c.on && (!only || only.includes(c.id)) && (c.type !== 'image' || (c.data && IMG.get(imgKey(c)))) && (c.type !== 'turing' || TURING.get(turingKey(c, RW, RH))));
   if (!cs.length) return { active: false, v: () => 1, maxWarp: 0 };
   const W = S.region.W, H = S.region.H;
   const comp = cs.map(c => {
@@ -1700,6 +1761,7 @@ function buildField(only) {
     else if (c.type === 'curve') { const pl = curvePts(c); raw = p => 1 - polyDist(p, pl, false).d / R; near = p => polyDist(p, pl, false).q; }
     else if (c.type === 'ramp') { const dx = c.x2 - c.x1, dy = c.y2 - c.y1, L2 = dx * dx + dy * dy || 1; raw = p => ((p[0] - c.x1) * dx + (p[1] - c.y1) * dy) / L2; }
     else if (c.type === 'noise') raw = noiseFn(c, R);
+    else if (c.type === 'turing') raw = turingFn(c, TURING.get(turingKey(c, W, H)));
     else if (c.type === 'image') {
       const im = IMG.get(imgKey(c)), sc = Math.max(W / im.w, H / im.h), ox = (W - im.w * sc) / 2, oy = (H - im.h * sc) / 2, ct = c.contrast || 1;
       raw = p => {
@@ -2242,6 +2304,54 @@ function contourLines(L, reg, F) {
   }
   return lines;
 }
+// Filled contours: the area where the field is at least t. Every contour is traced as one closed loop (a border of
+// low values around the grid closes the ones that run off it), and the loops filled even odd are exactly that area,
+// holes included. Clipper then cuts them to the surface outline. Bands are one level minus the next.
+function isoLoops(at, nx, ny, t, P) {
+  const W1 = nx + 3, H1 = ny + 3, val = (i, j) => (i < 1 || j < 1 || i > nx + 1 || j > ny + 1) ? -1e9 : at(i - 1, j - 1);
+  const HE = W1 * H1, pts = new Map(), adj = new Map();
+  const pt = id => { if (pts.has(id)) return id; let p; if (id < HE) { const i = id % W1, j = (id / W1) | 0, a = val(i, j), b = val(i + 1, j), u = clamp((t - a) / (b - a), 0, 1); p = P(i - 1 + u, j - 1); } else { const k = id - HE, i = k % W1, j = (k / W1) | 0, a = val(i, j), b = val(i, j + 1), u = clamp((t - a) / (b - a), 0, 1); p = P(i - 1, j - 1 + u); } pts.set(id, p); return id; };
+  const link = (a, b) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); (adj.get(b) || adj.set(b, []).get(b)).push(a); };
+  for (let j = 0; j < H1 - 1; j++) for (let i = 0; i < W1 - 1; i++) {
+    const v0 = val(i, j), v1 = val(i + 1, j), v2 = val(i + 1, j + 1), v3 = val(i, j + 1), c0 = v0 >= t, c1 = v1 >= t, c2 = v2 >= t, c3 = v3 >= t;
+    if (c0 === c1 && c1 === c2 && c2 === c3) continue;
+    const E0 = j * W1 + i, E1 = HE + j * W1 + i + 1, E2 = (j + 1) * W1 + i, E3 = HE + j * W1 + i, e = [];
+    if (c0 !== c1) e.push(E0); if (c1 !== c2) e.push(E1); if (c2 !== c3) e.push(E2); if (c3 !== c0) e.push(E3);
+    if (e.length === 2) link(pt(e[0]), pt(e[1]));
+    else if (e.length === 4) { const mid = (v0 + v1 + v2 + v3) / 4 >= t; if (mid === c0) { link(pt(E0), pt(E1)); link(pt(E2), pt(E3)); } else { link(pt(E3), pt(E0)); link(pt(E1), pt(E2)); } }
+  }
+  const seen = new Set(), loops = [];
+  adj.forEach((nb, start) => {
+    if (seen.has(start)) return;
+    const loop = [pts.get(start)]; seen.add(start); let prev = -1, cur = start;
+    for (;;) { const nx2 = (adj.get(cur) || []).find(x => x !== prev && !seen.has(x)); if (nx2 == null) break; seen.add(nx2); loop.push(pts.get(nx2)); prev = cur; cur = nx2; }
+    if (loop.length > 2) loops.push(loop);
+  });
+  return loops;
+}
+function contourFills(L, reg, F) {
+  const lay = L.lay, C = CL();
+  return solvedOnce(L, 'fill', JSON.stringify([lay.draw, lay.level, lay.levels, lay.nscale, lay.seed, F.active ? fieldKey : '', reg.x0, reg.y0, reg.x1, reg.y1, S.region, L.colorMode]), () => {
+    const f = F.active ? F.v : noiseFn({ seed: lay.seed || 1, octaves: 3, rough: 0.5 }, Math.max(2, lay.nscale || 40));
+    const pad = 1, x0 = reg.x0 - pad, y0 = reg.y0 - pad, w = reg.x1 - reg.x0 + 2 * pad, h = reg.y1 - reg.y0 + 2 * pad;
+    const st = Math.max(0.12, Math.max(w, h) / 360), nx = Math.ceil(w / st), ny = Math.ceil(h / st), V = new Float32Array((nx + 1) * (ny + 1));
+    for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) V[j * (nx + 1) + i] = f([x0 + i * st, y0 + j * st]);
+    const at = (i, j) => V[j * (nx + 1) + i], P = (x, y) => ({ X: Math.round((x0 + x * st) * CK), Y: Math.round((y0 + y * st) * CK) });
+    const EO = C.PolyFillType.pftEvenOdd, regPaths = reg.loops().map(l => toC(l)), out = [];
+    const run = (type, a, b) => { const c = new C.Clipper(), t = new C.PolyTree(); c.AddPaths(a, C.PolyType.ptSubject, true); c.AddPaths(b, C.PolyType.ptClip, true); c.Execute(type, t, EO, EO); return t; };
+    const keep = (loops, j) => treeFaces(run(C.ClipType.ctIntersection, loops, regPaths)).forEach(fc => { const o = dropStraight(fc.outer); if (o.length > 2) out.push({ pts: o, holes: fc.holes.map(dropStraight).filter(hh => hh.length > 2), j: j, op: 1 }); });
+    if (lay.draw === 'bands') {
+      const n = clamp(Math.round(lay.levels || 6), 2, 60), every = L.colorMode && L.colorMode !== 'single';
+      for (let b = 0; b < n; b++) {
+        if (!every && b % 2 === 0) continue; // alternate bands, unless the layer colours every band
+        const lo = b ? isoLoops(at, nx, ny, b / n, P) : [toC([[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]])];
+        const band = b < n - 1 ? facePaths(treeFaces(run(C.ClipType.ctDifference, lo, isoLoops(at, nx, ny, (b + 1) / n, P)))) : lo;
+        if (band.length) keep(band, b);
+      }
+    } else keep(isoLoops(at, nx, ny, clamp(lay.level == null ? 0.5 : lay.level, 0.001, 0.999), P), 0);
+    return out;
+  });
+}
 function flowLines(L, reg, F) {
   const lay = L.lay, sp = Math.max(0.3, lay.spacing), a0 = lay.angle * D2R, d0 = [Math.cos(a0), Math.sin(a0)], n0 = [-d0[1], d0[0]];
   const pad = sp + lay.width * 2, box = [reg.x0 - pad, reg.y0 - pad, reg.x1 + pad, reg.y1 + pad];
@@ -2432,6 +2542,7 @@ function layerOut(L, idx, R, reg, mode, F, budget) {
   if (GEOM_LAYOUTS[lay]) {
     let polys;
     if (lay === 'voronoi') polys = voronoiStones(L, idx, reg, F, R, mode);
+    else if (lay === 'contour' && (L.lay.draw === 'fill' || L.lay.draw === 'bands')) polys = contourFills(L, reg, F).slice();
     else polys = strokesToPolys(L, idx, lay === 'hatch' ? hatchLines(L, reg) : lay === 'contour' ? contourLines(L, reg, F) : flowLines(L, reg, F), F, R, reg, mode);
     const over = polys.length > budget; if (over) polys.length = Math.max(0, budget);
     return { kind: 'geom', polys: polys, over: over, count: polys.length };
@@ -2465,7 +2576,7 @@ function exactOpen(pb) {
       for (let i = Math.max(0, Math.floor((x0 - reg.x0) / B)); i <= Math.min(gx - 1, Math.floor((x1 - reg.x0) / B)); i++) { const k = j * gx + i; (buckets.get(k) || buckets.set(k, []).get(k)).push(pc); }
   };
   (pb.los || []).forEach(lo => {
-    if (lo.kind === 'geom') { lo.polys.forEach(pg => addPiece([pg.pts])); return; }
+    if (lo.kind === 'geom') { lo.polys.forEach(pg => addPiece([pg.pts].concat(pg.holes || []))); return; }
     lo.items.forEach(it => {
       const sh = itemShape(lo, it), loops = sh.polys.filter(pl => pl.closed && pl.filled !== false && pl.pts.length > 2);
       if (loops.length) addPiece(loops.map(pl => pl.pts.map(q => Af.ap(it.T, q))));
@@ -2483,7 +2594,7 @@ function exactOpen(pb) {
 const itemShape = (lo, it) => it.m >= 0 ? lo.morph[it.m] : it.sh || lo.sh;
 function openArea(lo) {
   let a = 0;
-  if (lo.kind === 'geom') lo.polys.forEach(p => { a += Math.abs(polyArea(p.pts)); });
+  if (lo.kind === 'geom') lo.polys.forEach(p => { a += Math.abs(polyArea(p.pts)); (p.holes || []).forEach(hh => { a -= Math.abs(polyArea(hh)); }); });
   else lo.items.forEach(it => { a += shapeArea(itemShape(lo, it)) * Math.abs(Af.det(it.T)); });
   return a;
 }
@@ -2510,11 +2621,11 @@ function layerSVG(lo, L, idx, o) {
         grads += '<path d="' + loopsD([pg.pts]) + '" fill="url(#' + id + ')"/>'; return;
       }
       const c = disp ? '' : (pg.col || pickPal(pg.j, pg.j, 0, false) || ''), op = pg.op < 0.995 ? fmt(Math.round(pg.op * 40) / 40) : '';
-      const key = c + '|' + op; let g = groups.get(key); if (!g) groups.set(key, g = []); g.push(pg.pts);
+      const key = c + '|' + op; let g = groups.get(key); if (!g) groups.set(key, g = []); g.push(pg.pts); if (pg.holes) pg.holes.forEach(hh => g.push(hh));
     });
     let body = '';
     groups.forEach((list, key) => { const kk = key.split('|'); body += '<path d="' + loopsD(list) + '"' + (kk[0] ? ' fill="' + kk[0] + '"' : '') + (kk[1] ? ' opacity="' + kk[1] + '"' : '') + '/>'; });
-    const cas = !disp && L.casing > 0 && lo.polys.length ? '<path d="' + loopsD(lo.polys.map(pg => pg.pts)) + '" fill="' + esc(L.casingCol || S.region.bg) + '" stroke="' + esc(L.casingCol || S.region.bg) + '" stroke-width="' + fmt(2 * L.casing) + '" stroke-linejoin="round"/>' : '';
+    const cas = !disp && L.casing > 0 && lo.polys.length ? '<path d="' + loopsD(lo.polys.flatMap(pg => [pg.pts].concat(pg.holes || []))) + '" fill="' + esc(L.casingCol || S.region.bg) + '" stroke="' + esc(L.casingCol || S.region.bg) + '" stroke-width="' + fmt(2 * L.casing) + '" stroke-linejoin="round"/>' : '';
     return '<g data-layer="' + idx + '"' + at + '>' + (defs ? '<defs>' + defs + '</defs>' : '') + cas + body + grads + '</g>';
   }
   const sh = lo.sh, size = Math.max(1e-6, eff(L).size);
@@ -2956,7 +3067,10 @@ function buildLayout() {
       if (lay.cross) { box.append(line(chk('Weave over and under', P('weave'), v => { lay.weave = v; buildLayout(); }, 'Each line goes over one crossing and under the next, like woven cloth or strapwork'))); if (lay.weave) box.append(numRow('Weave gap', P('wgap'), Q('wgap'), 0, 5, 0.05, 'mm', 'Space left on each side where a line passes under')); } box.append(E('p', { class: 'hint' }, 'Turn on Size in Gradient response to thicken lines near controllers, and Spacing to bend them like a lens.')); break;
     case 'flow': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Direction', P('angle'), Q('angle'), -180, 180, 0.5, '°'), numRow('Bend', P('bend'), Q('bend'), -180, 180, 1, '°', 'How far gradients turn the lines'), numRow('Wave', P('wave'), Q('wave'), 0, 80, 0.5, '°'), numRow('Wavelength', P('waveLen'), Q('waveLen'), 2, 300, 1, 'mm'), numRow('Wave skew', P('waveSkew'), Q('waveSkew'), -2, 2, 0.01, '×', 'Tilts the wave fronts for moiré ripples')); break;
     case 'contour':
-      box.append(numRow('Levels', P('levels'), Q('levels'), 1, 80, 1, '', 'How many contour lines between the lowest and highest value'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'));
+      box.append(line(E('label', {}, 'Draw'), sel([['lines', 'Lines'], ['fill', 'Filled above a level'], ['bands', 'Filled bands']], () => lay.draw || 'lines', v => { lay.draw = v; buildLayout(); requestRender(); pushHistory(); })));
+      if (lay.draw === 'fill') box.append(numRow('Level', P('level'), Q('level'), 0.01, 0.99, 0.01, '', 'Everything where the gradient is above this is filled. Higher levels give thinner shapes'));
+      else if (lay.draw === 'bands') box.append(numRow('Bands', P('levels'), Q('levels'), 2, 60, 1, '', 'The range is cut into this many bands and every other one is filled. Colour pieces by Rows (Style) to fill every band with its own colour'));
+      else box.append(numRow('Levels', P('levels'), Q('levels'), 1, 80, 1, '', 'How many contour lines between the lowest and highest value'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'));
       if (!(getField().active)) box.append(numRow('Noise scale', P('nscale'), Q('nscale'), 3, 300, 0.5, 'mm', 'Size of the hills of the built in noise'), seed());
       box.append(E('p', { class: 'hint' }, getField().active ? 'The lines follow all gradients combined. A Noise gradient with Detail and Warp gives natural terrain; Size and Colour effects still work on the lines.' : 'No gradients yet, so the lines follow a built in noise. Add gradients (a Noise one makes terrain) under Effects to shape them.'));
       break;
@@ -3071,7 +3185,15 @@ function buildGradients() {
   const c = S.ctrls[selCtrl]; if (!c) return;
   const P = k => () => c[k], Q = k => v => { c[k] = v; };
   box.append(E('div', { class: 'fam' }, 'Controller ' + (selCtrl + 1) + ' · ' + CTRL_NAMES[c.type]));
+  if (c.type === 'turing' && !TURING.get(turingKey(c, S.region.W, S.region.H))) setTimeout(() => { if (S.ctrls[selCtrl] === c) buildGradients(); }, 1500);
   if (c.type === 'point' || c.type === 'line' || c.type === 'curve') box.append(numRow('Reach', P('radius'), Q('radius'), 1, 600, 0.5, 'mm', 'Distance at which the effect fades to 0'));
+  if (c.type === 'turing') {
+    const ready = !!TURING.get(turingKey(c, S.region.W, S.region.H));
+    box.append(line(E('label', {}, 'Style'), sel([['labyrinth', 'Labyrinth (worms)'], ['stripes', 'Stripes (fingerprint)'], ['spots', 'Spots'], ['holes', 'Holes']], () => c.style || 'labyrinth', v => { c.style = v; buildGradients(); requestRender(); pushHistory(); })));
+    box.append(numRow('Pattern size', P('radius'), Q('radius'), 1, 60, 0.1, 'mm', 'Distance from one worm or spot to the next'), numRow('Seed', P('seed'), Q('seed'), 1, 500, 1, '', 'Another seed grows another arrangement'));
+    box.append(numRow('Stretch', () => c.stretch || 1, v => { c.stretch = v; }, 1, 4, 0.05, '×', 'Pulls the worms out along one direction'), numRow('Direction', () => c.angle || 0, v => { c.angle = v; }, -90, 90, 1, '°'));
+    box.append(E('p', { class: 'hint' }, (ready ? '' : 'Growing the pattern… ') + 'Reaction diffusion, like ferrofluid, coral or animal markings. Use it with Contour lines set to Filled for clean worms, or with Size and Drop out effects on any layout.'));
+  }
   if (c.type === 'noise') {
     box.append(numRow('Scale', P('radius'), Q('radius'), 1, 400, 0.5, 'mm'), numRow('Seed', P('seed'), Q('seed'), 1, 500, 1, ''));
     box.append(line(E('label', {}, 'Style'), sel([['smooth', 'Smooth'], ['ridged', 'Ridged (sharp crests)'], ['cells', 'Cells (around random points)']], () => c.style || 'smooth', v => { c.style = v; if (c.octaves == null) c.octaves = 2; buildGradients(); requestRender(); pushHistory(); })));
@@ -3699,7 +3821,7 @@ function exportParts(R, forSolid) {
     if (lo.kind === 'inst') {
       if (!lo.sh.polys.length && !lo.morph) { skipped++; return; }
       lo.items.forEach(it => parts.push({ layer: lname, sh: itemShape(lo, it), T: it.T }));
-    } else lo.polys.forEach(pg => parts.push({ layer: lname, pts: pg.pts }));
+    } else lo.polys.forEach(pg => parts.push({ layer: lname, pts: pg.pts, holes: pg.holes }));
   });
   return { parts: parts, reg: reg, skipped: skipped, mode: mode };
 }
@@ -3745,7 +3867,7 @@ function cutFaces(R, o) {
     const gk = o.merge && o.across ? '*' : pt.layer; let G = byLayer.get(gk); if (!G) byLayer.set(gk, G = []);
     if (pt.sh) pt.sh.polys.forEach(pl => { if (!pl.closed && pl.pts.length > 1) open.push({ layer: pt.layer, pts: pl.pts.map(q => Af.ap(pt.T, q)) }); });
     const circle = o.circles === false ? null : pieceCircle(pt);
-    const fs = circle ? null : pieceFaces(pt.sh ? pt.sh.polys.filter(pl => pl.closed && pl.filled !== false && pl.pts.length > 2).map(pl => pl.pts.map(q => Af.ap(pt.T, q))) : [pt.pts]);
+    const fs = circle ? null : pieceFaces(pt.sh ? pt.sh.polys.filter(pl => pl.closed && pl.filled !== false && pl.pts.length > 2).map(pl => pl.pts.map(q => Af.ap(pt.T, q))) : [pt.pts].concat(pt.holes || []));
     if (!circle && !fs.length) return;
     let b;
     if (circle) b = [circle[0] - circle[2], circle[1] - circle[2], circle[0] + circle[2], circle[1] + circle[2]];
@@ -3798,10 +3920,19 @@ function cutFaces(R, o) {
 // of holes stay fast; tiles share their cut points, so the surface stays closed.
 function triFace(outer, holes) {
   const ear = window.earcut.default, out = [];
-  const one = (o, hs) => {
-    const flat = [], hi = []; let n = 0;
-    [o].concat(hs).forEach((l, i) => { if (i) hi.push(n); l.forEach(q => { flat.push(q[0], q[1]); n++; }); });
-    const pts = [o].concat(hs).flat(), idx = ear(flat, hi, 2);
+  const one = (o0, hs0) => {
+    let best = null;
+    // earcut now and then bridges a hole across a notch and leaves part of the face out; starting the outline at
+    // another corner (and taking the holes in another order) gives it a different bridge, so try until the area adds up
+    for (let r = 0; r < 8; r++) {
+      const k = Math.floor(r * o0.length / 8), o = o0.slice(k).concat(o0.slice(0, k)), hs = r % 2 ? hs0.slice().reverse() : hs0;
+      const flat = [], hi = []; let n = 0;
+      [o].concat(hs).forEach((l, i) => { if (i) hi.push(n); l.forEach(q => { flat.push(q[0], q[1]); n++; }); });
+      const idx = ear(flat, hi, 2), dev = window.earcut.deviation(flat, hi, 2, idx);
+      if (!best || dev < best.dev) best = { dev: dev, idx: idx, pts: [o].concat(hs).flat() };
+      if (dev < 1e-9) break;
+    }
+    const pts = best.pts, idx = best.idx;
     // flat triangles are kept: dropping one would open the surface where it joins two outlines
     for (let i = 0; i < idx.length; i += 3) { const a = pts[idx[i]], b = pts[idx[i + 1]], c = pts[idx[i + 2]], ar = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]); out.push(ar >= 0 ? [a, b, c] : [a, c, b]); }
   };
@@ -3923,11 +4054,20 @@ function shapeSolid(sh) {
 }
 // A perforated plate: the surface (margin 0) minus every piece, as faces with holes. Pieces stay whole inside the
 // boundary, are merged where they overlap and offset for kerf. Isolated round holes stay circles (for STEP).
-function perforatedPlate(R, tol) {
+function perforatedPlate(R, tol, gap) {
   const X = S.exp, C = CL(), t = X.baseT > 0 ? X.baseT : X.reliefH;
   const cf = cutFaces(Object.assign({}, R, { edge: 'inside' }), { forSolid: true, merge: true, across: true, offset: +X.offset || 0, clip: false });
-  const base = regionInfo(Object.assign({}, R, { margin: 0 })), basePaths = base.loops().map(l => toC(l));
-  const circles = cf.faces.filter(f => f.circle && base.edgeDist([f.circle[0], f.circle[1]]) > f.circle[2] + 1e-3), polys = cf.faces.filter(f => !circles.includes(f));
+  const base = regionInfo(Object.assign({}, R, { margin: 0 }));
+  // the plate edge moves in by 0.1 µm, so pieces that end exactly on it cut clean notches instead of leaving
+  // outlines that touch themselves along the edge
+  const co = new C.ClipperOffset(2, 0.002 * CK), basePaths = []; co.AddPaths(base.loops().map(l => toC(l)), C.JoinType.jtMiter, C.EndType.etClosedPolygon); co.Execute(basePaths, -1);
+  // round holes stay true circles only with a clear gap (gap, mm) to every other outline; closer than that, CAD
+  // tools read the two outlines as touching and reject the face, so the circle goes in as a polygon instead
+  const segs = new Map(), SC = 1, cellK = (i, j) => i * 100003 + j;
+  cf.faces.forEach(f => { if (f.circle) return; [f.outer].concat(f.holes).forEach(l => l.forEach((a, i) => { const b = l[(i + 1) % l.length];
+    for (let x = Math.floor(Math.min(a[0], b[0]) / SC); x <= Math.floor(Math.max(a[0], b[0]) / SC); x++) for (let y = Math.floor(Math.min(a[1], b[1]) / SC); y <= Math.floor(Math.max(a[1], b[1]) / SC); y++) { const k = cellK(x, y); (segs.get(k) || segs.set(k, []).get(k)).push([a, b]); } })); });
+  const clear = c => { const g = c[2] + (gap || 0.01); for (let x = Math.floor((c[0] - g) / SC); x <= Math.floor((c[0] + g) / SC); x++) for (let y = Math.floor((c[1] - g) / SC); y <= Math.floor((c[1] + g) / SC); y++) for (const sg of segs.get(cellK(x, y)) || []) if (segDist([c[0], c[1]], sg[0], sg[1]).d < g) return false; return true; };
+  const circles = cf.faces.filter(f => f.circle && base.edgeDist([f.circle[0], f.circle[1]]) > f.circle[2] + (gap || 0.01) && clear(f.circle)), polys = cf.faces.filter(f => !circles.includes(f));
   let faces = treeFaces(cRun(C.ClipType.ctDifference, basePaths, facePaths(polys.map(f => f.circle ? { outer: circlePts(f.circle, tol || 0.005), holes: [] } : f)), C.PolyFillType.pftNonZero));
   // circles that touch nothing go back in as true circles, in the plate part that holds them
   circles.forEach(c => { const f = faces.find(fc => pip([c.circle[0], c.circle[1]], fc.outer) && !fc.holes.some(h => pip([c.circle[0], c.circle[1]], h))); if (f) (f.circleHoles || (f.circleHoles = [])).push(c.circle); });
@@ -4060,16 +4200,51 @@ function stepFile(name, solidFaces) {
   const stamp = new Date().toISOString().slice(0, 19);
   return 'ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION((\'Pattern Studio solid, units mm\'),\'2;1\');\nFILE_NAME(\'' + name + '.stp\',\'' + stamp + '\',(\'\'),(\'\'),\'Pattern Studio\',\'Pattern Studio\',\'\');\nFILE_SCHEMA((\'AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }\'));\nENDSEC;\nDATA;\n' + out.join('\n') + '\nENDSEC;\nEND-ISO-10303-21;\n';
 }
+// True when any two sides of these loops cross or touch (sides next to each other in one loop aside), or a side
+// comes within a hair of one of the circles.
+function loopsClash(loops, circles) {
+  const bb = [Infinity, Infinity, -Infinity, -Infinity]; loops.forEach(l => l.forEach(q => { bb[0] = Math.min(bb[0], q[0]); bb[1] = Math.min(bb[1], q[1]); bb[2] = Math.max(bb[2], q[0]); bb[3] = Math.max(bb[3], q[1]); }));
+  const SC = Math.max(0.5, Math.hypot(bb[2] - bb[0], bb[3] - bb[1]) / 256), cells = new Map(), key = (i, j) => i * 1000003 + j, EPS = 1e-4;
+  const orient = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  const meet = (a, b, c, d) => {
+    const d1 = orient(c, d, a), d2 = orient(c, d, b), d3 = orient(a, b, c), d4 = orient(a, b, d);
+    if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true;
+    return segDist(a, c, d).d < EPS || segDist(b, c, d).d < EPS || segDist(c, a, b).d < EPS || segDist(d, a, b).d < EPS;
+  };
+  for (let li = 0; li < loops.length; li++) {
+    const l = loops[li], n = l.length;
+    for (let i = 0; i < n; i++) {
+      const a = l[i], b = l[(i + 1) % n];
+      for (let x = Math.floor(Math.min(a[0], b[0]) / SC); x <= Math.floor(Math.max(a[0], b[0]) / SC); x++) for (let y = Math.floor(Math.min(a[1], b[1]) / SC); y <= Math.floor(Math.max(a[1], b[1]) / SC); y++) {
+        const k = key(x, y), list = cells.get(k) || cells.set(k, []).get(k);
+        for (const o of list) {
+          if (o[0] === li && (o[1] === i || (o[1] + 1) % n === i || (i + 1) % n === o[1])) continue;
+          if (meet(a, b, o[2], o[3])) return true;
+        }
+        list.push([li, i, a, b]);
+      }
+    }
+  }
+  for (const c of circles) {
+    const g = c[2] + EPS;
+    for (let x = Math.floor((c[0] - g) / SC); x <= Math.floor((c[0] + g) / SC); x++) for (let y = Math.floor((c[1] - g) / SC); y <= Math.floor((c[1] + g) / SC); y++) for (const o of cells.get(key(x, y)) || []) if (segDist([c[0], c[1]], o[2], o[3]).d < g) return true;
+  }
+  return false;
+}
 function stepSolids(R) {
   const X = S.exp, H = R.H, perforated = X.solid === 'perforated';
   const up = p => [p[0], H - p[1]], upC = c => ({ circle: [c[0], H - c[1], c[2]] });
   const tol = Math.max(0.001, X.stepTol || 0.01);
   const simp = l => { let q = rdp(l.concat([l[0]]), tol); q.pop(); return q.length > 2 ? q : l; };
-  // flipped to y up, outer loops counter clockwise and holes clockwise
-  const fixFace = (outer, holes) => ({ outer: orientPos(simp(outer.map(up))), holes: holes.map(h => simp(h.map(up))).filter(h => h.length > 2 && Math.abs(polyArea(h)) > 1e-9).map(h => polyArea(h) > 0 ? h.slice().reverse() : h) });
+  // flipped to y up, outer loops counter clockwise and holes clockwise. A face whose simplified outlines end up
+  // crossing or touching (two outlines a hair apart) keeps its full detail instead, so CAD tools accept it.
+  const fixFace = (outer, holes, circles) => {
+    const make = sm => ({ outer: orientPos(sm(outer.map(up))), holes: holes.map(h => sm(h.map(up))).filter(h => h.length > 2 && Math.abs(polyArea(h)) > 1e-9).map(h => polyArea(h) > 0 ? h.slice().reverse() : h) });
+    const f = make(simp); return loopsClash([f.outer].concat(f.holes), (circles || []).map(c => upC(c).circle)) ? make(l => l) : f;
+  };
   if (perforated) {
-    const pl = perforatedPlate(R, 0);
-    const plate = pl.faces.map(f => Object.assign(fixFace(f.outer, f.holes), { z0: 0, z1: pl.t })).map((p, i) => { (pl.faces[i].circleHoles || []).forEach(c => p.holes.push(upC(c))); return p; });
+    const pl = perforatedPlate(R, 0, 2 * tol + 0.01); // outlines get simplified by tol, so round holes keep a wider gap
+    const plate = pl.faces.map(f => Object.assign(fixFace(f.outer, f.holes, f.circleHoles), { z0: 0, z1: pl.t })).map((p, i) => { (pl.faces[i].circleHoles || []).forEach(c => p.holes.push(upC(c))); return p; });
     return { plate: plate, motifs: [], skipped: pl.skipped, count: pl.holes };
   }
   const cf = cutFaces(R, { forSolid: true, merge: !!X.merge, across: !!X.mergeLayers, offset: +X.offset || 0, clip: R.edge === 'clip' });
@@ -5123,7 +5298,9 @@ function summary() {
 window.PatternStudio = {
   version: 1,
   /** Load a project (object or JSON text). Missing fields take their defaults. Returns a summary. */
-  load(project) { loadProject(typeof project === 'string' ? JSON.parse(project) : project); return summary(); },
+  async load(project) { loadProject(typeof project === 'string' ? JSON.parse(project) : project); await whenReady(); render(); return summary(); },
+  /** Resolves when images and Turing patterns have finished loading or growing. */
+  ready() { return whenReady(); },
   /** The current pattern as a project object (what Save project writes). */
   get() { return JSON.parse(projectJSON()); },
   /** Pieces, open area, surface size and seamless tile of the current pattern. */
