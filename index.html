@@ -108,6 +108,7 @@ body.motifOpen .motifPanel{display:block}
 .keepRow{display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:var(--field)}
 .keepRow.sel{border-color:#e5484d;background:rgba(229,72,77,.12)}
 .keepRow .nm{flex:1;font-size:12.5px}
+.keepFor{color:var(--muted);font-size:11px}
 .keepRow .eye{border:0;background:none;padding:0;width:28px;min-height:28px;color:var(--muted)}
 .keepRow .eye svg.i{width:16px;height:16px}
 .keepSw{width:12px;height:12px;border-radius:3px;background:rgba(229,72,77,.35);border:1.5px solid #e5484d;flex:none}
@@ -1477,7 +1478,7 @@ const BUILTINS = [
 
 /* ================= State ================= */
 const PALETTES = [['#1f2a44', '#d4552b', '#3d8b6e', '#e8b04a'], ['#d4552b', '#1f2a44', '#e8b04a', '#3d8b6e'], ['#3d8b6e', '#1f2a44', '#d4552b', '#e8b04a'], ['#e8b04a', '#1f2a44', '#3d8b6e', '#d4552b']];
-const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', draw: 'lines', level: 0.5, weave: false, wgap: 0.4, pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true, wobble: 0, wscale: 0, vstretch: 1, vang: 0, nucleus: 0, bstart: 'bottom', breach: 4, btip: 0.25, loops: 0, curl: 0.3, gstart: 'one', gseeds: 5, gfill: 0.7, bub: 0, bubSize: 0, bubSpread: 0 });
+const LAY0 = () => ({ spacing: 8, seed: 1, jitter: 0, rowOff: 0.5, arms: 1, pitch: 8, cx: 50, cy: 50, ringMode: 'circle', pathId: '', rows: 1, rowGap: 6, align: true, angle: 0, cross: true, crossAngle: 90, width: 1.2, gap: 1, round: 1, corner: 0, bend: 60, wave: 0, waveLen: 50, waveSkew: 0, stack: 'none', draw: 'lines', level: 0.5, weave: false, wgap: 0.4, pmin: 2, pmax: 16, pgap: 0.8, pfield: true, relax: 0, levels: 12, nscale: 40, fold: 8, mirror: true, offset: 8, rings: 0, r0: 10, ringGap: 10, even: true, twist: 0, centre: true, wobble: 0, wscale: 0, vstretch: 1, vang: 0, nucleus: 0, bstart: 'bottom', breach: 4, btip: 0.25, loops: 0, curl: 0.3, gstart: 'one', gseeds: 5, gfill: 0.7, bub: 0, bubSize: 0, bubSpread: 0, more: 0, fillGaps: false });
 const MOD0 = () => ({ size: { on: false, min: 0.3, max: 1 }, rot: { on: false, deg: 90 }, align: { on: false, off: 0 }, spacing: { on: false, amt: -0.5 }, opacity: { on: false, min: 0.2 }, drop: { on: false, mode: 'threshold', t: 0.3 }, color: { on: false, c2: '#e8b04a' }, feather: { on: false, w: 0.35 }, morph: { on: false, shape: 'star', steps: 10 } });
 // Random variation per copy: turn (any angle within ±rot, or whole steps of `step` degrees), size (± share),
 // mirror, and a mix of extra shapes. The same seed always gives the same pattern.
@@ -1930,6 +1931,23 @@ function zonesNow() {
   zonesKey = k;
   ZONES = (S.excl || []).filter(z => z.on).map(z => { const P = zonePoly(z); return P.length > 2 ? { z: z, P: P, b: bboxOf(P) } : null; }).filter(Boolean);
   return ZONES;
+}
+// Outlines that are worked out as a whole (filled contours, melted layers, grown lines) lose the parts inside the
+// keep-out areas that apply to the layer, margin included.
+function cutZones(L, polys) {
+  const Z = zonesNow().filter(q => zoneOn(q.z, L)); if (!Z.length || !polys.length) return polys;
+  const C = CL(), cut = [], boxes = [];
+  Z.forEach(q => { const m = q.z.margin || 0, p = toC(orientPos(q.P)); boxes.push([q.b[0] - m, q.b[1] - m, q.b[2] + m, q.b[3] + m]); if (m > 0) C.JS.PolyTreeToExPolygons(cOffset([p], m)).forEach(e => cut.push(e.outer)); else cut.push(p); });
+  const out = [];
+  polys.forEach(pg => {
+    const b = [Infinity, Infinity, -Infinity, -Infinity]; pg.pts.forEach(q => { if (q[0] < b[0]) b[0] = q[0]; if (q[1] < b[1]) b[1] = q[1]; if (q[0] > b[2]) b[2] = q[0]; if (q[1] > b[3]) b[3] = q[1]; });
+    if (!boxes.some(z => b[0] <= z[2] && b[2] >= z[0] && b[1] <= z[3] && b[3] >= z[1])) { out.push(pg); return; }
+    const c = new C.Clipper(), t = new C.PolyTree();
+    c.AddPath(toC(orientPos(pg.pts)), C.PolyType.ptSubject, true); (pg.holes || []).forEach(h => c.AddPath(toC(polyArea(h) > 0 ? h.slice().reverse() : h), C.PolyType.ptSubject, true));
+    c.AddPaths(cut, C.PolyType.ptClip, true); c.Execute(C.ClipType.ctDifference, t, C.PolyFillType.pftNonZero, C.PolyFillType.pftNonZero);
+    treeFaces(t).forEach(fc => { if (fc.outer.length > 2) out.push(Object.assign({}, pg, { pts: fc.outer, holes: fc.holes.filter(h => h.length > 2), grad: undefined, strip: undefined })); });
+  });
+  return out;
 }
 // true when a piece at c with radius r must go for layer L
 function exclHit(L, c, r) {
@@ -2423,7 +2441,7 @@ function flowLines(L, reg, F) {
   const lay = L.lay, sp = Math.max(0.3, lay.spacing), a0 = lay.angle * D2R, d0 = [Math.cos(a0), Math.sin(a0)], n0 = [-d0[1], d0[0]];
   const pad = sp + lay.width * 2, box = [reg.x0 - pad, reg.y0 - pad, reg.x1 + pad, reg.y1 + pad];
   const ctr = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2], diag = Math.hypot(box[2] - box[0], box[3] - box[1]);
-  const step = Math.max(0.3, Math.min(sp / 2.5, 2.5)), maxSteps = Math.ceil(diag * 1.6 / step);
+  const step = Math.max(0.3, Math.min(sp / 2.5, 2.5)), maxSteps = Math.ceil(diag * 1.6 * (1 + Math.max(0, lay.more || 0)) / step);
   const dirAt = p => {
     let th = a0;
     if (F.active && lay.bend) th += lay.bend * D2R * (F.v(p) - (lay.bendCentre ? 0.5 : 0));
@@ -2432,11 +2450,29 @@ function flowLines(L, reg, F) {
   };
   const inB = p => p[0] >= box[0] && p[0] <= box[2] && p[1] >= box[1] && p[1] <= box[3];
   const trace = (p, sg) => { const out = []; let q = p; for (let i = 0; i < maxSteps; i++) { const d1 = dirAt(q), m = [q[0] + sg * d1[0] * step / 2, q[1] + sg * d1[1] * step / 2], d2 = dirAt(m); q = [q[0] + sg * d2[0] * step, q[1] + sg * d2[1] * step]; if (!inB(q)) break; out.push(q); } return out; };
-  const K = Math.ceil(diag / 2 / sp) + 1, lines = [];
+  // Extra lines: the row of starting points reaches further out on both sides, for bends that sweep lines away
+  const K = Math.ceil(diag / 2 / sp * (1 + Math.max(0, lay.more || 0))) + 1, lines = [];
   for (let k = -K; k <= K; k++) {
     const seed = [ctr[0] + n0[0] * k * sp, ctr[1] + n0[1] * k * sp];
     const pts = trace(seed, -1).reverse().concat([seed], trace(seed, 1));
     if (pts.length > 1) lines.push({ pts: pts, j: k, di: 0 });
+  }
+  if (lay.fillGaps) {
+    // Fill gaps: wherever the surface is further than the spacing from every line, a new line starts and runs
+    // both ways until it comes within about half the spacing of another line, so bare patches fill evenly
+    const g = pointGrid(sp), own = [], keep = sp * 0.55, inR = p => p[0] >= reg.x0 && p[0] <= reg.x1 && p[1] >= reg.y0 && p[1] <= reg.y1;
+    const addLine = (pts, id) => pts.forEach((q, k) => { if (!(k % 2) || k === pts.length - 1) { const n = own.length; own.push([q[0], q[1], id]); g.add(n, q[0], q[1]); } });
+    const clear = (q, r, id) => { let ok = true; g.near(q[0], q[1], r, n => { const o = own[n]; if (ok && o[2] !== id && (o[0] - q[0]) ** 2 + (o[1] - q[1]) ** 2 < r * r) ok = false; }); return ok; };
+    lines.forEach((ln, i) => addLine(ln.pts, i));
+    const grow = (p, sg, id) => { const out = []; let q = p; for (let i = 0; i < maxSteps; i++) { const d1 = dirAt(q), m = [q[0] + sg * d1[0] * step / 2, q[1] + sg * d1[1] * step / 2], d2 = dirAt(m); q = [q[0] + sg * d2[0] * step, q[1] + sg * d2[1] * step]; if (!inB(q) || !clear(q, keep, id)) break; out.push(q); } return out; };
+    let next = lines.length, jn = K + 1;
+    for (let y = reg.y0 + sp / 2; y < reg.y1 && next < 20000; y += sp / 2) for (let x = reg.x0 + sp / 2; x < reg.x1 && next < 20000; x += sp / 2) {
+      const c = [x, y]; if (!inR(c) || !reg.contains(c) || !clear(c, sp * 0.95, -1)) continue;
+      const pts = grow(c, -1, next).reverse().concat([c], grow(c, 1, next));
+      let len = 0; for (let k = 1; k < pts.length; k++) len += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]);
+      if (len < sp * 1.5) { addLine([c], next++); continue; } // too short to draw; still marks the spot as taken
+      lines.push({ pts: pts, j: jn++, di: 0 }); addLine(pts, next++);
+    }
   }
   return lines;
 }
@@ -2888,7 +2924,7 @@ function grownPolys(L, idx, reg, F, R) {
 function layerOut(L, idx, R, reg, mode, F, budget) {
   const lo = layerOutRaw(L, idx, R, reg, mode, F, budget), m = fxKind(L, 'melt')[0];
   if (!m || !lo.count || !(m.p.r > 0)) return lo;
-  const polys = meltLayer(L, lo, reg, m);
+  const polys = cutZones(L, meltLayer(L, lo, reg, m));
   return { kind: 'geom', polys: polys, over: lo.over, count: polys.length, melted: true };
 }
 // Melt: every piece is painted on a fine grid, blurred, and traced again where the blur crosses a level (the
@@ -2953,8 +2989,8 @@ function layerOutRaw(L, idx, R, reg, mode, F, budget) {
   if (GEOM_LAYOUTS[lay]) {
     let polys;
     if (lay === 'voronoi') polys = voronoiStones(L, idx, reg, F, R, mode);
-    else if (lay === 'branch' || lay === 'growth') polys = grownPolys(L, idx, reg, F, R);
-    else if (lay === 'contour' && (L.lay.draw === 'fill' || L.lay.draw === 'bands')) polys = contourFills(L, reg, F).slice();
+    else if (lay === 'branch' || lay === 'growth') polys = cutZones(L, grownPolys(L, idx, reg, F, R));
+    else if (lay === 'contour' && (L.lay.draw === 'fill' || L.lay.draw === 'bands')) polys = cutZones(L, contourFills(L, reg, F));
     else polys = strokesToPolys(L, idx, lay === 'hatch' ? hatchLines(L, reg) : lay === 'contour' ? contourLines(L, reg, F) : flowLines(L, reg, F), F, R, reg, mode);
     const over = polys.length > budget; if (over) polys.length = Math.max(0, budget);
     return { kind: 'geom', polys: polys, over: over, count: polys.length };
@@ -3481,7 +3517,9 @@ function buildLayout() {
     }
     case 'hatch': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Angle', P('angle'), Q('angle'), -180, 180, 0.5, '°'), line(chk('Crosshatch', P('cross'), v => { lay.cross = v; buildLayout(); })), lay.cross ? numRow('Cross angle', P('crossAngle'), Q('crossAngle'), 5, 175, 0.5, '°') : '');
       if (lay.cross) { box.append(line(chk('Weave over and under', P('weave'), v => { lay.weave = v; buildLayout(); }, 'Each line goes over one crossing and under the next, like woven cloth or strapwork'))); if (lay.weave) box.append(numRow('Weave gap', P('wgap'), Q('wgap'), 0, 5, 0.05, 'mm', 'Space left on each side where a line passes under')); } box.append(E('p', { class: 'hint' }, 'Turn on Size in Gradient response to thicken lines near controllers, and Spacing to bend them like a lens.')); break;
-    case 'flow': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Direction', P('angle'), Q('angle'), -180, 180, 0.5, '°'), numRow('Bend', P('bend'), Q('bend'), -180, 180, 1, '°', 'How far gradients turn the lines'), numRow('Wave', P('wave'), Q('wave'), 0, 80, 0.5, '°'), numRow('Wavelength', P('waveLen'), Q('waveLen'), 2, 300, 1, 'mm'), numRow('Wave skew', P('waveSkew'), Q('waveSkew'), -2, 2, 0.01, '×', 'Tilts the wave fronts for moiré ripples')); break;
+    case 'flow': box.append(spacing('Line spacing'), numRow('Line width', P('width'), Q('width'), 0.05, 20, 0.05, 'mm'), numRow('Direction', P('angle'), Q('angle'), -180, 180, 0.5, '°'), numRow('Bend', P('bend'), Q('bend'), -180, 180, 1, '°', 'How far gradients turn the lines'), numRow('Wave', P('wave'), Q('wave'), 0, 80, 0.5, '°'), numRow('Wavelength', P('waveLen'), Q('waveLen'), 2, 300, 1, 'mm'), numRow('Wave skew', P('waveSkew'), Q('waveSkew'), -2, 2, 0.01, '×', 'Tilts the wave fronts for moiré ripples'),
+      numRow('Extra lines', () => lay.more || 0, Q('more'), 0, 4, 0.1, '×', 'Starts more lines further out on both sides and lets every line run longer, for strong bends and curls that sweep lines away. For bare patches inside the surface, use Fill gaps'),
+      line(chk('Fill gaps', () => !!lay.fillGaps, v => { lay.fillGaps = v; }, 'Starts new lines in any bare patch, keeping them the spacing away from the others'))); break;
     case 'contour':
       box.append(line(E('label', {}, 'Draw'), sel([['lines', 'Lines'], ['fill', 'Filled above a level'], ['bands', 'Filled bands']], () => lay.draw || 'lines', v => { lay.draw = v; buildLayout(); requestRender(); pushHistory(); })));
       if (lay.draw === 'fill') box.append(numRow('Level', P('level'), Q('level'), 0.01, 0.99, 0.01, '', 'Everything where the gradient is above this is filled. Higher levels give thinner shapes'));
@@ -3514,6 +3552,22 @@ function buildLayout() {
       break;
     }
   }
+  // which keep-out areas cut into this layer: tick or untick each one for this layer only
+  if ((S.excl || []).length) {
+    box.append(E('div', { class: 'fam' }, 'Keep-out areas on this layer'));
+    S.excl.forEach((z, i) => {
+      const name = (z.type === 'shape' && SHAPES[z.shapeId] ? SHAPES[z.shapeId].name : ZONE_NAMES[z.type]) + ' ' + (i + 1);
+      box.append(line(chk(name, () => zoneOn(z, L), v => setZoneOn(z, L, v), 'Untick to let this layer run through the area while other layers stay out of it')));
+    });
+  }
+}
+// Does keep-out area z apply to layer L, and switching that for one layer (back to "all" once every layer has it).
+const zoneOn = (z, L) => z.layers === 'all' || z.layers.includes(L.id);
+function setZoneOn(z, L, on) {
+  let ids = z.layers === 'all' ? S.layers.map(l => l.id) : z.layers.slice();
+  ids = on ? (ids.includes(L.id) ? ids : ids.concat([L.id])) : ids.filter(id => id !== L.id);
+  z.layers = S.layers.every(l => ids.includes(l.id)) ? 'all' : ids;
+  if (flyGroup === 'keepout') renderFly();
 }
 // The Effects panel: a stack of effects, each driven by some or all gradients and applied to some or all layers.
 const fxOpen = new Set();
@@ -4030,7 +4084,7 @@ function setMotifPanel(on) {
 }
 function renderKeepout(fly) {
   fly.append(E('div', { class: 'flyHead' }, E('span', { class: 'keepT' }, 'Keep-out areas'), E('button', { class: 'icon ghost', 'aria-label': 'Close', onclick: () => { flyGroup = null; renderShapes(); } }, '✕')));
-  fly.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Pieces are removed inside the red areas: around screw holes, logos, or anywhere the pattern should stop.'));
+  fly.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Pieces are removed inside the red areas: around screw holes, logos, or anywhere the pattern should stop. Each area works on every layer until you narrow it: click it below and pick layers under Applies to, or untick it in a layer\u2019s Layout panel.'));
   const tool = (t, label, svg) => { const b = E('button', { class: 'mini keepTool', onclick: () => startZoneTool(t) }); b.innerHTML = '<svg class="i" viewBox="0 0 24 24">' + svg + '</svg>' + label; return b; };
   fly.append(E('div', { class: 'btns', style: 'margin-top:0' }, tool('rect', 'Rectangle', '<rect x="4" y="6" width="16" height="12" rx="1"/>'), tool('ellipse', 'Ellipse', '<ellipse cx="12" cy="12" rx="8" ry="6"/>'), tool('poly', 'Draw', '<path d="M5 18 8 6l6 4 5-3-2 11z"/>')));
   const pick = E('details', { class: 'keepShapes' }, E('summary', {}, 'From a shape…'));
@@ -4042,7 +4096,7 @@ function renderKeepout(fly) {
   S.excl.forEach((z, i) => {
     const name = (z.type === 'shape' && SHAPES[z.shapeId] ? SHAPES[z.shapeId].name : ZONE_NAMES[z.type]) + ' ' + (i + 1);
     list.append(E('div', { class: 'keepRow' + (i === selZone ? ' sel' : ''), onclick: () => selectZone(i === selZone ? -1 : i) },
-      E('span', { class: 'keepSw' }), E('span', { class: 'nm' }, name),
+      E('span', { class: 'keepSw' }), E('span', { class: 'nm' }, name, E('small', { class: 'keepFor' }, z.layers === 'all' ? ' · all layers' : ' · ' + (z.layers.length ? z.layers.map(id => 'Layer ' + (S.layers.findIndex(l => l.id === id) + 1)).filter(t => !/ 0$/.test(t)).join(', ') : 'no layer'))),
       eyeBtn(z.on, z.on ? 'Turn this area off' : 'Turn this area on', ev => { ev.stopPropagation(); z.on = !z.on; renderFly(); requestRender(); pushHistory(); }),
       (() => { const b = E('button', { class: 'eye', title: 'Duplicate area (Ctrl/Cmd+D)', 'aria-label': 'Duplicate area', onclick: ev => { ev.stopPropagation(); duplicateZone(i); } }); b.innerHTML = '<svg class="i" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>'; return b; })(),
       (() => { const b = E('button', { class: 'eye', title: 'Delete area', 'aria-label': 'Delete area', onclick: ev => { ev.stopPropagation(); deleteZone(i); } }); b.innerHTML = '<svg class="i" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>'; return b; })()));

@@ -135,7 +135,7 @@ Each layer is one shape repeated by one layout. Layers are drawn in list order, 
 | `fibonacci` | Sunflower packing | `spacing`, `cx`, `cy`, `align` (point copies outward), `jitter` |
 | `hatch` | Continuous lines; their width follows gradients | `spacing`, `width`, `angle`, `cross` (second direction), `crossAngle`, `weave` (over and under at the crossings), `wgap` (gap where a line passes under) |
 | `contour` | Isolines of all gradients combined (a built in noise when there are none) | `levels` (number of lines), `width`, `nscale` and `seed` for the built in noise. `draw`: `lines` (default), `fill` (solid where the gradient is above `level`, 0 to 1, with holes) or `bands` (every other band between the `levels` is solid; with a palette `colorMode` every band is filled in turn) |
-| `flow` | Lines that bend with gradients and can wave | `spacing`, `width`, `angle`, `bend`, `bendCentre`, `wave`, `waveLen`, `waveSkew` |
+| `flow` | Lines that bend with gradients and can wave | `spacing`, `width`, `angle`, `bend`, `bendCentre`, `wave`, `waveLen`, `waveSkew`, `fillGaps` (true: new lines start in every bare patch), `more` (0 to 4: lines start further out and run longer) |
 | `voronoi` | Cells or stones separated by cracks | `spacing` (cell size), `gap` (crack width), `corner` (corner radius in mm; large values give pebbles), `round` (extra smoothing, 0 to 4), `seed`. Organic cells: `wobble` (mm the walls bend), `wscale` (size of the bends, mm; 0 = cell size), `vstretch` (1 to 6, cells that many times longer than wide) along `vang` (degrees), `nucleus` (0 to 0.9, a round hole in each cell) |
 | `branch` | Veins growing towards open space, thick trunk to fine tips | `spacing` (vein spacing), `bstart` (`bottom`: below the start point, `centre`: at it, `edge`: all around the outline), `cx`, `cy` (start point, % of the surface), `width` (trunk), `btip` (tip width), `breach` (1.5 to 12, how far veins sense space, × spacing), `curl` (0 to 0.9, smoothness), `loops` (0 to 1, share of tips joined back into loops), `seed` |
 | `branch`, `growth` bubbles | Drops scattered along both sides of the line | `bub` (0 to 1, how many), `bubSize` (mm; 0 = 0.6 × width), `bubSpread` (mm from the line; 0 = 1.5 × width). Bubbles that touch the line join it as beads |
@@ -256,7 +256,7 @@ Red areas where pieces are removed (screw holes, logos, clear bands). Coordinate
 | `hs` | `poly` only: curve handles, one entry per point, `0` for a corner or `[inX, inY, outX, outY]` in mm for a curved point | all corners |
 | `margin` | Extra clear space around the area, mm | 0 |
 | `mode` | `touch` removes pieces that touch the area; `centre` only those centred in it | `touch` |
-| `layers` | `"all"` or a list of layer `id`s | `"all"` |
+| `layers` | `"all"` or a list of layer `id`s the area cuts into; the other layers run straight through it. Give layers an `id` to use this | `"all"` |
 | `on` | Turn the area off without removing it | `true` |
 
 ### Shapes
