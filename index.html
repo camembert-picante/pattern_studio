@@ -135,6 +135,7 @@ body.draggingShape #layerList::after{content:'+ Drop here for a new layer';displ
 .fxTag{font-size:11px;font-style:italic;font-weight:700;color:var(--accent);margin-right:2px}
 .fxChip{min-height:24px;padding:0 7px 0 5px;gap:4px;font-size:11px;border-radius:6px;background:var(--field);color:var(--ink)}
 .fxChip svg.i{width:13px;height:13px;color:var(--accent)}
+.keepChip svg.i{color:#e5484d}
 .fxChip.off{opacity:.45;text-decoration:line-through}
 /* shape tools on the left, Illustrator style: each button is a family; click to open its flyout */
 .rail{display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;scrollbar-width:none}
@@ -3552,23 +3553,9 @@ function buildLayout() {
       break;
     }
   }
-  // which keep-out areas cut into this layer: tick or untick each one for this layer only
-  if ((S.excl || []).length) {
-    box.append(E('div', { class: 'fam' }, 'Keep-out areas on this layer'));
-    S.excl.forEach((z, i) => {
-      const name = (z.type === 'shape' && SHAPES[z.shapeId] ? SHAPES[z.shapeId].name : ZONE_NAMES[z.type]) + ' ' + (i + 1);
-      box.append(line(chk(name, () => zoneOn(z, L), v => setZoneOn(z, L, v), 'Untick to let this layer run through the area while other layers stay out of it')));
-    });
-  }
 }
-// Does keep-out area z apply to layer L, and switching that for one layer (back to "all" once every layer has it).
+// Does keep-out area z apply to layer L
 const zoneOn = (z, L) => z.layers === 'all' || z.layers.includes(L.id);
-function setZoneOn(z, L, on) {
-  let ids = z.layers === 'all' ? S.layers.map(l => l.id) : z.layers.slice();
-  ids = on ? (ids.includes(L.id) ? ids : ids.concat([L.id])) : ids.filter(id => id !== L.id);
-  z.layers = S.layers.every(l => ids.includes(l.id)) ? 'all' : ids;
-  if (flyGroup === 'keepout') renderFly();
-}
 // The Effects panel: a stack of effects, each driven by some or all gradients and applied to some or all layers.
 const fxOpen = new Set();
 function fxSummary(e) {
@@ -3825,11 +3812,12 @@ function fxChip(e, fromLayer) {
 }
 function renderLayers() {
   const box = $('#layerList'); box.innerHTML = '';
-  // overall effects sit on their own row at the top, like an adjustment layer over everything
-  if ((S.fx || []).length) {
-    const all = (S.fx || []).filter(e => e.layers === 'all');
+  // overall effects and keep-out areas sit on their own row at the top, like an adjustment layer over everything
+  if ((S.fx || []).length || (S.excl || []).length) {
+    const all = (S.fx || []).filter(e => e.layers === 'all'), allZ = (S.excl || []).filter(z => z.layers === 'all');
     const row = E('div', { class: 'layerAll' }, E('span', { class: 'fxTag' }, 'fx'), E('span', { class: 'laName' }, 'All layers'));
-    if (all.length) all.forEach(e => row.append(fxChip(e, 'all'))); else row.append(E('span', { class: 'laHint' }, 'Drop an effect here to use it on every layer'));
+    all.forEach(e => row.append(fxChip(e, 'all'))); allZ.forEach(z => row.append(zoneChip(z, 'all')));
+    if (!all.length && !allZ.length) row.append(E('span', { class: 'laHint' }, 'Drop an effect or keep-out area here to use it on every layer'));
     box.append(row);
   }
   S.layers.slice().reverse().forEach(L => {
@@ -3840,10 +3828,10 @@ function renderLayers() {
       eyeBtn(L.visible, L.visible ? 'Hide this layer' : 'Show this layer', ev => { ev.stopPropagation(); L.visible = !L.visible; renderLayers(); requestRender(); pushHistory(); }));
     box.append(row);
     // like Photoshop: the effects acting on this layer, listed under it; click one to open it
-    const fxs = (S.fx || []).filter(e => Array.isArray(e.layers) && e.layers.includes(L.id));
-    if (fxs.length) {
+    const fxs = (S.fx || []).filter(e => Array.isArray(e.layers) && e.layers.includes(L.id)), zs = (S.excl || []).filter(z => Array.isArray(z.layers) && z.layers.includes(L.id));
+    if (fxs.length || zs.length) {
       const tl = E('div', { class: 'layerFx' + (i === S.sel ? ' sel' : ''), 'data-layer': L.id }, E('span', { class: 'fxTag' }, 'fx'));
-      fxs.forEach(e => tl.append(fxChip(e, L.id)));
+      fxs.forEach(e => tl.append(fxChip(e, L.id))); zs.forEach(z => tl.append(zoneChip(z, L.id)));
       box.append(tl);
     }
   });
@@ -4028,6 +4016,37 @@ function shapeDrag(el, id, onClick) {
 }
 // Effects in the Layers list: drag a chip onto a layer to move it there, onto "All layers" to make it an
 // overall effect, or hold Alt while dropping to copy it instead of moving it.
+// A keep-out area as a chip next to the layers it cuts into, like an effect: click to open it, drag it to another
+// layer (Alt adds it there too) or to All layers.
+const zoneName = (z, i) => (z.type === 'shape' && SHAPES[z.shapeId] ? SHAPES[z.shapeId].name : ZONE_NAMES[z.type]) + ' ' + (i + 1);
+const ZONE_ICON = '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M6.5 6.5l11 11"/></svg>';
+function zoneChip(z, fromLayer) {
+  const i = S.excl.indexOf(z), name = zoneName(z, i);
+  const c = E('button', { class: 'fxChip keepChip' + (z.on ? '' : ' off'), title: 'Keep-out area: ' + name + (z.on ? '' : ' (off)') + '. Click to open, drag to another layer or to All layers (Alt adds it there too)' });
+  c.innerHTML = ZONE_ICON + '<span>' + esc(name) + '</span>';
+  makeDrag(c, {
+    click: () => { flyGroup = 'keepout'; selectZone(S.excl.indexOf(z)); renderShapes(); },
+    ghost: () => ZONE_ICON + '<span>' + esc(name) + '</span>', ghostClass: 'fxGhost', bodyClass: 'draggingFx',
+    target: (x, y) => {
+      const t = document.elementFromPoint(x, y); if (!t) return null;
+      if (t.closest('.layerAll')) return { el: t.closest('.layerAll'), to: 'all' };
+      const row = t.closest('[data-layer]'); if (row) return { el: row, to: row.getAttribute('data-layer') };
+      return null;
+    },
+    drop: (t, ev) => {
+      if (t.to === 'all') { z.layers = 'all'; toast(name + ' now keeps every layer out'); }
+      else {
+        const li = S.layers.findIndex(L => L.id === t.to), was = z.layers;
+        if (ev.altKey) z.layers = was === 'all' ? 'all' : (was.includes(t.to) ? was : was.concat([t.to]));
+        else z.layers = was === 'all' ? [t.to] : was.filter(id => id !== fromLayer).concat(was.includes(t.to) ? [] : [t.to]);
+        if (Array.isArray(z.layers) && S.layers.every(L => z.layers.includes(L.id))) z.layers = 'all';
+        toast(name + (ev.altKey ? ' added to ' : ' now only on ') + 'Layer ' + (li + 1) + (ev.altKey ? '' : '; other layers run through it'));
+      }
+      renderLayers(); if (flyGroup === 'keepout') renderFly(); requestRender(); pushHistory();
+    }
+  });
+  return c;
+}
 function fxDrag(el, e, fromLayer) {
   makeDrag(el, {
     click: () => { fxOpen.add(e.id); showTab('grad'); buildResponse(); requestRender(); },
@@ -4090,7 +4109,7 @@ function setMotifPanel(on) {
 }
 function renderKeepout(fly) {
   fly.append(E('div', { class: 'flyHead' }, E('span', { class: 'keepT' }, 'Keep-out areas'), E('button', { class: 'icon ghost', 'aria-label': 'Close', onclick: () => { flyGroup = null; renderShapes(); } }, '✕')));
-  fly.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Pieces are removed inside the red areas: around screw holes, logos, or anywhere the pattern should stop. Each area works on every layer until you narrow it: click it below and pick layers under Applies to, or untick it in a layer\u2019s Layout panel.'));
+  fly.append(E('p', { class: 'hint', style: 'margin-top:0' }, 'Pieces are removed inside the red areas: around screw holes, logos, or anywhere the pattern should stop. Each area works on every layer until you narrow it: click it below and pick layers under Applies to, or drag its red chip in the Layers list onto one layer.'));
   const tool = (t, label, svg) => { const b = E('button', { class: 'mini keepTool', onclick: () => startZoneTool(t) }); b.innerHTML = '<svg class="i" viewBox="0 0 24 24">' + svg + '</svg>' + label; return b; };
   fly.append(E('div', { class: 'btns', style: 'margin-top:0' }, tool('rect', 'Rectangle', '<rect x="4" y="6" width="16" height="12" rx="1"/>'), tool('ellipse', 'Ellipse', '<ellipse cx="12" cy="12" rx="8" ry="6"/>'), tool('poly', 'Draw', '<path d="M5 18 8 6l6 4 5-3-2 11z"/>')));
   const pick = E('details', { class: 'keepShapes' }, E('summary', {}, 'From a shape…'));
@@ -4103,7 +4122,7 @@ function renderKeepout(fly) {
     const name = (z.type === 'shape' && SHAPES[z.shapeId] ? SHAPES[z.shapeId].name : ZONE_NAMES[z.type]) + ' ' + (i + 1);
     list.append(E('div', { class: 'keepRow' + (i === selZone ? ' sel' : ''), onclick: () => selectZone(i === selZone ? -1 : i) },
       E('span', { class: 'keepSw' }), E('span', { class: 'nm' }, name, E('small', { class: 'keepFor' }, z.layers === 'all' ? ' · all layers' : ' · ' + (z.layers.length ? z.layers.map(id => 'Layer ' + (S.layers.findIndex(l => l.id === id) + 1)).filter(t => !/ 0$/.test(t)).join(', ') : 'no layer'))),
-      eyeBtn(z.on, z.on ? 'Turn this area off' : 'Turn this area on', ev => { ev.stopPropagation(); z.on = !z.on; renderFly(); requestRender(); pushHistory(); }),
+      eyeBtn(z.on, z.on ? 'Turn this area off' : 'Turn this area on', ev => { ev.stopPropagation(); z.on = !z.on; renderFly(); renderLayers(); requestRender(); pushHistory(); }),
       (() => { const b = E('button', { class: 'eye', title: 'Duplicate area (Ctrl/Cmd+D)', 'aria-label': 'Duplicate area', onclick: ev => { ev.stopPropagation(); duplicateZone(i); } }); b.innerHTML = '<svg class="i" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>'; return b; })(),
       (() => { const b = E('button', { class: 'eye', title: 'Delete area', 'aria-label': 'Delete area', onclick: ev => { ev.stopPropagation(); deleteZone(i); } }); b.innerHTML = '<svg class="i" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>'; return b; })()));
     if (i === selZone) {
@@ -4111,7 +4130,7 @@ function renderKeepout(fly) {
       list.append(E('div', { class: 'keepBody' },
         numRow('Margin', P('margin'), Q('margin'), 0, 30, 0.1, 'mm', 'Extra clear space around the area'),
         line(E('label', {}, 'Remove'), sel([['touch', 'Pieces that touch it'], ['centre', 'Pieces centred in it']], P('mode'), Q('mode'))),
-        pickPills('Applies to', S.layers.map((L, li) => [L.id, 'Layer ' + (li + 1)]), () => z.layers, v => { z.layers = v; }, () => { renderFly(); requestRender(); pushHistory(); })));
+        pickPills('Applies to', S.layers.map((L, li) => [L.id, 'Layer ' + (li + 1)]), () => z.layers, v => { z.layers = v; }, () => { renderFly(); renderLayers(); requestRender(); pushHistory(); })));
     }
   });
   fly.append(list);
@@ -4961,9 +4980,9 @@ function penHandles(a, h, px, grab, col, op) {
   return s;
 }
 const zoneAt = w => { for (let i = (S.excl || []).length - 1; i >= 0; i--) if (inPoly(zonePoly(S.excl[i]), w)) return i; return -1; };
-function selectZone(i) { selZone = i; if (i >= 0) { selCtrl = -1; selKnot = null; } if (flyGroup === 'keepout') renderFly(); requestRender(); }
+function selectZone(i) { selZone = i; renderLayers(); if (i >= 0) { selCtrl = -1; selKnot = null; } if (flyGroup === 'keepout') renderFly(); requestRender(); }
 function addZone(z, quiet) { S.excl.push(Object.assign({ id: 'z' + Math.random().toString(36).slice(2, 7), on: true, margin: 0, mode: 'touch', layers: 'all' }, z)); selectZone(S.excl.length - 1); if (!quiet) pushHistory(true); }
-function deleteZone(i) { if (!S.excl[i]) return; S.excl.splice(i, 1); selZone = -1; if (flyGroup === 'keepout') renderFly(); requestRender(); pushHistory(true); toast('Keep-out area deleted. Undo brings it back.'); }
+function deleteZone(i) { if (!S.excl[i]) return; S.excl.splice(i, 1); selZone = -1; renderLayers(); if (flyGroup === 'keepout') renderFly(); requestRender(); pushHistory(true); toast('Keep-out area deleted. Undo brings it back.'); }
 function startZoneTool(t) {
   zoneTool = t; zoneDraft = PEN_TOOLS[t] ? { pts: [], hs: [], hover: null, ci: t === 'curve' ? selCtrl : null, open: t === 'curve', col: t === 'poly' ? ZONE_RED : 'var(--ov)' } : null; flyGroup = null; renderShapes(); stage.style.cursor = 'crosshair';
   toast(t === 'outline' ? 'Draw the surface outline: click for a corner, click and drag for a curve, Shift for 45°. Click the first point or press Enter to finish. Backspace removes the last point, Esc cancels.' : t === 'curve' ? 'Pen tool: click for a corner, click and drag for a curve, Shift for 45°. Click the last point, double click or press Enter to finish. Backspace removes the last point, Esc cancels.' : t === 'poly' ? 'Pen tool: click for a corner, click and drag for a curve, Shift for 45°. Click the first point or press Enter to finish. Backspace removes the last point, Esc cancels.' : 'Drag on the canvas to draw the ' + ZONE_NAMES[t].toLowerCase() + '. Shift keeps it even.', 5200);
