@@ -59,6 +59,7 @@ echo '{"layers":[{"shape":"dot","group":"p6","cellW":6}]}' | node tools/render.m
 | `--offset mm` | DXF, STEP, STL: grow (plus) or shrink (minus) every outline, for kerf |
 | `--split n` (1 to 4) | STEP: split into n × n blocks (zipped) for heavy patterns |
 | `--no-expand` | SVG: keep copies as `<use>` references |
+| `--background` | SVG, PNG, JPG, WebP: include the surface colour behind the pattern (left out by default, so images are transparent) |
 | `--link` | Also print a share link for the pattern |
 
 It prints a JSON summary: piece count, open area (%), surface size, seamless tile size (if any), the files written and, with `--link`, the link. Check the summary before handing files over: `pieces` near 60,000 with `limitReached: true` means the spacing is too tight; `openArea` is what matters for vents and grilles.
@@ -284,7 +285,7 @@ Define your own with `svgShapes`, then use the id like any other:
 
 ### Export settings: `exp`
 
-`dpi`, `expand` (SVG copies as paths), `reliefH`, `baseT`, `solid` (`relief` or `perforated`, for STEP and STL), `split`, `stepTol`, `jpgQ`, `merge` (unite overlapping pieces in DXF, STEP and STL, within each layer), `mergeLayers` (with `merge`: across layers too), `offset` (mm, plus grows and minus shrinks every cut outline). The render script's options set these for you.
+`dpi`, `expand` (SVG copies as paths), `withBg` (true: SVG and images include the surface colour; default false, transparent), `reliefH`, `baseT`, `solid` (`relief` or `perforated`, for STEP and STL), `split`, `stepTol`, `jpgQ`, `merge` (unite overlapping pieces in DXF, STEP and STL, within each layer), `mergeLayers` (with `merge`: across layers too), `offset` (mm, plus grows and minus shrinks every cut outline). The render script's options set these for you.
 
 ***
 

@@ -151,7 +151,7 @@ There are 21 presets: Speaker grille, Laptop vent, Halftone dots, Sunflower, Vor
 
 ## Exports
 
-All exports are in real millimetres.
+All exports are in real millimetres. SVG, PNG and WebP leave the background out, so the pattern sits on transparency; tick **Include background** in the Export tab to add the surface colour behind it. JPG has no transparency, so without the background it goes on white.
 
 | Format | Use |
 |---|---|

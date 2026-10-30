@@ -28,8 +28,9 @@ function parseArgs(argv) {
     else if (a === '--no-expand') o.opts.expand = false;   // SVG: keep <use> copies instead of expanded paths
     else if (a === '--merge') o.opts.merge = true;         // DXF / STEP / STL: overlapping pieces become one outline, per layer
     else if (a === '--merge-layers') { o.opts.merge = true; o.opts.mergeLayers = true; } // ... and across layers
+    else if (a === '--background') o.opts.withBg = true;  // SVG / PNG / JPG / WebP: include the surface colour (left out by default)
     else if (a === '--offset') o.opts.offset = +v();       // DXF / STEP / STL: grow (+) or shrink (-) every outline, mm (kerf)
-    else if (a === '-h' || a === '--help') { console.log('Usage: node tools/render.mjs <pattern.json | link | -> [--format svg,png,dxf,step,stl,...] [--out dir] [--dpi 300] [--solid relief|perforated] [--merge] [--offset mm] [--link]'); process.exit(0); }
+    else if (a === '-h' || a === '--help') { console.log('Usage: node tools/render.mjs <pattern.json | link | -> [--format svg,png,dxf,step,stl,...] [--out dir] [--dpi 300] [--solid relief|perforated] [--merge] [--offset mm] [--background] [--link]'); process.exit(0); }
     else if (!o.input) o.input = a;
     else throw new Error('Unexpected argument: ' + a);
   }
