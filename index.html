@@ -1915,7 +1915,16 @@ function penToggle(z, k) {
   z.hs[k] = [a[0] - dx * li, a[1] - dy * li, a[0] + dx * lo, a[1] + dy * lo].map(v => +v.toFixed(2));
 }
 // The zone's outline in surface millimetres.
+// An area turned by z.rot degrees about its middle (rectangles, ellipses and shapes; drawn areas are turned by
+// moving their points, so their handles stay where you see them).
+const zoneCentre = z => z.type === 'poly' ? (b => [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2])(bboxOf(z.pts || [[0, 0]])) : [z.x + z.w / 2, z.y + z.h / 2];
+const rotAbout = (q, c, deg) => { const a = deg * D2R, ca = Math.cos(a), sa = Math.sin(a), dx = q[0] - c[0], dy = q[1] - c[1]; return [c[0] + dx * ca - dy * sa, c[1] + dx * sa + dy * ca]; };
 function zonePoly(z) {
+  const P = zonePoly0(z);
+  if (!z.rot || z.type === 'poly' || !P.length) return P;
+  const c = zoneCentre(z); return P.map(q => rotAbout(q, c, z.rot));
+}
+function zonePoly0(z) {
   if (z.type === 'rect') return [[z.x, z.y], [z.x + z.w, z.y], [z.x + z.w, z.y + z.h], [z.x, z.y + z.h]];
   if (z.type === 'ellipse') { const out = [], cx = z.x + z.w / 2, cy = z.y + z.h / 2; for (let i = 0; i < 48; i++) { const t = i / 48 * TAU; out.push([cx + Math.cos(t) * z.w / 2, cy + Math.sin(t) * z.h / 2]); } return out; }
   if (z.type === 'poly') return penOutline(z.pts || [], z.hs);
@@ -1973,7 +1982,7 @@ const FX_KINDS = {
   opacity: { label: 'Opacity', desc: 'Fades pieces where the gradient is weak; set how far the fade reaches', p: { min: 0.2, w: 1 }, icon: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 20 20 4" opacity=".5"/>' },
   drop: { label: 'Drop out', desc: 'Removes pieces where the gradient is weak', p: { mode: 'threshold', t: 0.3 }, icon: '<circle cx="7" cy="12" r="2.5"/><circle cx="17" cy="12" r="2.5" stroke-dasharray="2 2"/>' },
   color: { label: 'Colour', desc: 'Blends from a far colour to each layer’s own colour', p: { c2: '#e8b04a' }, icon: '<path d="M12 4a8 8 0 1 0 0 16c1 0 1.5-.7 1.5-1.4 0-1.2-1.1-1.3-1.1-2.5 0-.9.7-1.4 1.6-1.4H16a4 4 0 0 0 4-4C20 7 16.4 4 12 4z"/>' },
-  melt: { label: 'Melt', desc: 'Fuses nearby pieces into soft liquid blobs and rounds every corner, like ink, wax or cells. Works without a gradient', p: { r: 1.5, t: 0.5, min: 1 }, free: true, icon: '<path d="M5 9a4 4 0 0 1 7-2.6A4 4 0 1 1 15 14c-.5 2.5 1 4 1 6M5 9c0 2 1.3 3.4 3 3.8.3 2.4-1.2 4-1 6"/>' },
+  melt: { label: 'Melt', desc: 'Fuses nearby pieces into soft liquid blobs and rounds every corner, like ink, wax or cells. Works without a gradient', p: { r: 1.5, t: 0.5, min: 1, keep: true }, free: true, icon: '<path d="M5 9a4 4 0 0 1 7-2.6A4 4 0 1 1 15 14c-.5 2.5 1 4 1 6M5 9c0 2 1.3 3.4 3 3.8.3 2.4-1.2 4-1 6"/>' },
   morph: { label: 'Morph shape', desc: 'Turns one shape into another across the gradient', p: { shape: 'star', steps: 10 }, shapes: true, icon: '<rect x="3" y="8" width="7" height="7" rx="1"/><path d="M17 6l1.5 3.2 3.5.4-2.6 2.3.7 3.4-3.1-1.7-3.1 1.7.7-3.4L12 9.6l3.5-.4z"/>' }
 };
 // Older "feather" effects were opacity that only fades the weak end of the gradient.
@@ -2926,7 +2935,27 @@ function layerOut(L, idx, R, reg, mode, F, budget) {
   const lo = layerOutRaw(L, idx, R, reg, mode, F, budget), m = fxKind(L, 'melt')[0];
   if (!m || !lo.count || !(m.p.r > 0)) return lo;
   const polys = cutZones(L, meltLayer(L, lo, reg, m));
-  return { kind: 'geom', polys: polys, over: lo.over, count: polys.length, melted: true };
+  return { kind: 'geom', polys: polys, over: lo.over, count: polys.length, melted: true, paint: meltPaint(L, reg, R) };
+}
+// The colour and opacity effects (and a fading edge feather) as a picture over the surface, for a melted layer:
+// its fused outlines are filled with it, so colour and fades still follow the gradients after melting.
+function meltPaint(L, reg, R) {
+  const fx = fxOf(L).filter(e => e.kind === 'color' || e.kind === 'opacity'), fade = R.featherOn && R.featherW > 0 && /fade/.test(R.featherMode);
+  if (!fx.length && !fade) return null;
+  const key = JSON.stringify([fx.map(e => [e.kind, e.p, e.n]), fade ? [R.featherW, R.featherCurve] : 0, fieldKey, L.fill, reg.x0, reg.y0, reg.x1, reg.y1, S.region]);
+  return solvedOnce(L, 'meltpaint', key, () => {
+    const w = reg.x1 - reg.x0, h = reg.y1 - reg.y0, cell = Math.max(w, h) / 320, nx = Math.max(2, Math.ceil(w / cell)), ny = Math.max(2, Math.ceil(h / cell));
+    const cv = document.createElement('canvas'); cv.width = nx; cv.height = ny;
+    const ctx = cv.getContext('2d'), im = ctx.createImageData(nx, ny), d = im.data;
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const p = [reg.x0 + (i + 0.5) * cell, reg.y0 + (j + 0.5) * cell]; let col = null, op = 1;
+      fx.forEach(e => { const v = e.F.v(p); if (e.kind === 'color') col = lerpColor(e.p.c2, col || L.fill, v); else { const ww = e.p.w == null ? 1 : e.p.w; op *= e.p.min + (1 - e.p.min) * (ww >= 1 ? v : CURVES.smooth(clamp(v / Math.max(0.01, ww), 0, 1))); } });
+      if (fade) op *= featherF(reg, R, p);
+      const c = hexRGB(col || L.fill), k = (j * nx + i) * 4; d[k] = c[0]; d[k + 1] = c[1]; d[k + 2] = c[2]; d[k + 3] = Math.round(clamp(op, 0, 1) * 255);
+    }
+    ctx.putImageData(im, 0, 0);
+    return { href: cv.toDataURL('image/png'), x: reg.x0, y: reg.y0, w: nx * cell, h: ny * cell };
+  });
 }
 // Melt: every piece is painted on a fine grid, blurred, and traced again where the blur crosses a level (the
 // "gooey" blur and threshold trick). Nearby pieces join with soft necks, corners round, small bits dissolve.
@@ -2936,7 +2965,7 @@ function meltLayer(L, lo, reg, e) {
   let h1 = 0x811c9dc5, h2 = 0; const mix = v => { const q = Math.round(v * 1000); h1 = Math.imul(h1 ^ q, 16777619); h2 = (h2 + q * 31) | 0; };
   if (lo.kind === 'inst') lo.items.forEach(it => { it.T.forEach(mix); mix(it.m); mix(it.sh ? 1 : 0); });
   else lo.polys.forEach(pg => { pg.pts.forEach(q => { mix(q[0]); mix(q[1]); }); (pg.holes || []).forEach(hh => mix(hh.length)); });
-  const key = JSON.stringify([h1, h2, lo.count, r, t, mn, F.active ? fieldKey : '', reg.x0, reg.y0, reg.x1, reg.y1, S.region]);
+  const key = JSON.stringify([h1, h2, lo.count, r, t, mn, p.keep !== false, F.active ? fieldKey : '', reg.x0, reg.y0, reg.x1, reg.y1, S.region]);
   return solvedOnce(L, 'melt', key, () => {
     const pad = r * 2 + 1, x0 = reg.x0 - pad, y0 = reg.y0 - pad, w = reg.x1 - reg.x0 + 2 * pad, hgt = reg.y1 - reg.y0 + 2 * pad;
     const fine = mn < 1 && F.active ? Math.max(r * mn, r * 0.2) : r, st = Math.max(fine / 7, Math.sqrt(w * hgt / 3.5e6), 0.02), nx = Math.ceil(w / st) + 1, ny = Math.ceil(hgt / st) + 1;
@@ -2966,6 +2995,8 @@ function meltLayer(L, lo, reg, e) {
       return out;
     };
     let B = blur(A, r / 2 / st);
+    // keep every piece: nothing smaller than the melt dissolves away, so a gradient that shrinks pieces still shows
+    if (p.keep !== false) { const Bk = blur(A, 0.8); for (let k = 0; k < B.length; k++) if (Bk[k] > B[k]) B[k] = Bk[k]; }
     if (mn < 1 && F.active) {
       // less melt where the gradient is weak: blend towards a smaller blur, with the gradient read on a coarse grid
       const B2 = blur(A, Math.max(0.01, r * mn) / 2 / st), g = 8, gx = Math.ceil(nx / g) + 1, gy = Math.ceil(ny / g) + 1, G = new Float32Array(gx * gy);
@@ -3072,6 +3103,13 @@ function layerSVG(lo, L, idx, o) {
     let body = '';
     groups.forEach((list, key) => { const kk = key.split('|'); body += '<path d="' + loopsD(list) + '"' + (kk[0] ? ' fill="' + kk[0] + '"' : '') + (kk[1] ? ' opacity="' + kk[1] + '"' : '') + '/>'; });
     const cas = !disp && L.casing > 0 && lo.polys.length ? '<path d="' + loopsD(lo.polys.flatMap(pg => [pg.pts].concat(pg.holes || []))) + '" fill="' + esc(L.casingCol || S.region.bg) + '" stroke="' + esc(L.casingCol || S.region.bg) + '" stroke-width="' + fmt(2 * L.casing) + '" stroke-linejoin="round"/>' : '';
+    if (lo.paint && !disp && lo.polys.length) {
+      // a melted layer with colour or opacity effects: the gradients' picture, cut to the fused outlines
+      const id = 'mp' + (++GRAD_SEQ), P = lo.paint, d = loopsD(lo.polys.flatMap(pg => [pg.pts].concat(pg.holes || [])));
+      return '<g data-layer="' + idx + '"' + at + '><defs><clipPath id="' + id + '"><path d="' + d + '" clip-rule="evenodd"/></clipPath></defs>' + cas +
+        '<image xlink:href="' + P.href + '" x="' + fmt(P.x) + '" y="' + fmt(P.y) + '" width="' + fmt(P.w) + '" height="' + fmt(P.h) + '" preserveAspectRatio="none" clip-path="url(#' + id + ')"/>' +
+        (L.strokeOn ? '<path d="' + d + '" fill="none" fill-rule="evenodd"/>' : '') + '</g>';
+    }
     return '<g data-layer="' + idx + '"' + at + '>' + (defs ? '<defs>' + defs + '</defs>' : '') + cas + body + grads + '</g>';
   }
   const sh = lo.sh, size = Math.max(1e-6, eff(L).size);
@@ -3630,9 +3668,10 @@ function buildResponse() {
       }
       if (e.kind === 'melt') {
         body.append(numRow('Melt', P('r'), Q('r'), 0.1, 20, 0.05, 'mm', 'Pieces closer than about this fuse, and corners round off this much'),
-          numRow('Thin ← → fat', () => 1 - e.p.t, v => { e.p.t = 1 - v; }, 0.15, 0.85, 0.01, '', 'Higher swells the blobs so more of them join; lower thins them and lets small pieces dissolve'));
+          numRow('Thin ← → fat', () => 1 - e.p.t, v => { e.p.t = 1 - v; }, 0.15, 0.85, 0.01, '', 'Higher swells the blobs so more of them join; lower thins them'),
+          line(chk('Keep small pieces', () => e.p.keep !== false, v => { e.p.keep = v; }, 'On: every piece stays, however small, so a size gradient still shows. Off: pieces much smaller than the melt dissolve away')));
         if (S.ctrls.length) body.append(numRow('Melt far from gradient', P('min'), Q('min'), 0, 1, 0.01, '×', '1 melts evenly everywhere; lower keeps pieces crisp where the gradient is weak'));
-        body.append(E('p', { class: 'hint' }, 'A melted layer becomes one set of outlines in the layer colour, so it exports as fused shapes. Per piece colours and opacity are left out.'));
+        body.append(E('p', { class: 'hint' }, 'Melt always works last: size, density and drop out shape the pieces first, then they fuse, and colour and opacity effects paint the fused shapes. The fused outlines are what DXF, STEP and STL export.'));
       }
       if (e.kind === 'color') body.append(line(E('label', {}, 'Far colour'), color(P('c2'), Q('c2')), E('span', { class: 'hint' }, '→ near = each layer’s fill colour')));
       if (e.kind === 'morph') {
@@ -3702,6 +3741,21 @@ function buildGradients() {
   }
   bt.append(E('button', { class: 'mini', title: 'Or select it on the canvas and press Delete', onclick: () => deleteCtrl(selCtrl) }, 'Delete controller'));
   box.append(bt);
+  // which effects this gradient drives (the same switch as Driven by on each effect card, seen from the gradient)
+  if ((S.fx || []).length) {
+    const drives = e => e.src === 'all' || e.src.includes(c.id), after = () => { buildGradients(); buildResponse(); renderLayers(); requestRender(); pushHistory(); };
+    const wrap = E('div', { class: 'pills' }, E('span', { class: 'pillsT' }, 'Drives'));
+    S.fx.forEach((e, n) => wrap.append(E('button', { class: 'pill' + (drives(e) ? ' on' : ''), 'aria-pressed': drives(e) ? 'true' : 'false', title: 'Turn on or off whether this gradient drives this effect',
+      onclick: () => {
+        let ids = e.src === 'all' ? S.ctrls.map(x => x.id) : e.src.slice();
+        ids = drives(e) ? ids.filter(id => id !== c.id) : ids.concat([c.id]);
+        e.src = S.ctrls.length > 1 && S.ctrls.every(x => ids.includes(x.id)) ? 'all' : ids; after();
+      } }, (n + 1) + ' ' + FX_KINDS[e.kind].label)));
+    box.append(wrap);
+    if (S.ctrls.length > 1) box.append(E('div', { class: 'btns' },
+      E('button', { class: 'mini', title: 'Every effect follows this gradient alone; the others stop driving them', onclick: () => { S.fx.forEach(e => { e.src = [c.id]; }); after(); toast('Every effect now follows gradient ' + (selCtrl + 1) + ' only'); } }, 'Only this one drives every effect'),
+      E('button', { class: 'mini', title: 'Every gradient drives every effect again', onclick: () => { S.fx.forEach(e => { e.src = 'all'; }); after(); toast('All gradients drive every effect again'); } }, 'All gradients drive all')));
+  }
 }
 let imgTarget = null;
 // Use a shape as the surface outline. With a real size it goes in at that size (centred on `at`, or the middle)
@@ -3905,7 +3959,7 @@ const PRESETS = [
         { id: 'D', layout: 'scatter', shape: 'dot', lay: { spacing: 0.7, seed: 2 }, size: 0.75, fill: '#1a1207', vary: { size: 0.7 } },
         { id: 'S', layout: 'scatter', shape: 'dot', lay: { spacing: 0.9, seed: 5, relax: 1 }, size: 0.4, fill: '#1a1207', vary: { size: 0.8 } },
         { id: 'B', layout: 'scatter', shape: 'dot', lay: { spacing: 5, seed: 9, relax: 1 }, size: 1.2, fill: '#1a1207', vary: { size: 0.6 } }]);
-    S.fx = normFx([{ kind: 'drop', p: { mode: 'threshold', t: 0.785 }, src: ['t'], layers: ['D'] }, { kind: 'melt', p: { r: 0.9, t: 0.42 }, layers: ['D'] },
+    S.fx = normFx([{ kind: 'drop', p: { mode: 'threshold', t: 0.785 }, src: ['t'], layers: ['D'] }, { kind: 'melt', p: { r: 0.9, t: 0.42, keep: false }, layers: ['D'] },
       { kind: 'drop', p: { mode: 'bands', n: 1, w: 0.8 }, src: ['t'], layers: ['S'] }, { kind: 'drop', p: { mode: 'dither' }, src: ['t'], layers: ['S'] }, { kind: 'drop', p: { mode: 'threshold', t: 0.55 }, src: ['t'], layers: ['S'] },
       { kind: 'drop', p: { mode: 'bands', n: 1, w: 0.5 }, src: ['t'], layers: ['B'] }, { kind: 'drop', p: { mode: 'threshold', t: 0.3 }, src: ['t'], layers: ['B'] }]);
   }],
@@ -4129,6 +4183,7 @@ function renderKeepout(fly) {
       const P = k => () => z[k], Q = k => v => { z[k] = v; };
       list.append(E('div', { class: 'keepBody' },
         numRow('Margin', P('margin'), Q('margin'), 0, 30, 0.1, 'mm', 'Extra clear space around the area'),
+        z.type === 'poly' ? E('p', { class: 'hint' }, 'Drag the round handle above the area to turn it (Shift: 15° steps).') : numRow('Rotation', () => z.rot || 0, Q('rot'), -180, 180, 0.5, '°', 'Turns the area about its middle. The round handle above it on the canvas does the same'),
         line(E('label', {}, 'Remove'), sel([['touch', 'Pieces that touch it'], ['centre', 'Pieces centred in it']], P('mode'), Q('mode'))),
         pickPills('Applies to', S.layers.map((L, li) => [L.id, 'Layer ' + (li + 1)]), () => z.layers, v => { z.layers = v; }, () => { renderFly(); renderLayers(); requestRender(); pushHistory(); })));
     }
@@ -4954,7 +5009,13 @@ function zonesOverlay(px) {
       if (z.type === 'poly') {
         (z.hs || []).forEach((h, k) => { if (h) s += penHandles(z.pts[k], h, px, (x, y, w) => HANDLES.push({ x: x, y: y, ci: -4, key: w + k })); });
         z.pts.forEach((q, k) => hd(q[0], q[1], 'zv' + k));
-      } else hd(z.x + z.w, z.y + z.h, 'zs');
+      } else { const q = rotAbout([z.x + z.w, z.y + z.h], zoneCentre(z), z.rot || 0); hd(q[0], q[1], 'zs'); }
+      // a round handle above the area turns it (Shift: steps of 15°)
+      const c = zoneCentre(z), bb = bboxOf(P), up = Math.max(bb[3] - bb[1], bb[2] - bb[0]) / 2 + 18 * px;
+      const rq = z.type === 'poly' ? [c[0], c[1] - up] : rotAbout([c[0], c[1] - z.h / 2 - 18 * px], c, z.rot || 0), top = z.type === 'poly' ? [c[0], c[1] - (c[1] - bb[1])] : rotAbout([c[0], c[1] - z.h / 2], c, z.rot || 0);
+      s += '<line x1="' + fmt(top[0]) + '" y1="' + fmt(top[1]) + '" x2="' + fmt(rq[0]) + '" y2="' + fmt(rq[1]) + '" stroke="' + ZONE_RED + '" stroke-width="1.2" vector-effect="non-scaling-stroke"/>';
+      HANDLES.push({ x: rq[0], y: rq[1], ci: -4, key: 'zr' });
+      s += '<circle cx="' + fmt(rq[0]) + '" cy="' + fmt(rq[1]) + '" r="' + fmt(hs * 1.1) + '" fill="#fff" stroke="' + ZONE_RED + '" stroke-width="2" vector-effect="non-scaling-stroke"><title>Drag to turn (Shift: 15° steps)</title></circle>';
     }
   });
   const D = zoneDraft;
@@ -5334,7 +5395,23 @@ stage.addEventListener('pointermove', ev => {
   }
   if (drag.handle && drag.handle.ci === -4) {
     const z = S.excl[selZone], k = drag.handle.key, w = snapPoint(toWorld(ev), ev);
-    if (k === 'zs') { let nw = Math.max(1, w[0] - z.x), nh = Math.max(1, w[1] - z.y); if (ev.shiftKey && drag.z0.w && drag.z0.h) { const r = drag.z0.w / drag.z0.h; if (nw / nh > r) nh = nw / r; else nw = nh * r; } z.w = +nw.toFixed(2); z.h = +nh.toFixed(2); }
+    if (k === 'zr') {
+      // turn: a box keeps its angle in z.rot; a drawn area has its points turned about its middle
+      const o = drag.z0, c = zoneCentre(o), ang = Math.atan2(w[1] - c[1], w[0] - c[0]) / D2R + 90;
+      if (z.type === 'poly') {
+        if (drag.rot0 == null) drag.rot0 = ang;
+        let da = ang - drag.rot0; if (ev.shiftKey) da = Math.round(da / 15) * 15;
+        const r2 = q => rotAbout(q, c, da).map(v => +v.toFixed(2));
+        z.pts = o.pts.map(r2); if (o.hs) z.hs = o.hs.map(h => h ? r2([h[0], h[1]]).concat(r2([h[2], h[3]])) : 0);
+      } else { let a = ((ang + 540) % 360) - 180; if (ev.shiftKey) a = Math.round(a / 15) * 15; z.rot = +a.toFixed(1); }
+    }
+    else if (k === 'zs') {
+      // resize with the opposite corner held still, in the area's own turned frame
+      const o = drag.z0, rt = o.rot || 0, anchor = rotAbout([o.x, o.y], [o.x + o.w / 2, o.y + o.h / 2], rt), loc = rotAbout(w, anchor, -rt);
+      let nw = Math.max(1, loc[0] - anchor[0]), nh = Math.max(1, loc[1] - anchor[1]); if (ev.shiftKey && o.w && o.h) { const r = o.w / o.h; if (nw / nh > r) nh = nw / r; else nw = nh * r; }
+      const c = rotAbout([anchor[0] + nw / 2, anchor[1] + nh / 2], anchor, rt);
+      z.w = +nw.toFixed(2); z.h = +nh.toFixed(2); z.x = +(c[0] - nw / 2).toFixed(2); z.y = +(c[1] - nh / 2).toFixed(2);
+    }
     else {
       // an anchor carries its handles along; a handle keeps the opposite one in line (Alt lets it bend)
       const i = +k.slice(2), r = v => +v.toFixed(2), a = drag.z0.pts[i], h0 = drag.z0.hs && drag.z0.hs[i];
@@ -5398,7 +5475,7 @@ const endDrag = ev => {
   if (drag && drag.zonePen != null) { const close = drag.close; drag = null; if (close) finishPoly(); else requestRender(); return; }
   if (drag && drag.zoneNew) { const z = S.excl[selZone]; if (!z || z.w < 1 || z.h < 1) { S.excl.splice(selZone, 1); selZone = -1; toast('Too small: drag a bigger area'); } else { pushHistory(true); toast(ZONE_NAMES[z.type] + ' keep-out area added. Drag to move it, the corner to resize, Delete to remove.'); } zoneTool = null; stage.style.cursor = ''; drag = null; requestRender(); return; }
   if (drag && drag.zoneMove != null) { if (drag.moved) pushHistory(true); drag = null; stage.style.cursor = ''; if (snapGuide) snapGuide = null; requestRender(); return; }
-  if (drag && drag.handle) { pushHistory(); if (drag.handle.key === 'centre') buildLayout(); if (drag.handle.key.startsWith('cell')) buildLayerControls(); if (drag.handle.key.startsWith('crop-')) rebuildAll(); }
+  if (drag && drag.handle) { pushHistory(); if (drag.handle.ci === -4 && flyGroup === 'keepout') renderFly(); if (drag.handle.key === 'centre') buildLayout(); if (drag.handle.key.startsWith('cell')) buildLayerControls(); if (drag.handle.key.startsWith('crop-')) rebuildAll(); }
   else if (drag && drag.mode !== 'pan' && drag.moved) { buildLayerControls(); pushHistory(); }
   else if (drag && drag.mode === 'pan' && Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 4 && (selCtrl >= 0 || selKnot || selZone >= 0)) { selCtrl = -1; selKnot = null; selZone = -1; buildGradients(); if (flyGroup === 'keepout') renderFly(); requestRender(); }
   drag = null; stage.style.cursor = spaceDown ? 'grab' : '';

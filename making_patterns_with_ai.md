@@ -217,7 +217,7 @@ To point an effect at particular gradients or layers, give those gradients and l
 | `drop` | `mode` (`threshold`, `dither` or `bands`), `t`; for `bands`: `n` (steps) and `w` (share of each step kept) | Remove pieces where the gradient is weak, or keep only bands of it |
 | `color` | `c2` (far colour) | Blend from `c2` to each layer's `fill` |
 | `morph` | `shape`, `steps` | Morph into another shape across the gradient |
-| `melt` | `r` (mm: pieces closer than this fuse, corners round this much), `t` (0.05 to 0.95, the level traced: lower is fatter), `min` (0 to 1, how much it melts where the gradient is 0) | Fuses the layer's pieces into soft liquid outlines. Needs no gradient; the layer becomes fused outlines in its fill colour |
+| `melt` | `r` (mm: pieces closer than this fuse, corners round this much), `t` (0.05 to 0.95, the level traced: lower is fatter), `min` (0 to 1, how much it melts where the gradient is 0), `keep` (default true: no piece dissolves, however small; false lets pieces much smaller than `r` vanish) | Fuses the layer's pieces into soft liquid outlines, always after the other effects: size, density and drop out shape the pieces first, and colour and opacity effects paint the fused shapes. Needs no gradient |
 
 `rot`, `align` and `morph` act on shape layers only. Older projects stored responses per layer as `"mod": { "size": { "on": true, … } }`, and had a separate `feather` kind (now `opacity` with `w`); those still load and become effects for that layer.
 
@@ -258,6 +258,7 @@ Red areas where pieces are removed (screw holes, logos, clear bands). Coordinate
 | `margin` | Extra clear space around the area, mm | 0 |
 | `mode` | `touch` removes pieces that touch the area; `centre` only those centred in it | `touch` |
 | `layers` | `"all"` or a list of layer `id`s the area cuts into; the other layers run straight through it. Give layers an `id` to use this | `"all"` |
+| `rot` | `rect`, `ellipse`, `shape`: turn the area this many degrees about its middle (drawn `poly` areas are turned by their points) | 0 |
 | `on` | Turn the area off without removing it | `true` |
 
 ### Shapes
@@ -340,7 +341,7 @@ Define your own with `svgShapes`, then use the id like any other:
               { "id": "S", "layout": "scatter", "shape": "dot", "lay": { "spacing": 0.9, "seed": 5, "relax": 1 }, "size": 0.4, "fill": "#1a1207", "vary": { "size": 0.8 } },
               { "id": "B", "layout": "scatter", "shape": "dot", "lay": { "spacing": 5, "seed": 9, "relax": 1 }, "size": 1.2, "fill": "#1a1207", "vary": { "size": 0.6 } } ],
   "fx": [ { "kind": "drop", "p": { "mode": "threshold", "t": 0.785 }, "src": ["t"], "layers": ["D"] },
-          { "kind": "melt", "p": { "r": 0.9, "t": 0.42 }, "layers": ["D"] },
+          { "kind": "melt", "p": { "r": 0.9, "t": 0.42, "keep": false }, "layers": ["D"] },
           { "kind": "drop", "p": { "mode": "bands", "n": 1, "w": 0.8 }, "src": ["t"], "layers": ["S"] },
           { "kind": "drop", "p": { "mode": "dither" }, "src": ["t"], "layers": ["S"] },
           { "kind": "drop", "p": { "mode": "threshold", "t": 0.55 }, "src": ["t"], "layers": ["S"] },
